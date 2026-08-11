@@ -1,5 +1,6 @@
 import { Checkbox } from '@cloudflare/kumo'
 import type { RpcStub } from 'capnweb'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { GatekeeperIcon } from './GatekeeperIcon'
 import { WorkshopInput, WorkshopInputArea } from './WorkshopControls'
 import type { BlueprintBindingAnnotation, GadgetClient, GatekeeperCreationSpec } from '@gadgets/workshop-shared/api'
@@ -12,18 +13,28 @@ export type BindingCardData = {
   annotation: BlueprintBindingAnnotation
 }
 
-export function suggestValueLabel(spec: GatekeeperCreationSpec, title?: string): string {
+export function suggestValueLabel(
+  spec: GatekeeperCreationSpec,
+  title: string | undefined,
+  formatMessage: IntlShape['formatMessage'],
+): string {
   const displayTitle = title?.trim()
+  if (displayTitle) {
+    return formatMessage(
+      { id: 'blueprintBindingCard.suggestWithTitle', defaultMessage: 'Suggest "{title}" by default' },
+      { title: displayTitle },
+    )
+  }
   switch (spec.type) {
     case 'gatekeeper':
-      return displayTitle ? `Suggest "${displayTitle}" by default` : 'Suggest this resource by default'
+      return formatMessage({ id: 'blueprintBindingCard.suggestResourceDefault', defaultMessage: 'Suggest this resource by default' })
     case 'aiModel':
-      return displayTitle ? `Suggest "${displayTitle}" by default` : 'Suggest this model by default'
+      return formatMessage({ id: 'blueprintBindingCard.suggestModelDefault', defaultMessage: 'Suggest this model by default' })
     case 'agentSpawner':
-      return displayTitle ? `Suggest "${displayTitle}" by default` : 'Suggest this agent setup by default'
+      return formatMessage({ id: 'blueprintBindingCard.suggestAgentDefault', defaultMessage: 'Suggest this agent setup by default' })
     case 'ambient':
       // Ambient resources are auto-provided and excluded from blueprints, so this never renders.
-      return 'Suggest this by default'
+      return formatMessage({ id: 'blueprintBindingCard.suggestDefault', defaultMessage: 'Suggest this by default' })
   }
 }
 
@@ -39,6 +50,7 @@ export function BlueprintBindingCard({
   /** When true, render without the outer card chrome (border, background, divider). */
   flat?: boolean
 }) {
+  const { formatMessage } = useIntl()
   const { bindingName, resourceTitle, vendorId, creationSpec, annotation } = data
   const titleId = `blueprint-binding-title-${bindingName}`
   const descriptionId = `blueprint-binding-desc-${bindingName}`
@@ -60,17 +72,26 @@ export function BlueprintBindingCard({
       <div className={headerClass}>
         <GatekeeperIcon vendorId={vendorId} fallbackText={resourceTitle || bindingName} />
         <div className="min-w-0 flex-1">
-          <label htmlFor={titleId} className="sr-only">Connection name</label>
+          <label htmlFor={titleId} className="sr-only">
+            <FormattedMessage id="blueprintBindingCard.connectionNameLabel" defaultMessage="Connection name" />
+          </label>
           <WorkshopInput
             id={titleId}
-            aria-label={`Name for ${bindingName}`}
+            aria-label={formatMessage(
+              { id: 'blueprintBindingCard.nameForBinding', defaultMessage: 'Name for {bindingName}' },
+              { bindingName },
+            )}
             value={annotation.title}
             onChange={(e) => onChange({ ...annotation, title: e.target.value })}
-            placeholder="Connection name"
+            placeholder={formatMessage({ id: 'blueprintBindingCard.connectionNameLabel', defaultMessage: 'Connection name' })}
             className="!h-8 w-full bg-kumo-base text-[13px] leading-5 font-medium tracking-[-0.25px]"
           />
           <p className="mt-1 text-[11px] leading-4 tracking-[-0.1px] text-kumo-inactive">
-            Referenced in code as: <span className="font-mono text-kumo-subtle">{bindingName}</span>
+            <FormattedMessage
+              id="blueprintBindingCard.referencedInCodeAs"
+              defaultMessage="Referenced in code as: {bindingName}"
+              values={{ bindingName: <span className="font-mono text-kumo-subtle">{bindingName}</span> }}
+            />
           </p>
         </div>
       </div>
@@ -78,10 +99,13 @@ export function BlueprintBindingCard({
       <div className={descriptionWrapperClass}>
         <WorkshopInputArea
           id={descriptionId}
-          aria-label={`Help text for ${displayTitle}`}
+          aria-label={formatMessage(
+            { id: 'blueprintBindingCard.helpTextFor', defaultMessage: 'Help text for {displayTitle}' },
+            { displayTitle },
+          )}
           value={annotation.description}
           onChange={(e) => onChange({ ...annotation, description: e.target.value })}
-          placeholder="What should people connect here?"
+          placeholder={formatMessage({ id: 'blueprintBindingCard.helpTextPlaceholder', defaultMessage: 'What should people connect here?' })}
           rows={2}
           autoFocus={autoFocusDescription}
           className="w-full resize-none"
@@ -90,7 +114,7 @@ export function BlueprintBindingCard({
 
       <div className={footerClass}>
         <Checkbox
-          label={suggestValueLabel(creationSpec, resourceTitle)}
+          label={suggestValueLabel(creationSpec, resourceTitle, formatMessage)}
           checked={annotation.suggestValue ?? false}
           onCheckedChange={(checked) =>
             onChange({ ...annotation, suggestValue: checked === true })

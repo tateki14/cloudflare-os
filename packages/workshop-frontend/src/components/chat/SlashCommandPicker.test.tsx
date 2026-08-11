@@ -9,6 +9,7 @@ import type {
   Overseer, SlashCommandChoice,
 } from "@gadgets/workshop-shared/api";
 import { useSlashCommandPicker } from "./SlashCommandPicker";
+import { TestIntlProvider } from "../../i18n/testIntlProvider";
 
 (globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom implements no layout, so it ships no scrollIntoView.
@@ -63,7 +64,7 @@ function Harness({
     onSelect,
     chatExists,
   });
-  return <>
+  return <TestIntlProvider>
     <div ref={(element) => {
       anchorRef.current = element;
       if (element) {
@@ -88,7 +89,7 @@ function Harness({
       onClick={() => picker.setIndex(1)}
     />
     {picker.popup}
-  </>;
+  </TestIntlProvider>;
 }
 
 async function waitFor(check: () => boolean) {

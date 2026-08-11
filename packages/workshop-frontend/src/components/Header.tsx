@@ -4,6 +4,7 @@ import { useOptionalAuthenticatedApi } from '../AuthContext'
 import { useGatekeeperApps } from '../useGatekeeperApps'
 import { useSiteName } from '../ServerConfigContext'
 import { useState, useEffect, useRef } from 'react'
+import { FormattedMessage } from 'react-intl'
 import UserMenu from './UserMenu'
 import TopBarNotice from '../TopBarNotice'
 import SiteLogo from './SiteLogo'
@@ -62,7 +63,7 @@ export default function Header() {
               activeProps={{ className: navLinkActiveClass }}
               activeOptions={{ exact: true }}
             >
-              Home
+              <FormattedMessage id="header.home" defaultMessage="Home" />
             </Link>
             <Link
               to="/gatekeepers"
@@ -70,14 +71,14 @@ export default function Header() {
               activeProps={{ className: navLinkActiveClass }}
               activeOptions={{ exact: true }}
             >
-              Gatekeepers
+              <FormattedMessage id="header.gatekeepers" defaultMessage="Gatekeepers" />
             </Link>
             <Link
               to="/explore"
               className={navLinkClass}
               activeProps={{ className: navLinkActiveClass }}
             >
-              Explore
+              <FormattedMessage id="header.explore" defaultMessage="Explore" />
             </Link>
             {gatekeeperApps.map((app) => (
               <Link
@@ -125,7 +126,7 @@ export default function Header() {
               activeProps={{ className: navLinkActiveClass }}
               activeOptions={{ exact: true }}
             >
-              Home
+              <FormattedMessage id="header.home" defaultMessage="Home" />
             </Link>
             <Link
               to="/gatekeepers"
@@ -134,7 +135,7 @@ export default function Header() {
               activeProps={{ className: navLinkActiveClass }}
               activeOptions={{ exact: true }}
             >
-              Gatekeepers
+              <FormattedMessage id="header.gatekeepers" defaultMessage="Gatekeepers" />
             </Link>
             <Link
               to="/explore"
@@ -142,7 +143,7 @@ export default function Header() {
               className={navLinkClass}
               activeProps={{ className: navLinkActiveClass }}
             >
-              Explore
+              <FormattedMessage id="header.explore" defaultMessage="Explore" />
             </Link>
             {gatekeeperApps.map((app) => (
               <Link
@@ -167,7 +168,7 @@ export default function Header() {
                   className={navLinkClass}
                   activeProps={{ className: navLinkActiveClass }}
                 >
-                  Profile
+                  <FormattedMessage id="header.profile" defaultMessage="Profile" />
                 </Link>
                 <Link
                   to="/providers"
@@ -175,7 +176,7 @@ export default function Header() {
                   className={navLinkClass}
                   activeProps={{ className: navLinkActiveClass }}
                 >
-                  Providers
+                  <FormattedMessage id="header.providers" defaultMessage="Providers" />
                 </Link>
                 {auth.isAdmin && (
                   <Link
@@ -184,14 +185,14 @@ export default function Header() {
                     className={navLinkClass}
                     activeProps={{ className: navLinkActiveClass }}
                   >
-                    Admin
+                    <FormattedMessage id="header.admin" defaultMessage="Admin" />
                   </Link>
                 )}
                 <button
                   onClick={() => { closeMobileMenu(); auth.logout() }}
                   className="text-left text-sm px-3 py-1.5 rounded-md text-kumo-danger hover:bg-kumo-tint transition-colors"
                 >
-                  Sign out
+                  <FormattedMessage id="header.signOut" defaultMessage="Sign out" />
                 </button>
               </>
             )}

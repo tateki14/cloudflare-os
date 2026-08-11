@@ -5,6 +5,7 @@ import {
   Lightning,
   Star,
 } from "@phosphor-icons/react";
+import { useIntl } from "react-intl";
 import {
   BlueprintBinding,
   BlueprintMetadata,
@@ -71,9 +72,16 @@ export function BindingBadge({
   badge: BindingBadgeInfo;
   vendorDescriptions?: Map<string, VendorDescription>;
 }) {
+  const { formatMessage } = useIntl();
   const vendorDescription = badge.vendorKey
     ? vendorDescriptions?.get(badge.vendorKey)
     : undefined;
+  const typeLabel =
+    badge.type === "aiModel"
+      ? formatMessage({ id: "blueprintCard.aiModelLabel", defaultMessage: "AI Model" })
+      : badge.type === "agentSpawner"
+      ? formatMessage({ id: "blueprintCard.agentLabel", defaultMessage: "Agent" })
+      : badge.label;
 
   let icon: React.ReactNode;
   if (vendorDescription?.logo?.url) {
@@ -99,7 +107,7 @@ export function BindingBadge({
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-kumo-fill px-2 py-[3px] text-[11px] font-medium leading-none tracking-[-0.1px] text-kumo-subtle">
       <span className="flex items-center text-kumo-inactive">{icon}</span>
-      {vendorDescription?.displayName ?? badge.label}
+      {vendorDescription?.displayName ?? typeLabel}
     </span>
   );
 }
@@ -115,6 +123,7 @@ export function BlueprintCard({
   featured?: boolean;
   vendorDescriptions?: Map<string, VendorDescription>;
 }) {
+  const { formatMessage } = useIntl();
   const badges = uniqueBindingBadges(metadata.bindings);
 
   return (
@@ -129,7 +138,10 @@ export function BlueprintCard({
       <Link
         to="/blueprint/$id"
         params={{ id }}
-        aria-label={`Open blueprint ${metadata.title}`}
+        aria-label={formatMessage(
+          { id: "blueprintCard.openBlueprint", defaultMessage: "Open blueprint {title}" },
+          { title: metadata.title },
+        )}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kumo-brand"
       />
       <div className="pointer-events-none relative z-20 flex flex-1 flex-col p-4">
@@ -144,7 +156,8 @@ export function BlueprintCard({
               {metadata.title}
             </p>
             <p className={`mt-1.5 line-clamp-2 min-h-8 text-[12px] leading-4 font-normal tracking-[-0.2px] ${metadata.description ? "text-kumo-subtle" : "text-kumo-inactive italic"}`}>
-              {metadata.description || "No description"}
+              {metadata.description ||
+                formatMessage({ id: "blueprintCard.noDescription", defaultMessage: "No description" })}
             </p>
           </div>
         </div>

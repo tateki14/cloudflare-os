@@ -1,5 +1,6 @@
 import { Dialog } from '@cloudflare/kumo'
 import { X } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { WorkshopButton, WorkshopIconButton } from './WorkshopControls'
 
 interface AutoApproveConfirmDialogProps {
@@ -23,6 +24,7 @@ export default function AutoApproveConfirmDialog({
   onOpenChange,
   onConfirm,
 }: AutoApproveConfirmDialogProps) {
+  const { formatMessage } = useIntl()
   return (
     <Dialog.Root
       open={open}
@@ -37,12 +39,21 @@ export default function AutoApproveConfirmDialog({
         <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
           <div className="min-w-0">
             <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-              Always approve “{actionLabel}”?
+              <FormattedMessage
+                id="autoApproveConfirmDialog.title"
+                defaultMessage="Always approve “{actionLabel}”?"
+                values={{ actionLabel }}
+              />
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-              Future <span className="font-medium text-kumo-default">{actionLabel}</span> actions on{' '}
-              <span className="font-medium text-kumo-default">{resourceTitle}</span> will be applied
-              automatically, without asking for approval. This action will be applied now too.
+              <FormattedMessage
+                id="autoApproveConfirmDialog.description"
+                defaultMessage="Future {actionLabel} actions on {resourceTitle} will be applied automatically, without asking for approval. This action will be applied now too."
+                values={{
+                  actionLabel: <span className="font-medium text-kumo-default">{actionLabel}</span>,
+                  resourceTitle: <span className="font-medium text-kumo-default">{resourceTitle}</span>,
+                }}
+              />
             </Dialog.Description>
           </div>
           <Dialog.Close
@@ -51,7 +62,7 @@ export default function AutoApproveConfirmDialog({
                 {...props}
                 className="!h-7 !w-7"
                 disabled={isProcessing}
-                aria-label="Close"
+                aria-label={formatMessage({ id: 'autoApproveConfirmDialog.close', defaultMessage: 'Close' })}
               >
                 <X size={16} />
               </WorkshopIconButton>
@@ -63,7 +74,7 @@ export default function AutoApproveConfirmDialog({
           <Dialog.Close
             render={(props) => (
               <WorkshopButton {...props} className="!h-9" disabled={isProcessing}>
-                Cancel
+                <FormattedMessage id="autoApproveConfirmDialog.cancel" defaultMessage="Cancel" />
               </WorkshopButton>
             )}
           />
@@ -73,7 +84,9 @@ export default function AutoApproveConfirmDialog({
             disabled={isProcessing}
             className="!h-9 min-w-[64px]"
           >
-            {isProcessing ? 'Enabling...' : 'Always approve'}
+            {isProcessing
+              ? <FormattedMessage id="autoApproveConfirmDialog.enabling" defaultMessage="Enabling..." />
+              : <FormattedMessage id="autoApproveConfirmDialog.alwaysApprove" defaultMessage="Always approve" />}
           </WorkshopButton>
         </div>
       </Dialog>

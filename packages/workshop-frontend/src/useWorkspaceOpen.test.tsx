@@ -13,6 +13,7 @@ import {
   type Overseer,
 } from '@gadgets/workshop-shared/api'
 import WorkspaceOpenErrorPage from './components/WorkspaceOpenErrorPage'
+import { TestIntlProvider } from './i18n/testIntlProvider'
 import { useWorkspaceOpen } from './useWorkspaceOpen'
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -53,11 +54,13 @@ function WorkspaceProbe({ authenticatedApi }: { authenticatedApi: RpcStub<Authen
   })
   if (state.error?.kind === 'open') {
     return (
-      <WorkspaceOpenErrorPage
-        kind={state.error.failure}
-        onGoToWorkspaces={() => {}}
-        onRetry={state.retry}
-      />
+      <TestIntlProvider>
+        <WorkspaceOpenErrorPage
+          kind={state.error.failure}
+          onGoToWorkspaces={() => {}}
+          onRetry={state.retry}
+        />
+      </TestIntlProvider>
     )
   }
   return <p>{state.metadata?.title}</p>

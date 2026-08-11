@@ -11,6 +11,7 @@ import {
 } from '@phosphor-icons/react'
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { DropdownMenu, useKumoToastManager } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { useAuthenticatedApi } from '../AuthContext'
 import { MENU_CONTENT, MENU_ITEM, MENU_ITEM_DANGER } from './menuStyles'
 
@@ -32,15 +33,28 @@ type BlueprintItem = {
 const ACTION_BUTTON =
   'press inline-flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-kumo-line bg-kumo-base px-3.5 text-[13px] font-medium tracking-[-0.25px] text-kumo-default transition-colors hover:bg-kumo-tint disabled:cursor-default disabled:opacity-50'
 
-function formatRelativeTime(date: Date): string {
+function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
   const diff = Date.now() - date.getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return formatMessage({ id: 'blueprintList.relativeTimeJustNow', defaultMessage: 'just now' })
+  if (minutes < 60) {
+    return formatMessage(
+      { id: 'blueprintList.relativeTimeMinutes', defaultMessage: '{minutes}m ago' },
+      { minutes },
+    )
+  }
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) {
+    return formatMessage(
+      { id: 'blueprintList.relativeTimeHours', defaultMessage: '{hours}h ago' },
+      { hours },
+    )
+  }
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return formatMessage(
+    { id: 'blueprintList.relativeTimeDays', defaultMessage: '{days}d ago' },
+    { days },
+  )
 }
 
 function sortItems(items: BlueprintItem[]): BlueprintItem[] {
@@ -60,6 +74,7 @@ function BlueprintRow({
   onTogglePin: (b: BlueprintItem) => void
   onRemoveFromLibrary: (b: BlueprintItem) => void
 }) {
+  const { formatMessage } = useIntl()
   return (
     <Link
       to="/blueprint/$id"
@@ -75,7 +90,7 @@ function BlueprintRow({
         <div className="flex items-center gap-2">
           {item.pinned && <Star size={12} weight="fill" className="flex-shrink-0 text-kumo-brand" />}
           <h3 className="truncate text-sm font-medium text-kumo-default">
-            {item.title || 'Untitled blueprint'}
+            {item.title || <FormattedMessage id="blueprintList.untitledBlueprint" defaultMessage="Untitled blueprint" />}
           </h3>
         </div>
         {item.description && (
@@ -85,7 +100,7 @@ function BlueprintRow({
 
       <span className="hidden flex-shrink-0 items-center gap-1 text-xs text-kumo-inactive lg:flex">
         <Clock size={10} />
-        {formatRelativeTime(new Date(item.recency))}
+        {formatRelativeTime(new Date(item.recency), formatMessage)}
       </span>
 
       {/* Inside the row's <Link>: stopPropagation blocks the Link's SPA handler, so preventDefault
@@ -105,12 +120,14 @@ function BlueprintRow({
           <DropdownMenu.Content className={MENU_CONTENT}>
             <DropdownMenu.Item onClick={() => onTogglePin(item)} className={MENU_ITEM}>
               <Star size={13} className="mr-2" weight={item.pinned ? 'fill' : 'regular'} />
-              {item.pinned ? 'Unfavorite' : 'Favorite'}
+              {item.pinned
+                ? <FormattedMessage id="blueprintList.unfavorite" defaultMessage="Unfavorite" />
+                : <FormattedMessage id="blueprintList.favorite" defaultMessage="Favorite" />}
             </DropdownMenu.Item>
             {item.inLibrary && (
               <DropdownMenu.Item variant="danger" onClick={() => onRemoveFromLibrary(item)} className={MENU_ITEM_DANGER}>
                 <Trash size={13} className="mr-2" />
-                Remove from library
+                <FormattedMessage id="blueprintList.removeFromLibrary" defaultMessage="Remove from library" />
               </DropdownMenu.Item>
             )}
           </DropdownMenu.Content>
@@ -123,6 +140,7 @@ function BlueprintRow({
 export default function BlueprintList() {
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const [items, setItems] = useState<BlueprintItem[]>([])
   const [search, setSearch] = useState('')
@@ -143,10 +161,11 @@ export default function BlueprintList() {
       .then(([own, library]) => {
         if (gen !== loadGenRef.current) return
         const map = new Map<string, BlueprintItem>()
+        const untitledBlueprint = formatMessage({ id: 'blueprintList.untitledBlueprint', defaultMessage: 'Untitled blueprint' })
         const ensure = (id: string): BlueprintItem => {
           let it = map.get(id)
           if (!it) {
-            it = { id, title: 'Untitled blueprint', description: '', recency: 0, pinned: false, inLibrary: false, isOwn: false }
+            it = { id, title: untitledBlueprint, description: '', recency: 0, pinned: false, inLibrary: false, isOwn: false }
             map.set(id, it)
           }
           return it
@@ -176,7 +195,7 @@ export default function BlueprintList() {
         setLoading(false)
         setLoadError(true)
       })
-  }, [authenticatedApi])
+  }, [authenticatedApi, formatMessage])
 
   useEffect(() => {
     load()
@@ -193,15 +212,15 @@ export default function BlueprintList() {
     setUploading(true)
     try {
       await authenticatedApi.importBlueprint(file.stream() as ReadableStream<Uint8Array>)
-      toasts.add({ title: 'Blueprint uploaded', variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'blueprintList.toastUploaded', defaultMessage: 'Blueprint uploaded' }), variant: 'success' })
       load()
     } catch (err) {
       console.error('Failed to upload blueprint:', err)
-      toasts.add({ title: 'Failed to upload blueprint', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'blueprintList.toastUploadFailed', defaultMessage: 'Failed to upload blueprint' }), variant: 'error' })
     } finally {
       setUploading(false)
     }
-  }, [authenticatedApi, load, toasts])
+  }, [authenticatedApi, load, toasts, formatMessage])
 
   // Overlapping setBlueprintPinned calls have no ordering guarantee, so ignore clicks while
   // one is in flight.
@@ -216,7 +235,7 @@ export default function BlueprintList() {
     } catch (err) {
       console.error('Failed to update blueprint pin:', err)
       setItems((prev) => sortItems(prev.map((b) => (b.id === item.id ? { ...b, pinned: item.pinned } : b))))
-      toasts.add({ title: 'Failed to update favorite', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'blueprintList.toastUpdateFavoriteFailed', defaultMessage: 'Failed to update favorite' }), variant: 'error' })
     } finally {
       pinsInFlight.current.delete(item.id)
     }
@@ -232,10 +251,10 @@ export default function BlueprintList() {
           .map((b) => (b.id === item.id ? { ...b, inLibrary: false } : b))
           .filter((b) => b.inLibrary || b.isOwn),
       )
-      toasts.add({ title: 'Removed from library', variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'blueprintList.toastRemovedFromLibrary', defaultMessage: 'Removed from library' }), variant: 'success' })
     } catch (err) {
       console.error('Failed to remove blueprint from library:', err)
-      toasts.add({ title: 'Failed to remove blueprint', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'blueprintList.toastRemoveFailed', defaultMessage: 'Failed to remove blueprint' }), variant: 'error' })
     }
   }
 
@@ -266,7 +285,7 @@ export default function BlueprintList() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search blueprints…"
+              placeholder={formatMessage({ id: 'blueprintList.searchPlaceholder', defaultMessage: 'Search blueprints…' })}
               className="h-9 w-full rounded-lg border border-kumo-line bg-kumo-base pl-9 pr-4 text-[13px] tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive transition-[border-color,box-shadow] duration-150 ease-out focus:border-kumo-ring focus:outline-none focus:ring-[3px] focus:ring-kumo-ring/15"
             />
           </div>
@@ -275,17 +294,19 @@ export default function BlueprintList() {
           <div className="grid shrink-0 grid-cols-2 gap-2">
             <Link to="/explore" className={ACTION_BUTTON}>
               <Compass size={14} />
-              Explore
+              <FormattedMessage id="blueprintList.explore" defaultMessage="Explore" />
             </Link>
             <button
               type="button"
               onClick={() => uploadInputRef.current?.click()}
               disabled={uploading}
-              title="Upload a .gadget archive"
+              title={formatMessage({ id: 'blueprintList.uploadGadgetArchiveTitle', defaultMessage: 'Upload a .gadget archive' })}
               className={ACTION_BUTTON}
             >
               <UploadSimple size={14} weight="bold" />
-              {uploading ? 'Uploading…' : 'Upload'}
+              {uploading
+                ? <FormattedMessage id="blueprintList.uploading" defaultMessage="Uploading…" />
+                : <FormattedMessage id="blueprintList.upload" defaultMessage="Upload" />}
             </button>
           </div>
         </div>
@@ -302,27 +323,38 @@ export default function BlueprintList() {
           </div>
         ) : loadError ? (
           <div className="py-12 text-center text-sm">
-            <p className="text-kumo-danger">Something went wrong loading your blueprints.</p>
-            <button type="button" onClick={load} className="mt-1 text-kumo-brand underline">Try again</button>
+            <p className="text-kumo-danger">
+              <FormattedMessage id="blueprintList.loadErrorBody" defaultMessage="Something went wrong loading your blueprints." />
+            </p>
+            <button type="button" onClick={load} className="mt-1 text-kumo-brand underline">
+              <FormattedMessage id="blueprintList.tryAgain" defaultMessage="Try again" />
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           search ? (
-            <div className="py-12 text-center text-sm text-kumo-inactive">No blueprints found</div>
+            <div className="py-12 text-center text-sm text-kumo-inactive">
+              <FormattedMessage id="blueprintList.noBlueprintsFound" defaultMessage="No blueprints found" />
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-3 px-3 py-16 text-center">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-kumo-fill text-kumo-subtle">
                 <BlueprintIcon size={18} />
               </div>
               <div>
-                <p className="text-sm font-medium text-kumo-default">No blueprints yet</p>
+                <p className="text-sm font-medium text-kumo-default">
+                  <FormattedMessage id="blueprintList.noBlueprintsYet" defaultMessage="No blueprints yet" />
+                </p>
                 <p className="mt-1 text-[13px] leading-[18px] text-kumo-subtle">
-                  Publish a workspace as a blueprint, or add one from Explore.
+                  <FormattedMessage
+                    id="blueprintList.noBlueprintsYetBody"
+                    defaultMessage="Publish a workspace as a blueprint, or add one from Explore."
+                  />
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Link to="/explore" className={ACTION_BUTTON}>
                   <Compass size={14} />
-                  Explore blueprints
+                  <FormattedMessage id="blueprintList.exploreBlueprints" defaultMessage="Explore blueprints" />
                 </Link>
                 <button
                   type="button"
@@ -331,7 +363,9 @@ export default function BlueprintList() {
                   className={ACTION_BUTTON}
                 >
                   <UploadSimple size={14} weight="bold" />
-                  {uploading ? 'Uploading…' : 'Upload .gadget'}
+                  {uploading
+                    ? <FormattedMessage id="blueprintList.uploading" defaultMessage="Uploading…" />
+                    : <FormattedMessage id="blueprintList.uploadGadget" defaultMessage="Upload .gadget" />}
                 </button>
               </div>
             </div>

@@ -1,3 +1,5 @@
+import { FormattedMessage } from 'react-intl'
+
 // Shared look for the pickers that float over the chat composer: one surface, rows that carry their
 // own padding, and a selection that reads as the thing Tab will act on.
 
@@ -21,7 +23,7 @@ export function TabHint() {
       aria-hidden="true"
       className="flex-shrink-0 rounded border border-kumo-line bg-kumo-base px-1 py-px font-sans text-[10px] font-medium leading-4 tracking-[0.02em] text-kumo-subtle"
     >
-      Tab
+      <FormattedMessage id="pickerRows.tabKeyHint" defaultMessage="Tab" />
     </kbd>
   )
 }

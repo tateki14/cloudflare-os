@@ -2,6 +2,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { X } from '@phosphor-icons/react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useIntl } from 'react-intl'
 import { type BannerColor, DEFAULT_BANNER_COLOR } from '@gadgets/workshop-shared/api'
 import { useServerConfig } from '../ServerConfigContext'
 
@@ -37,6 +38,7 @@ const INLINE_MARKDOWN_COMPONENTS: Components = {
 // Deployment-wide full-width banner across the top of the app (logged in or not), configured by an
 // admin. Dismissible per-message: a changed banner re-appears after dismissal.
 export default function AnnouncementBanner() {
+  const { formatMessage } = useIntl()
   const config = useServerConfig()
   const text = (config?.banner ?? '').trim()
   const color: BannerColor = config?.bannerColor ?? DEFAULT_BANNER_COLOR
@@ -74,8 +76,8 @@ export default function AnnouncementBanner() {
       <button
         onClick={handleDismiss}
         className="flex-shrink-0 rounded-md p-0.5 hover:bg-black/10 transition-colors"
-        aria-label="Dismiss banner"
-        title="Dismiss"
+        aria-label={formatMessage({ id: 'announcementBanner.dismissBanner', defaultMessage: 'Dismiss banner' })}
+        title={formatMessage({ id: 'announcementBanner.dismiss', defaultMessage: 'Dismiss' })}
         style={{ color: 'inherit' }}
       >
         <X size={16} />
