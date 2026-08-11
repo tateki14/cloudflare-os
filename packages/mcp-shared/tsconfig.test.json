@@ -1,9 +1,9 @@
-// Type-checks the tests too. Separate from `tsconfig.json` so `build` keeps emitting only `src`.
+// Type-checks the tests too. Separate from `tsconfig.json` so the Worker's own check stays free of
+// test files and Node types, and so each config keeps its own incremental cache.
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true,
-    "declaration": false,
+    "tsBuildInfoFile": "./.tsbuild/tsconfig.test.tsbuildinfo",
     "types": ["./worker-configuration.d.ts", "node"]
   },
   "include": ["src", "__tests__"]

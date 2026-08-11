@@ -6,10 +6,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["./worker-configuration.d.ts"],
-    "outDir": "./dist",
-    "declaration": true,
-    "sourceMap": true,
-    "noEmit": false,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuild/tsconfig.tsbuildinfo",
     "baseUrl": ".",
     "paths": {
       "@gadgets/backend-utils/*": ["../backend-utils/src/*"],
