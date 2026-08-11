@@ -69,6 +69,7 @@ const copyToClipboard = vi.fn<(text: string) => Promise<boolean>>(async () => tr
 vi.mock('./clipboard', () => ({ copyToClipboard: (text: string) => copyToClipboard(text) }))
 
 import ShareModal from './ShareModal'
+import { TestIntlProvider } from './i18n/testIntlProvider'
 
 const METADATA = { id: 'trip-planner', title: 'Trip planner' } as GadgetMetadata
 const WORKSPACE_URL = `${window.location.origin}/workspace/trip-planner`
@@ -180,14 +181,16 @@ describe('ShareModal', () => {
     root = createRoot(container)
     await act(async () => {
       root!.render(
-        <ShareModal
-          open
-          onClose={() => {}}
-          overseer={overseer}
-          metadata={METADATA}
-          currentUser={CURRENT_USER}
-          authenticatedApi={fakeAuthenticatedApi}
-        />,
+        <TestIntlProvider>
+          <ShareModal
+            open
+            onClose={() => {}}
+            overseer={overseer}
+            metadata={METADATA}
+            currentUser={CURRENT_USER}
+            authenticatedApi={fakeAuthenticatedApi}
+          />
+        </TestIntlProvider>,
       )
     })
     // Let the load effects settle.

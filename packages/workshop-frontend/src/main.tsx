@@ -1,11 +1,13 @@
 import { StrictMode, useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
+import { IntlProvider } from 'react-intl'
 import { RpcStub, newWebSocketRpcSession } from 'capnweb'
 import { PublicApi, ServerConfig } from '@gadgets/workshop-shared/api'
 import { RpcContext } from './RpcContext'
 import { ServerConfigContext, ServerConfigErrorContext } from './ServerConfigContext'
 import { ThemeProvider } from './ThemeContext'
+import jaMessages from './i18n/messages/ja.json'
 import { createRouter } from './router'
 import AnnouncementBanner from './components/AnnouncementBanner'
 import { applyAccentColor, applyStoredThemeMode } from './theme'
@@ -163,16 +165,18 @@ function AppWithConnection() {
   }, [serverConfig]);
 
   return (
-    <ThemeProvider>
-      <RpcContext.Provider value={rpcState}>
-        <ServerConfigErrorContext.Provider value={serverConfigError}>
-          <ServerConfigContext.Provider value={serverConfig}>
-            <AnnouncementBanner />
-            <RouterProvider router={router} />
-          </ServerConfigContext.Provider>
-        </ServerConfigErrorContext.Provider>
-      </RpcContext.Provider>
-    </ThemeProvider>
+    <IntlProvider locale="ja" messages={jaMessages}>
+      <ThemeProvider>
+        <RpcContext.Provider value={rpcState}>
+          <ServerConfigErrorContext.Provider value={serverConfigError}>
+            <ServerConfigContext.Provider value={serverConfig}>
+              <AnnouncementBanner />
+              <RouterProvider router={router} />
+            </ServerConfigContext.Provider>
+          </ServerConfigErrorContext.Provider>
+        </RpcContext.Provider>
+      </ThemeProvider>
+    </IntlProvider>
   );
 }
 

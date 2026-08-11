@@ -3,6 +3,7 @@ import { Checkbox, Dialog, DropdownMenu, useKumoToastManager } from '@cloudflare
 import type { PortalContainer } from '@cloudflare/kumo'
 import { CaretDown, Check, Copy, Link, PencilSimple, ShieldCheck, ShieldWarning, Trash, UserPlus, X } from '@phosphor-icons/react'
 import { RpcStub } from 'capnweb'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import {
   Overseer,
   AuthenticatedApi,
@@ -35,7 +36,7 @@ type Props = {
   authenticatedApi: RpcStub<AuthenticatedApi>
 }
 
-function formatRelativeTime(date: Date): string {
+function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffSeconds = Math.floor(diffMs / 1000)
@@ -43,25 +44,42 @@ function formatRelativeTime(date: Date): string {
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffSeconds < 60) return 'just now'
-  if (diffMinutes < 60) return `${diffMinutes}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffSeconds < 60) {
+    return formatMessage({ id: 'shareModal.relativeTimeJustNow', defaultMessage: 'just now' })
+  }
+  if (diffMinutes < 60) {
+    return formatMessage(
+      { id: 'shareModal.relativeTimeMinutes', defaultMessage: '{minutes}m ago' },
+      { minutes: diffMinutes },
+    )
+  }
+  if (diffHours < 24) {
+    return formatMessage(
+      { id: 'shareModal.relativeTimeHours', defaultMessage: '{hours}h ago' },
+      { hours: diffHours },
+    )
+  }
+  if (diffDays < 7) {
+    return formatMessage(
+      { id: 'shareModal.relativeTimeDays', defaultMessage: '{days}d ago' },
+      { days: diffDays },
+    )
+  }
   return date.toLocaleDateString()
 }
 
-const ROLE_LABELS: Record<CollaboratorRole, string> = {
-  build: 'Workspace',
-  use: 'Gadget only',
+const ROLE_LABEL_MESSAGES: Record<CollaboratorRole, { id: string; defaultMessage: string }> = {
+  build: { id: 'shareModal.roleLabelWorkspace', defaultMessage: 'Workspace' },
+  use: { id: 'shareModal.roleLabelGadgetOnly', defaultMessage: 'Gadget only' },
 }
 
-const ROLE_DESCRIPTIONS: Record<CollaboratorRole, string> = {
-  build: 'Edit gadgets, use chat, and manage access.',
-  use: 'Use gadgets without agent chat or editing.',
+const ROLE_DESCRIPTION_MESSAGES: Record<CollaboratorRole, { id: string; defaultMessage: string }> = {
+  build: { id: 'shareModal.roleDescriptionWorkspace', defaultMessage: 'Edit gadgets, use chat, and manage access.' },
+  use: { id: 'shareModal.roleDescriptionGadgetOnly', defaultMessage: 'Use gadgets without agent chat or editing.' },
 }
 
-function roleLabel(role: CollaboratorRole | undefined): string {
-  return ROLE_LABELS[role ?? 'build']
+function roleLabel(role: CollaboratorRole | undefined, formatMessage: IntlShape['formatMessage']): string {
+  return formatMessage(ROLE_LABEL_MESSAGES[role ?? 'build'])
 }
 
 const ROLE_OPTIONS: CollaboratorRole[] = ['build', 'use']
@@ -79,6 +97,7 @@ function RoleMenu({
   ariaLabel: string
   container?: PortalContainer
 }) {
+  const { formatMessage } = useIntl()
   return (
     <DropdownMenu>
       <DropdownMenu.Trigger
@@ -89,7 +108,7 @@ function RoleMenu({
             className="group inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[12px] leading-4 font-medium text-kumo-subtle transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-tint hover:text-kumo-default focus-visible:bg-kumo-tint focus-visible:text-kumo-default focus-visible:outline-none active:scale-[0.97] data-[popup-open]:bg-kumo-tint data-[popup-open]:text-kumo-default disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={ariaLabel}
           >
-            {roleLabel(value)}
+            {roleLabel(value, formatMessage)}
             <CaretDown size={11} weight="bold" className="text-kumo-inactive transition-transform duration-150 ease-out group-data-[popup-open]:rotate-180" />
           </button>
         }
@@ -107,9 +126,9 @@ function RoleMenu({
             className="!h-auto cursor-pointer rounded-xl !px-2.5 !py-2 text-kumo-default transition-colors data-highlighted:bg-kumo-tint/70"
           >
             <span className="min-w-0 flex-1">
-              <span className="block text-[12px] leading-4 font-medium">{roleLabel(role)}</span>
+              <span className="block text-[12px] leading-4 font-medium">{roleLabel(role, formatMessage)}</span>
               <span className="mt-0.5 block text-[11px] leading-4 font-normal text-kumo-subtle">
-                {ROLE_DESCRIPTIONS[role]}
+                {formatMessage(ROLE_DESCRIPTION_MESSAGES[role])}
               </span>
             </span>
             <span className="ml-2 flex h-4 w-4 shrink-0 items-center justify-center">
@@ -123,6 +142,7 @@ function RoleMenu({
 }
 
 function RoleBadge({ role }: { role: CollaboratorRole | undefined }) {
+  const { formatMessage } = useIntl()
   const isBuild = (role ?? 'build') === 'build'
   return (
     <span
@@ -132,7 +152,7 @@ function RoleBadge({ role }: { role: CollaboratorRole | undefined }) {
           : 'border-kumo-line/70 bg-kumo-base text-kumo-subtle'
       }`}
     >
-      {roleLabel(role)}
+      {roleLabel(role, formatMessage)}
     </span>
   )
 }
@@ -152,6 +172,7 @@ function InlineConfirm({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const { formatMessage } = useIntl()
   return (
     <div className="flex items-center gap-1 share-confirm-in">
       <button
@@ -170,7 +191,7 @@ function InlineConfirm({
         type="button"
         onClick={onCancel}
         disabled={busy}
-        aria-label="Cancel"
+        aria-label={formatMessage({ id: 'shareModal.cancel', defaultMessage: 'Cancel' })}
         className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-kumo-inactive transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-tint hover:text-kumo-default active:scale-[0.96] disabled:opacity-60"
       >
         <X size={14} />
@@ -236,11 +257,15 @@ function RecipientVerification({
   headingId: string
   heading: string
 }) {
+  const { formatMessage } = useIntl()
   let body: ReactNode
   if (failed) {
     body = (
       <p className="px-1 text-[12px] leading-[16px] tracking-[-0.15px] text-kumo-subtle">
-        Couldn’t check which connections recipients will be asked to verify.
+        <FormattedMessage
+          id="shareModal.verificationCheckFailed"
+          defaultMessage="Couldn’t check which connections recipients will be asked to verify."
+        />
       </p>
     )
   } else if (requirements === null || requirements.length === 0) {
@@ -251,8 +276,17 @@ function RecipientVerification({
       <div className="rounded-2xl border border-kumo-line/80 bg-kumo-base px-3 py-2.5">
         <p className="text-[12px] leading-[16px] tracking-[-0.15px] text-kumo-subtle">
           {role ? (
-            <>People with <span className="font-medium text-kumo-default">{roleLabel(role)}</span> access must</>
-          ) : 'Recipients must'} prove their own account can reach:
+            <FormattedMessage
+              id="shareModal.recipientsWithRoleMustProve"
+              defaultMessage="People with {role} access must prove their own account can reach:"
+              values={{ role: <span className="font-medium text-kumo-default">{roleLabel(role, formatMessage)}</span> }}
+            />
+          ) : (
+            <FormattedMessage
+              id="shareModal.recipientsMustProve"
+              defaultMessage="Recipients must prove their own account can reach:"
+            />
+          )}
         </p>
         <ul className="mt-1.5 max-h-32 space-y-1 overflow-y-auto">
           {requirements.map(requirement => (
@@ -295,6 +329,7 @@ function sameRequirements(
 
 export default function ShareModal({ open, onClose, overseer, metadata, currentUser, authenticatedApi }: Props) {
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
   const [shareLinks, setShareLinks] = useState<ShareLinkInfo[]>([])
   const [addUsername, setAddUsername] = useState('')
@@ -384,10 +419,13 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
       return { collaborators: collabs, shareLinks: keys }
     } catch (err) {
       console.error('Failed to load share data:', err)
-      toasts.add({ title: 'Failed to load sharing info', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'shareModal.toastLoadFailed', defaultMessage: 'Failed to load sharing info' }),
+        variant: 'error',
+      })
       return null
     }
-  }, [overseer])
+  }, [overseer, formatMessage])
 
   // Refresh on focus as well as open: bindings cannot change in this modal, but they can change in
   // another tab while it remains open. A failed refresh is informational and never blocks sharing.
@@ -455,6 +493,15 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
     () => [...shareLinks].toSorted((a, b) => b.created.getTime() - a.created.getTime()),
     [shareLinks],
   )
+  const recipientVerificationHeading = formatMessage({
+    id: 'shareModal.recipientVerificationHeading', defaultMessage: 'Recipient verification',
+  })
+  const directInviteVerificationHeading = formatMessage({
+    id: 'shareModal.directInviteVerificationHeading', defaultMessage: 'Direct invite verification',
+  })
+  const shareLinkVerificationHeading = formatMessage({
+    id: 'shareModal.shareLinkVerificationHeading', defaultMessage: 'Share-link verification',
+  })
   let recipientVerification: ReactNode = null
   if (requirementsFailed) {
     recipientVerification = (
@@ -462,7 +509,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         requirements={null}
         failed
         headingId="recipient-verification-heading"
-        heading="Recipient verification"
+        heading={recipientVerificationHeading}
       />
     )
   } else if (requirements !== null) {
@@ -474,7 +521,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
           failed={false}
           role={addRole}
           headingId="recipient-verification-heading"
-          heading="Recipient verification"
+          heading={recipientVerificationHeading}
         />
       )
     } else {
@@ -486,7 +533,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
             failed={false}
             role={addRole === newLinkRole ? addRole : undefined}
             headingId="recipient-verification-heading"
-            heading="Recipient verification"
+            heading={recipientVerificationHeading}
           />
         )
       } else {
@@ -497,14 +544,14 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
               failed={false}
               role={addRole}
               headingId="invite-verification-heading"
-              heading="Direct invite verification"
+              heading={directInviteVerificationHeading}
             />
             <RecipientVerification
               requirements={linkRequirements}
               failed={false}
               role={newLinkRole}
               headingId="link-verification-heading"
-              heading="Share-link verification"
+              heading={shareLinkVerificationHeading}
             />
           </>
         )
@@ -515,12 +562,27 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
   const revokeTarget = confirmationTarget?.kind === 'revoke' ? confirmationTarget : null
 
   const describeAccess = (info: CollaboratorInfo): string => {
-    if (info.addedBy.length > 1) return `Access from ${info.addedBy.length} sources`
+    if (info.addedBy.length > 1) {
+      return formatMessage(
+        { id: 'shareModal.accessFromSources', defaultMessage: 'Access from {count} sources' },
+        { count: info.addedBy.length },
+      )
+    }
     const edge = info.addedBy[0]
-    if (!edge) return 'Collaborator'
-    if (edge.type === 'user') return `Added directly by ${edge.sharer}`
+    if (!edge) return formatMessage({ id: 'shareModal.collaborator', defaultMessage: 'Collaborator' })
+    if (edge.type === 'user') {
+      return formatMessage(
+        { id: 'shareModal.addedDirectlyBy', defaultMessage: 'Added directly by {sharer}' },
+        { sharer: edge.sharer },
+      )
+    }
     const key = shareLinks.find(item => item.linkId === edge.keyId)
-    return key?.note ? `Joined through “${key.note}”` : 'Joined through a share link'
+    return key?.note
+      ? formatMessage(
+          { id: 'shareModal.joinedThroughNamedLink', defaultMessage: 'Joined through “{note}”' },
+          { note: key.note },
+        )
+      : formatMessage({ id: 'shareModal.joinedThroughLink', defaultMessage: 'Joined through a share link' })
   }
 
   const copyNewLink = async () => {
@@ -529,7 +591,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
     if (copied) {
       setNewShareLinkCopied(true)
     } else {
-      toasts.add({ title: 'Could not copy share link.', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'shareModal.toastCopyLinkFailed', defaultMessage: 'Could not copy share link.' }),
+        variant: 'error',
+      })
     }
   }
 
@@ -541,7 +606,12 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
     if (await copyToClipboard(workspaceUrl)) {
       setInvitedLinkCopied(true)
     } else {
-      toasts.add({ title: 'Could not copy the workspace link.', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'shareModal.toastCopyWorkspaceLinkFailed', defaultMessage: 'Could not copy the workspace link.',
+        }),
+        variant: 'error',
+      })
     }
   }
 
@@ -565,7 +635,12 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
     try {
       const result = await overseer.addCollaborator(username, addRole, undefined)
       if (result === null) {
-        toasts.add({ title: 'No account found for that username.', variant: 'error' })
+        toasts.add({
+          title: formatMessage({
+            id: 'shareModal.toastNoAccountFound', defaultMessage: 'No account found for that username.',
+          }),
+          variant: 'error',
+        })
       } else {
         const landedId = result.profile.id
         setAddUsername('')
@@ -573,10 +648,20 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         setInvitedLinkCopied(false)
         await loadData()
         showLandedRow('person', landedId)
-        toasts.add({ title: `Added ${result.profile.name} as a collaborator.`, variant: 'success' })
+        toasts.add({
+          title: formatMessage(
+            { id: 'shareModal.toastAddedCollaborator', defaultMessage: 'Added {name} as a collaborator.' },
+            { name: result.profile.name },
+          ),
+          variant: 'success',
+        })
       }
     } catch (err: any) {
-      toasts.add({ title: err.message || 'Failed to add collaborator.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastAddCollaboratorFailed', defaultMessage: 'Failed to add collaborator.' }),
+        variant: 'error',
+      })
     } finally {
       addingRef.current = false
       setAdding(false)
@@ -600,7 +685,11 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
       showLandedRow('shareLink', linkId)
     } catch (err: any) {
       // Keep the composer and its values open so the user can retry without re-entering them.
-      toasts.add({ title: err.message || 'Failed to create share link.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastCreateLinkFailed', defaultMessage: 'Failed to create share link.' }),
+        variant: 'error',
+      })
     } finally {
       creatingLinkRef.current = false
       setCreatingLink(false)
@@ -623,7 +712,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
       }
       const copied = await copyToClipboard(url)
       if (!copied) {
-        toasts.add({ title: 'Could not copy share link.', variant: 'error' })
+        toasts.add({
+          title: formatMessage({ id: 'shareModal.toastCopyLinkFailed', defaultMessage: 'Could not copy share link.' }),
+          variant: 'error',
+        })
         return
       }
       setCopiedLinkId(linkId)
@@ -633,9 +725,16 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         setCopiedLinkId(current => (current === linkId ? null : current))
         copiedTimerRef.current = null
       }, 2000)
-      toasts.add({ title: 'Link copied to clipboard.', variant: 'success' })
+      toasts.add({
+        title: formatMessage({ id: 'shareModal.toastLinkCopied', defaultMessage: 'Link copied to clipboard.' }),
+        variant: 'success',
+      })
     } catch (err: any) {
-      toasts.add({ title: err.message || 'Failed to copy share link.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastCopyLinkFailedGeneric', defaultMessage: 'Failed to copy share link.' }),
+        variant: 'error',
+      })
     } finally {
       copyingLinkRef.current = false
       setCopyingLinkId(null)
@@ -651,7 +750,13 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         : current)
     } catch (err: any) {
       setConfirmationTarget(current => current?.kind === 'remove' && current.profileId === profileId ? null : current)
-      toasts.add({ title: err.message || 'Failed to preview collaborator removal.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({
+            id: 'shareModal.toastPreviewRemoveFailed', defaultMessage: 'Failed to preview collaborator removal.',
+          }),
+        variant: 'error',
+      })
     }
   }
 
@@ -663,13 +768,20 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
       setConfirmationTarget(null)
       toasts.add({
         title: removed.length > 0
-          ? 'Collaborator removed.'
-          : 'Your direct grant was removed. This collaborator still has access through another source.',
+          ? formatMessage({ id: 'shareModal.toastCollaboratorRemoved', defaultMessage: 'Collaborator removed.' })
+          : formatMessage({
+              id: 'shareModal.toastDirectGrantRemoved',
+              defaultMessage: 'Your direct grant was removed. This collaborator still has access through another source.',
+            }),
         variant: 'success',
       })
       await loadData()
     } catch (err: any) {
-      toasts.add({ title: err.message || 'Failed to remove collaborator.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastRemoveCollaboratorFailed', defaultMessage: 'Failed to remove collaborator.' }),
+        variant: 'error',
+      })
     } finally {
       setConfirmationBusy(false)
     }
@@ -702,9 +814,16 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
       cancelRenameShareLink()
       await loadData()
       showLandedRow('shareLink', linkId)
-      toasts.add({ title: 'Share link renamed.', variant: 'success' })
+      toasts.add({
+        title: formatMessage({ id: 'shareModal.toastLinkRenamed', defaultMessage: 'Share link renamed.' }),
+        variant: 'success',
+      })
     } catch (err: any) {
-      toasts.add({ title: err.message || 'Failed to rename share link.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastRenameLinkFailed', defaultMessage: 'Failed to rename share link.' }),
+        variant: 'error',
+      })
     } finally {
       savingShareLinkNoteRef.current = false
       setSavingShareLinkNote(false)
@@ -721,7 +840,13 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         : current)
     } catch (err: any) {
       setConfirmationTarget(current => current?.kind === 'revoke' && current.linkId === linkId ? null : current)
-      toasts.add({ title: err.message || 'Failed to preview share-link revocation.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({
+            id: 'shareModal.toastPreviewRevokeFailed', defaultMessage: 'Failed to preview share-link revocation.',
+          }),
+        variant: 'error',
+      })
     }
   }
 
@@ -737,10 +862,17 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         setNewShareLinkCopied(false)
         setShowLinkComposer(false)
       }
-      toasts.add({ title: 'Share link revoked.', variant: 'success' })
+      toasts.add({
+        title: formatMessage({ id: 'shareModal.toastLinkRevoked', defaultMessage: 'Share link revoked.' }),
+        variant: 'success',
+      })
       await loadData()
     } catch (err: any) {
-      toasts.add({ title: err.message || 'Failed to revoke share link.', variant: 'error' })
+      toasts.add({
+        title: err.message
+          || formatMessage({ id: 'shareModal.toastRevokeLinkFailed', defaultMessage: 'Failed to revoke share link.' }),
+        variant: 'error',
+      })
     } finally {
       setConfirmationBusy(false)
     }
@@ -755,15 +887,19 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
         <div className="flex shrink-0 items-start justify-between gap-4 overflow-hidden px-4 pb-4 pt-5 sm:px-6 sm:pt-6">
           <div className="min-w-0">
             <Dialog.Title className="truncate text-[18px] leading-6 font-medium tracking-[-0.4px] text-kumo-default">
-              Share “{metadata.title}”
+              <FormattedMessage
+                id="shareModal.dialogTitle"
+                defaultMessage="Share “{title}”"
+                values={{ title: metadata.title }}
+              />
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle">
-              Invite people or share a link.
+              <FormattedMessage id="shareModal.dialogDescription" defaultMessage="Invite people or share a link." />
             </Dialog.Description>
           </div>
           <Dialog.Close
             render={(props) => (
-              <WorkshopIconButton {...props} aria-label="Close">
+              <WorkshopIconButton {...props} aria-label={formatMessage({ id: 'shareModal.close', defaultMessage: 'Close' })}>
                 <X size={18} />
               </WorkshopIconButton>
             )}
@@ -780,13 +916,19 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                 <ShieldWarning size={22} weight="duotone" />
               </div>
               <p className="mt-3 text-[14px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-                This workspace can’t be shared
+                <FormattedMessage id="shareModal.notShareableTitle" defaultMessage="This workspace can’t be shared" />
               </p>
               <p className="mt-1.5 max-w-[320px] text-balance text-[12px] leading-[18px] tracking-[-0.1px] text-kumo-subtle">
-                It has observed sensitive data that can only be accessed by you, the owner.
+                <FormattedMessage
+                  id="shareModal.notShareableBody1"
+                  defaultMessage="It has observed sensitive data that can only be accessed by you, the owner."
+                />
               </p>
               <p className="mt-2 max-w-[320px] text-balance text-[12px] leading-[18px] tracking-[-0.1px] text-kumo-subtle">
-                To share something similar, create a blueprint from a gadget in this workspace, then use it to create a new workspace.
+                <FormattedMessage
+                  id="shareModal.notShareableBody2"
+                  defaultMessage="To share something similar, create a blueprint from a gadget in this workspace, then use it to create a new workspace."
+                />
               </p>
             </div>
           ) : (
@@ -804,8 +946,8 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
             </div>
             <input
               type="search"
-              placeholder="Username or email"
-              aria-label="Username or email"
+              placeholder={formatMessage({ id: 'shareModal.usernameOrEmail', defaultMessage: 'Username or email' })}
+              aria-label={formatMessage({ id: 'shareModal.usernameOrEmail', defaultMessage: 'Username or email' })}
               value={addUsername}
               onChange={(e) => setAddUsername(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleAddCollaborator() }}
@@ -823,7 +965,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
               disabled={sharingProhibited}
             />
             <RoleMenu
-              ariaLabel="Access to grant"
+              ariaLabel={formatMessage({ id: 'shareModal.accessToGrant', defaultMessage: 'Access to grant' })}
               value={addRole}
               onValueChange={setAddRole}
               disabled={sharingProhibited}
@@ -835,7 +977,9 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
               onClick={handleAddCollaborator}
               disabled={!addUsername.trim() || adding || sharingProhibited}
             >
-              {adding ? 'Inviting…' : 'Invite'}
+              {adding
+                ? <FormattedMessage id="shareModal.inviting" defaultMessage="Inviting…" />
+                : <FormattedMessage id="shareModal.invite" defaultMessage="Invite" />}
             </WorkshopButton>
           </div>
 
@@ -847,20 +991,28 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
               <div className="min-w-[160px] flex-1">
                 <div className="flex items-baseline gap-1.5">
                   <p className="text-[13px] leading-[18px] font-medium text-kumo-default">
-                    Added {invitedName}
+                    <FormattedMessage
+                      id="shareModal.addedName"
+                      defaultMessage="Added {name}"
+                      values={{ name: invitedName }}
+                    />
                   </p>
                   <span className="text-[11px] leading-4 text-kumo-inactive">
-                    {invitedLinkCopied ? 'Link copied to your clipboard' : 'Send them this link to open it'}
+                    {invitedLinkCopied
+                      ? <FormattedMessage id="shareModal.linkCopiedToClipboard" defaultMessage="Link copied to your clipboard" />
+                      : <FormattedMessage id="shareModal.sendThisLink" defaultMessage="Send them this link to open it" />}
                   </span>
                 </div>
                 <p className="truncate font-mono text-[11px] leading-4 text-kumo-subtle">{workspaceUrl}</p>
               </div>
               <WorkshopButton tone="primary" onClick={copyWorkspaceUrl} className="gap-1.5 !rounded-xl">
                 {invitedLinkCopied ? <Check size={13} weight="bold" /> : <Copy size={13} />}
-                {invitedLinkCopied ? 'Copied' : 'Copy link'}
+                {invitedLinkCopied
+                  ? <FormattedMessage id="shareModal.copied" defaultMessage="Copied" />
+                  : <FormattedMessage id="shareModal.copyLink" defaultMessage="Copy link" />}
               </WorkshopButton>
               <WorkshopIconButton
-                aria-label="Dismiss added collaborator"
+                aria-label={formatMessage({ id: 'shareModal.dismissAddedCollaborator', defaultMessage: 'Dismiss added collaborator' })}
                 onClick={() => { setInvitedName(null); setInvitedLinkCopied(false) }}
               >
                 <X size={14} />
@@ -878,20 +1030,27 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                     <div className="min-w-[160px] flex-1">
                       <div className="flex items-baseline gap-1.5">
                         <p className="text-[13px] leading-[18px] font-medium text-kumo-default">
-                          {newShareLinkCopied ? 'Link copied' : 'Link ready'}
+                          {newShareLinkCopied
+                            ? <FormattedMessage id="shareModal.linkCopied" defaultMessage="Link copied" />
+                            : <FormattedMessage id="shareModal.linkReady" defaultMessage="Link ready" />}
                         </p>
                         <span className="text-[11px] leading-4 text-kumo-inactive">
-                          You can copy it again anytime from Share links
+                          <FormattedMessage
+                            id="shareModal.copyAgainAnytime"
+                            defaultMessage="You can copy it again anytime from Share links"
+                          />
                         </span>
                       </div>
                       <p className="truncate font-mono text-[11px] leading-4 text-kumo-subtle">{newShareLink}</p>
                     </div>
                     <WorkshopButton tone="primary" onClick={copyNewLink} className="w-[78px] gap-1.5 !rounded-xl">
                       {newShareLinkCopied ? <Check size={13} weight="bold" /> : <Copy size={13} />}
-                      {newShareLinkCopied ? 'Copied' : 'Copy'}
+                      {newShareLinkCopied
+                        ? <FormattedMessage id="shareModal.copied" defaultMessage="Copied" />
+                        : <FormattedMessage id="shareModal.copy" defaultMessage="Copy" />}
                     </WorkshopButton>
                     <WorkshopIconButton
-                      aria-label="Dismiss created link"
+                      aria-label={formatMessage({ id: 'shareModal.dismissCreatedLink', defaultMessage: 'Dismiss created link' })}
                       onClick={() => { setNewShareLink(null); setNewShareLinkId(null); setNewShareLinkCopied(false); setShowLinkComposer(false) }}
                     >
                       <X size={14} />
@@ -907,22 +1066,27 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                       value={newLinkNote}
                       onChange={(e) => setNewLinkNote(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleCreateShareLink() }}
-                      placeholder="Name this link (optional)…"
-                      aria-label="Share link name (optional)"
+                      placeholder={formatMessage({ id: 'shareModal.linkNamePlaceholder', defaultMessage: 'Name this link (optional)…' })}
+                      aria-label={formatMessage({ id: 'shareModal.linkNameAriaLabel', defaultMessage: 'Share link name (optional)' })}
                       className="h-9 min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] leading-5 tracking-[-0.25px] text-kumo-default outline-none placeholder:text-kumo-inactive"
                       disabled={creatingLink || sharingProhibited}
                     />
                     <RoleMenu
-                      ariaLabel="Access granted by link"
+                      ariaLabel={formatMessage({ id: 'shareModal.accessGrantedByLink', defaultMessage: 'Access granted by link' })}
                       value={newLinkRole}
                       onValueChange={setNewLinkRole}
                       disabled={creatingLink || sharingProhibited}
                       container={menuContainer}
                     />
                     <WorkshopButton tone="primary" className="shrink-0 !rounded-xl" onClick={handleCreateShareLink} disabled={creatingLink || sharingProhibited}>
-                      {creatingLink ? 'Creating…' : 'Create link'}
+                      {creatingLink
+                        ? <FormattedMessage id="shareModal.creating" defaultMessage="Creating…" />
+                        : <FormattedMessage id="shareModal.createLink" defaultMessage="Create link" />}
                     </WorkshopButton>
-                    <WorkshopIconButton aria-label="Cancel creating link" onClick={() => setShowLinkComposer(false)}>
+                    <WorkshopIconButton
+                      aria-label={formatMessage({ id: 'shareModal.cancelCreatingLink', defaultMessage: 'Cancel creating link' })}
+                      onClick={() => setShowLinkComposer(false)}
+                    >
                       <X size={14} />
                     </WorkshopIconButton>
                 </div>
@@ -934,7 +1098,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                 disabled={sharingProhibited}
                 className="themed-compact-shadow flex h-12 w-full cursor-pointer items-center justify-center gap-1.5 rounded-2xl border border-kumo-line/80 bg-kumo-base px-3 text-[13px] font-medium text-kumo-subtle transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-elevated/60 hover:text-kumo-default active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <Link size={14} /> Create a share link
+                <Link size={14} /> <FormattedMessage id="shareModal.createShareLinkButton" defaultMessage="Create a share link" />
               </button>
             )}
           </div>
@@ -945,7 +1109,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
           <section aria-labelledby="people-heading" className="mt-4">
             <div className="mb-2 px-1">
               <h3 id="people-heading" className="text-[12px] leading-4 font-medium tracking-[-0.15px] text-kumo-subtle">
-                People with access
+                <FormattedMessage id="shareModal.peopleWithAccessHeading" defaultMessage="People with access" />
               </h3>
             </div>
             <div className="overflow-hidden rounded-2xl border border-kumo-line/80 bg-kumo-base">
@@ -962,19 +1126,29 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                       <PersonAvatar api={authenticatedApi} userId={profile.id} name={profile.name} size={32} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] leading-[17px] font-medium tracking-[-0.25px] text-kumo-default">
-                          {profile.name}{profile.id === currentUser?.id ? ' (you)' : ''}
+                          {profile.id === currentUser?.id
+                            ? <FormattedMessage
+                                id="shareModal.nameYou"
+                                defaultMessage="{name} (you)"
+                                values={{ name: profile.name }}
+                              />
+                            : profile.name}
                         </p>
                         <p className="truncate text-[12px] leading-[15px] tracking-[-0.15px] text-kumo-subtle">
                           {row.kind === 'owner' ? profile.id : describeAccess(row.info)}
                         </p>
                       </div>
                       {row.kind === 'owner' ? (
-                        <span className="px-2 text-[12px] text-kumo-subtle">Owner</span>
+                        <span className="px-2 text-[12px] text-kumo-subtle">
+                          <FormattedMessage id="shareModal.owner" defaultMessage="Owner" />
+                        </span>
                       ) : isRemoving ? (
                         <InlineConfirm
-                          label="Remove"
+                          label={formatMessage({ id: 'shareModal.remove', defaultMessage: 'Remove' })}
                           busy={removeTarget.previewing || confirmationBusy}
-                          busyLabel={removeTarget.previewing ? 'Checking…' : undefined}
+                          busyLabel={removeTarget.previewing
+                            ? formatMessage({ id: 'shareModal.checking', defaultMessage: 'Checking…' })
+                            : undefined}
                           onConfirm={handleConfirmRemoveCollaborator}
                           onCancel={() => setConfirmationTarget(null)}
                         />
@@ -985,7 +1159,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                             danger
                             className="!h-7 !w-7 opacity-35 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                             onClick={() => handleStartRemoveCollaborator(row.info.profile.id)}
-                            aria-label={`Remove ${profile.name}`}
+                            aria-label={formatMessage(
+                              { id: 'shareModal.removeName', defaultMessage: 'Remove {name}' },
+                              { name: profile.name },
+                            )}
                             disabled={confirmationBusy}
                           >
                             <Trash size={13} />
@@ -996,7 +1173,11 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                     {isRemoving && downstreamDependents.length > 0 && (
                       <div className="mt-2.5 share-expand-in">
                         <p className="mb-1.5 text-[12px] leading-4 text-kumo-subtle">
-                          {downstreamDependents.length} other {downstreamDependents.length === 1 ? 'person loses' : 'people lose'} access through {profile.name}. Keep anyone?
+                          <FormattedMessage
+                            id="shareModal.dependentsLoseAccessThroughPerson"
+                            defaultMessage="{count, plural, one {# other person loses} other {# other people lose}} access through {name}. Keep anyone?"
+                            values={{ count: downstreamDependents.length, name: profile.name }}
+                          />
                         </p>
                         <DependentKeepList
                           dependents={downstreamDependents}
@@ -1019,7 +1200,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
           <section aria-labelledby="links-heading" className="mt-4">
             <div className="mb-2 px-1">
               <h3 id="links-heading" className="text-[12px] leading-4 font-medium tracking-[-0.15px] text-kumo-subtle">
-                Share links
+                <FormattedMessage id="shareModal.shareLinksHeading" defaultMessage="Share links" />
               </h3>
             </div>
 
@@ -1043,19 +1224,27 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                                 if (e.key === 'Enter') handleSaveShareLinkNote()
                                 if (e.key === 'Escape') cancelRenameShareLink()
                               }}
-                              placeholder="Name this link…"
-                              aria-label="Share link name"
+                              placeholder={formatMessage({ id: 'shareModal.editLinkNamePlaceholder', defaultMessage: 'Name this link…' })}
+                              aria-label={formatMessage({ id: 'shareModal.editLinkNameAriaLabel', defaultMessage: 'Share link name' })}
                               className="block w-full border-0 bg-transparent p-0 text-[13px] leading-[17px] font-medium tracking-[-0.25px] text-kumo-default outline-none shadow-[inset_0_-1px_0_0_var(--color-kumo-line)] transition-shadow placeholder:font-normal placeholder:text-kumo-inactive focus:shadow-[inset_0_-1px_0_0_var(--color-kumo-fill)]"
                               disabled={savingShareLinkNote}
                             />
                           ) : (
-                            <p className="truncate text-[13px] leading-[17px] font-medium tracking-[-0.25px] text-kumo-default">{sk.note || 'Untitled link'}</p>
+                            <p className="truncate text-[13px] leading-[17px] font-medium tracking-[-0.25px] text-kumo-default">
+                              {sk.note || <FormattedMessage id="shareModal.untitledLink" defaultMessage="Untitled link" />}
+                            </p>
                           )}
-                          <p className="truncate text-[12px] leading-[15px] tracking-[-0.15px] text-kumo-subtle">Created by {sk.createdBy.name} · {formatRelativeTime(sk.created)}</p>
+                          <p className="truncate text-[12px] leading-[15px] tracking-[-0.15px] text-kumo-subtle">
+                            <FormattedMessage
+                              id="shareModal.createdByAt"
+                              defaultMessage="Created by {name} · {time}"
+                              values={{ name: sk.createdBy.name, time: formatRelativeTime(sk.created, formatMessage) }}
+                            />
+                          </p>
                         </div>
                         {isRenaming ? (
                           <InlineConfirm
-                            label="Save"
+                            label={formatMessage({ id: 'shareModal.save', defaultMessage: 'Save' })}
                             tone="brand"
                             busy={savingShareLinkNote}
                             onConfirm={handleSaveShareLinkNote}
@@ -1063,9 +1252,11 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                           />
                         ) : isRevoking ? (
                           <InlineConfirm
-                            label="Revoke"
+                            label={formatMessage({ id: 'shareModal.revoke', defaultMessage: 'Revoke' })}
                             busy={revokeTarget.previewing || confirmationBusy}
-                            busyLabel={revokeTarget.previewing ? 'Checking…' : undefined}
+                            busyLabel={revokeTarget.previewing
+                              ? formatMessage({ id: 'shareModal.checking', defaultMessage: 'Checking…' })
+                              : undefined}
                             onConfirm={handleConfirmRevokeShareLink}
                             onCancel={() => setConfirmationTarget(null)}
                           />
@@ -1075,7 +1266,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                             <WorkshopIconButton
                               className="!h-7 !w-7"
                               onClick={() => handleCopyShareLink(sk.linkId)}
-                              aria-label={`Copy ${sk.note || 'share link'}`}
+                              aria-label={formatMessage(
+                                { id: 'shareModal.copyLinkNamed', defaultMessage: 'Copy {name}' },
+                                { name: sk.note || formatMessage({ id: 'shareModal.shareLinkFallbackName', defaultMessage: 'share link' }) },
+                              )}
                               disabled={confirmationBusy || copyingLinkId === sk.linkId || sharingProhibited}
                             >
                               {copiedLinkId === sk.linkId ? <Check size={13} weight="bold" /> : <Copy size={13} />}
@@ -1083,7 +1277,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                             <WorkshopIconButton
                               className="!h-7 !w-7 opacity-35 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                               onClick={() => startRenameShareLink(sk)}
-                              aria-label={`Rename ${sk.note || 'share link'}`}
+                              aria-label={formatMessage(
+                                { id: 'shareModal.renameLinkNamed', defaultMessage: 'Rename {name}' },
+                                { name: sk.note || formatMessage({ id: 'shareModal.shareLinkFallbackName', defaultMessage: 'share link' }) },
+                              )}
                               disabled={confirmationBusy}
                             >
                               <PencilSimple size={13} />
@@ -1092,7 +1289,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                               danger
                               className="!h-7 !w-7 opacity-35 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                               onClick={() => handleStartRevokeShareLink(sk.linkId)}
-                              aria-label={`Revoke ${sk.note || 'share link'}`}
+                              aria-label={formatMessage(
+                                { id: 'shareModal.revokeLinkNamed', defaultMessage: 'Revoke {name}' },
+                                { name: sk.note || formatMessage({ id: 'shareModal.shareLinkFallbackName', defaultMessage: 'share link' }) },
+                              )}
                               disabled={confirmationBusy}
                             >
                               <Trash size={13} />
@@ -1103,7 +1303,11 @@ export default function ShareModal({ open, onClose, overseer, metadata, currentU
                       {isRevoking && revokeTarget.dependents.length > 0 && (
                         <div className="mt-2.5 share-expand-in">
                           <p className="mb-1.5 text-[12px] leading-4 text-kumo-subtle">
-                            {revokeTarget.dependents.length} {revokeTarget.dependents.length === 1 ? 'person loses' : 'people lose'} access through this link. Keep anyone?
+                            <FormattedMessage
+                              id="shareModal.dependentsLoseAccessThroughLink"
+                              defaultMessage="{count, plural, one {# person loses} other {# people lose}} access through this link. Keep anyone?"
+                              values={{ count: revokeTarget.dependents.length }}
+                            />
                           </p>
                           <DependentKeepList
                             dependents={revokeTarget.dependents}
