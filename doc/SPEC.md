@@ -164,7 +164,7 @@ git push origin work
 ### 1. `pnpm` spawn ENOENT（Windowsの`.cmd`シム解決不可）
 
 Node.jsの `execFileSync("pnpm", ...)` は、Windows上では `pnpm` が実体 `pnpm.cmd` シムであるため `shell: true` なしでは `ENOENT` になる。
-以下3ファイルの `run()`/`execFileSync()` 呼び出しに `shell: process.platform === "win32"` を追加してパッチ済み（アップストリームには未反映、フォークしてPRを出すか都度パッチが必要）。
+以下4ファイルの `run()`/`execFileSync()` 呼び出しに `shell: process.platform === "win32"` を追加してパッチ済み。アップストリームには未反映のため、`work` ブランチ（`origin`=自分のフォーク）にコミット済み。`main`をupstreamに追従させた後は `work` へ `merge main` すれば当て直し不要（Git運用方針を参照）。
 
 - `scripts/run-local.mjs`（`run()` ヘルパー）
 - `run-dev-server.js`（`wrangler dev` 起動部分）
@@ -189,3 +189,4 @@ Node.jsの `execFileSync("pnpm", ...)` は、Windows上では `pnpm` が実体 `
 
 - 2026-08-09: `cloudflare/cloudflare-os` を `c:\_Project\dev\cloudflare-os` にクローンし、`pnpm run-local` でローカル起動をセットアップ。Windows向けにpnpm spawnまわりを3ファイルパッチし、メモリ不足の原因となっていた他プロジェクトの重複プロセスを整理して起動確認完了。
 - 2026-08-09: `cloudflare-os-starter` を使って本番デプロイを実施。`tateki14/cloudflare-os-starter`（private）を作成しGitHubにpush。Cloudflare Access配下で `https://cloudflare-os.10good.org` に4 Worker（workshop/context/gatekeeper/error-reporter）をデプロイし、HTTP 302でAccessログインへのリダイレクトを確認。
+- 2026-08-12: 本リポジトリをフォーク＋upstream追跡構成に移行。`gh repo fork --remote=true` で `tateki14/cloudflare-os` を作成し、`origin`=フォーク／`upstream`=本体に設定。Windowsパッチと本ドキュメントは `work` ブランチにコミットして `origin` へpush、`main` は `upstream/main` を追従するミラー専用ブランチとした（この時点でupstream側が15コミット進んでいたため`main`をfast-forwardし、`work`へ`merge main`して無コンフリクトで追従できることを確認済み）。
