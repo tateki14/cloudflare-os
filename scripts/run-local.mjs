@@ -115,7 +115,8 @@ const needsInstall = needsBuild || !existsSync(NODE_MODULES);
 
 function run(cmd, args) {
   console.log(`\n> ${cmd} ${args.join(" ")}`);
-  execFileSync(cmd, args, { stdio: "inherit", cwd: ROOT });
+  // On Windows, pnpm is a .cmd shim; execFileSync can't resolve it without a shell.
+  execFileSync(cmd, args, { stdio: "inherit", cwd: ROOT, shell: process.platform === "win32" });
 }
 
 if (needsInstall) {
