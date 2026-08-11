@@ -4,6 +4,7 @@ import { Columns, Rows } from '@phosphor-icons/react'
 import type { editor } from 'monaco-editor'
 import type * as Y from 'yjs'
 import { MonacoBinding } from 'y-monaco'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { defineGadgetsCodeTheme, getGadgetsCodeTheme, monoFont } from './components/monacoTheme'
 import { buildDiffModel, type DiffModel } from './diff/diffModel'
 import { renderDiffLayer, renderSplitDiffLayer } from './diff/diffRenderer'
@@ -54,6 +55,7 @@ export default function CodeDiffEditor({
   height = '100%',
 }: CodeDiffEditorProps) {
   const { resolvedThemeMode } = useTheme()
+  const { formatMessage } = useIntl()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const originalEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null)
@@ -407,7 +409,9 @@ export default function CodeDiffEditor({
         className="flex items-center justify-center bg-kumo-base text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle"
         style={{ height }}
       >
-        {!filename ? 'Select a file to view changes' : 'Loading diff...'}
+        {!filename
+          ? <FormattedMessage id="codeDiffEditor.selectFileToView" defaultMessage="Select a file to view changes" />
+          : <FormattedMessage id="codeDiffEditor.loadingDiff" defaultMessage="Loading diff..." />}
       </div>
     )
   }
@@ -423,8 +427,10 @@ export default function CodeDiffEditor({
             <button
               type="button"
               className={layoutButtonClass(diffLayoutPreference === 'stacked')}
-              title="Stacked diff"
-              aria-label="Use stacked diff layout"
+              title={formatMessage({ id: 'codeDiffEditor.stackedDiffTitle', defaultMessage: 'Stacked diff' })}
+              aria-label={formatMessage({
+                id: 'codeDiffEditor.stackedDiffAriaLabel', defaultMessage: 'Use stacked diff layout',
+              })}
               aria-pressed={diffLayoutPreference === 'stacked'}
               onClick={() => setDiffLayoutPreference('stacked')}
             >
@@ -433,8 +439,14 @@ export default function CodeDiffEditor({
             <button
               type="button"
               className={layoutButtonClass(diffLayoutPreference === 'split' && canSplitDiff, !canSplitDiff)}
-              title={canSplitDiff ? 'Split diff' : 'Split diff needs more space'}
-              aria-label="Use split diff layout"
+              title={canSplitDiff
+                ? formatMessage({ id: 'codeDiffEditor.splitDiffTitle', defaultMessage: 'Split diff' })
+                : formatMessage({
+                    id: 'codeDiffEditor.splitDiffNeedsSpace', defaultMessage: 'Split diff needs more space',
+                  })}
+              aria-label={formatMessage({
+                id: 'codeDiffEditor.splitDiffAriaLabel', defaultMessage: 'Use split diff layout',
+              })}
               aria-pressed={diffLayoutPreference === 'split' && canSplitDiff}
               disabled={!canSplitDiff}
               onClick={() => setDiffLayoutPreference('split')}

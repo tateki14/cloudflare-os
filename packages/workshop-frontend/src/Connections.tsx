@@ -8,6 +8,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { RpcStub } from 'capnweb'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { Overseer, GadgetClient, GadgetBindingInfo, BoundHookInfo, AuthenticatedApi, WorkpieceId } from '@gadgets/workshop-shared/api'
 import GatekeeperModal from './GatekeeperModal'
 import { GatekeeperIcon } from './components/GatekeeperIcon'
@@ -52,6 +53,7 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
   const [togglingHooks, setTogglingHooks] = useState<Set<number>>(new Set())
   const [annotationTarget, setAnnotationTarget] = useState<GadgetBindingInfo | null>(null)
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const loadGatekeepers = async () => {
     try {
@@ -74,7 +76,10 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       // silently render "no connected resources".
       console.error('Failed to load gatekeepers:', err)
       reportIssue('connections.load', err)
-      toasts.add({ title: 'Failed to load connections', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'connections.toastLoadFailed', defaultMessage: 'Failed to load connections' }),
+        variant: 'error',
+      })
     } finally {
       setLoading(false)
     }
@@ -93,7 +98,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       await loadGatekeepers()
     } catch (err) {
       console.error('Failed to toggle hook:', err)
-      toasts.add({ title: `Failed to ${enabled ? 'enable' : 'disable'} hook`, variant: 'error' })
+      toasts.add({
+        title: enabled
+          ? formatMessage({ id: 'connections.toastEnableHookFailed', defaultMessage: 'Failed to enable hook' })
+          : formatMessage({ id: 'connections.toastDisableHookFailed', defaultMessage: 'Failed to disable hook' }),
+        variant: 'error',
+      })
       // Revert optimistic update.
       setHooks((prev) => prev.map((h) => (h.id === id ? { ...h, enabled: !enabled } : h)))
     } finally {
@@ -112,7 +122,10 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       await loadGatekeepers()
     } catch (err) {
       console.error('Failed to delete hook:', err)
-      toasts.add({ title: 'Failed to delete hook', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'connections.toastDeleteHookFailed', defaultMessage: 'Failed to delete hook' }),
+        variant: 'error',
+      })
     } finally {
       setDeleteHookTarget(null)
     }
@@ -160,7 +173,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
   const handleEditSave = async (name: string) => {
     const newName = editValue.trim()
     if (!newName) {
-      toasts.add({ title: 'Binding name cannot be empty', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'connections.toastBindingNameEmpty', defaultMessage: 'Binding name cannot be empty',
+        }),
+        variant: 'error',
+      })
       return
     }
     if (newName === name) {
@@ -174,7 +192,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       onConnectionsChange?.()
     } catch (err) {
       console.error('Failed to rename binding:', err)
-      toasts.add({ title: 'Failed to update binding name', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'connections.toastRenameFailed', defaultMessage: 'Failed to update binding name',
+        }),
+        variant: 'error',
+      })
     } finally {
       setEditingBinding(null)
     }
@@ -193,7 +216,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       onConnectionsChange?.()
     } catch (err) {
       console.error('Failed to remove binding:', err)
-      toasts.add({ title: 'Failed to remove connection', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'connections.toastRemoveFailed', defaultMessage: 'Failed to remove connection',
+        }),
+        variant: 'error',
+      })
     } finally {
       setDeleteTarget(null)
     }
@@ -206,10 +234,10 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h2 className="m-0 text-[17px] leading-6 font-medium tracking-[-0.35px] text-kumo-default">
-                Connections
+                <FormattedMessage id="connections.connectionsHeading" defaultMessage="Connections" />
               </h2>
               <p className="mt-1 text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-                External resources this gadget can use.
+                <FormattedMessage id="connections.connectionsDescription" defaultMessage="External resources this gadget can use." />
               </p>
             </div>
             <WorkshopButton
@@ -217,19 +245,24 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
               onClick={() => setIsNewConnectionModalVisible(true)}
               className="self-start"
             >
-              Connect resource
+              <FormattedMessage id="connections.connectResource" defaultMessage="Connect resource" />
             </WorkshopButton>
           </div>
 
           {loading ? (
             <div className="rounded-xl border border-kumo-line bg-kumo-base px-4 py-6 text-center text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-              Loading connections...
+              <FormattedMessage id="connections.loadingConnections" defaultMessage="Loading connections..." />
             </div>
           ) : bindings.length === 0 ? (
             <EmptyState
-              title="No connected resources"
-              description="Connect Google Docs, GitHub, Google Sheets, and other services so this gadget can safely use external data."
-              actionLabel="Connect resource"
+              title={formatMessage({
+                id: 'connections.noConnectedResourcesTitle', defaultMessage: 'No connected resources',
+              })}
+              description={formatMessage({
+                id: 'connections.noConnectedResourcesDescription',
+                defaultMessage: 'Connect Google Docs, GitHub, Google Sheets, and other services so this gadget can safely use external data.',
+              })}
+              actionLabel={formatMessage({ id: 'connections.connectResource', defaultMessage: 'Connect resource' })}
               onAction={() => setIsNewConnectionModalVisible(true)}
             />
           ) : (
@@ -250,10 +283,18 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-danger">
-                            Delete {gk.resourceTitle}?
+                            <FormattedMessage
+                              id="connections.deleteResourceTitle"
+                              defaultMessage="Delete {resourceTitle}?"
+                              values={{ resourceTitle: gk.resourceTitle }}
+                            />
                           </p>
                           <p className="truncate text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-                            The binding <span className="font-mono">{gk.name}</span> will be removed from this gadget.
+                            <FormattedMessage
+                              id="connections.deleteBindingDescription"
+                              defaultMessage="The binding {name} will be removed from this gadget."
+                              values={{ name: <span className="font-mono">{gk.name}</span> }}
+                            />
                           </p>
                         </div>
                         <WorkshopButton
@@ -261,12 +302,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                           className="min-w-[68px]"
                           onClick={handleDeleteConfirm}
                         >
-                          Delete
+                          <FormattedMessage id="connections.delete" defaultMessage="Delete" />
                         </WorkshopButton>
                         <WorkshopButton
                           onClick={() => setDeleteTarget(null)}
                         >
-                          Cancel
+                          <FormattedMessage id="connections.cancel" defaultMessage="Cancel" />
                         </WorkshopButton>
                       </div>
                     ) : isEditing ? (
@@ -278,8 +319,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                             if (e.key === 'Enter') handleEditSave(gk.name)
                             if (e.key === 'Escape') handleEditCancel()
                           }}
-                          placeholder="Binding name"
-                          aria-label="Binding name"
+                          placeholder={formatMessage({
+                            id: 'connections.bindingNamePlaceholder', defaultMessage: 'Binding name',
+                          })}
+                          aria-label={formatMessage({
+                            id: 'connections.bindingNamePlaceholder', defaultMessage: 'Binding name',
+                          })}
                           autoFocus
                           className="min-w-0 flex-1 font-mono"
                         />
@@ -289,12 +334,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                           onClick={() => handleEditSave(gk.name)}
                           disabled={!editValue.trim()}
                         >
-                          Save
+                          <FormattedMessage id="connections.save" defaultMessage="Save" />
                         </WorkshopButton>
                         <WorkshopButton
                           onClick={handleEditCancel}
                         >
-                          Cancel
+                          <FormattedMessage id="connections.cancel" defaultMessage="Cancel" />
                         </WorkshopButton>
                       </div>
                     ) : (
@@ -308,41 +353,60 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                           <p className="flex items-center gap-2 truncate text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-default">
                             <span className="min-w-0 truncate">{gk.resourceTitle}</span>
                             {isPending && (
-                              <Tooltip content="Added in this chat; kept when you accept the chat's changes" asChild>
+                              <Tooltip content={formatMessage({
+                                id: 'connections.draftTooltip',
+                                defaultMessage: "Added in this chat; kept when you accept the chat's changes",
+                              })} asChild>
                                 <span className="flex-shrink-0 rounded-full bg-kumo-fill px-1.5 py-0.5 text-[10px] leading-none font-medium text-kumo-subtle">
-                                  Draft
+                                  <FormattedMessage id="connections.draft" defaultMessage="Draft" />
                                 </span>
                               </Tooltip>
                             )}
                           </p>
                           <p className="mt-0.5 truncate text-[11px] leading-4 tracking-[-0.1px] text-kumo-inactive">
-                            Referenced in code as: <span className="font-mono text-kumo-subtle">{gk.name}</span>
+                            <FormattedMessage
+                              id="connections.referencedInCodeAs"
+                              defaultMessage="Referenced in code as: {name}"
+                              values={{ name: <span className="font-mono text-kumo-subtle">{gk.name}</span> }}
+                            />
                           </p>
                         </div>
                         <div className="ml-auto flex shrink-0 items-center gap-1">
-                          <Tooltip content="Edit name used in code" asChild>
+                          <Tooltip content={formatMessage({
+                            id: 'connections.editNameTooltip', defaultMessage: 'Edit name used in code',
+                          })} asChild>
                             <WorkshopIconButton
                               onClick={() => handleEditStart(gk.name)}
-                              aria-label="Edit name used in code"
+                              aria-label={formatMessage({
+                                id: 'connections.editNameTooltip', defaultMessage: 'Edit name used in code',
+                              })}
                             >
                               <Pencil size={14} />
                             </WorkshopIconButton>
                           </Tooltip>
                           {!isPending && (
-                            <Tooltip content="Edit blueprint settings" asChild>
+                            <Tooltip content={formatMessage({
+                              id: 'connections.editBlueprintSettingsTooltip', defaultMessage: 'Edit blueprint settings',
+                            })} asChild>
                               <WorkshopIconButton
                                 onClick={() => setAnnotationTarget(gk)}
-                                aria-label="Edit blueprint settings"
+                                aria-label={formatMessage({
+                                  id: 'connections.editBlueprintSettingsTooltip', defaultMessage: 'Edit blueprint settings',
+                                })}
                               >
                                 <Blueprint size={14} />
                               </WorkshopIconButton>
                             </Tooltip>
                           )}
-                          <Tooltip content="Delete connection" asChild>
+                          <Tooltip content={formatMessage({
+                            id: 'connections.deleteConnectionTooltip', defaultMessage: 'Delete connection',
+                          })} asChild>
                             <WorkshopIconButton
                               danger
                               onClick={() => setDeleteTarget({ name: gk.name, resourceTitle: gk.resourceTitle })}
-                              aria-label="Delete connection"
+                              aria-label={formatMessage({
+                                id: 'connections.deleteConnectionTooltip', defaultMessage: 'Delete connection',
+                              })}
                             >
                               <Trash size={14} />
                             </WorkshopIconButton>
@@ -361,10 +425,13 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
           <section className="mt-8">
             <div className="mb-3">
               <h2 className="m-0 text-[17px] leading-6 font-medium tracking-[-0.35px] text-kumo-default">
-                Hooks
+                <FormattedMessage id="connections.hooksHeading" defaultMessage="Hooks" />
               </h2>
               <p className="mt-1 text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-                Callbacks that let connected resources wake up this gadget when events happen.
+                <FormattedMessage
+                  id="connections.hooksDescription"
+                  defaultMessage="Callbacks that let connected resources wake up this gadget when events happen."
+                />
               </p>
             </div>
 
@@ -382,10 +449,17 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-danger">
-                            Delete hook "{hook.description.title}"?
+                            <FormattedMessage
+                              id="connections.deleteHookTitle"
+                              defaultMessage='Delete hook "{title}"?'
+                              values={{ title: hook.description.title }}
+                            />
                           </p>
                           <p className="truncate text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-                            This permanently removes the hook. Future events will stop being delivered.
+                            <FormattedMessage
+                              id="connections.deleteHookDescription"
+                              defaultMessage="This permanently removes the hook. Future events will stop being delivered."
+                            />
                           </p>
                         </div>
                         <WorkshopButton
@@ -393,12 +467,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                           className="min-w-[68px]"
                           onClick={handleDeleteHookConfirm}
                         >
-                          Delete
+                          <FormattedMessage id="connections.delete" defaultMessage="Delete" />
                         </WorkshopButton>
                         <WorkshopButton
                           onClick={() => setDeleteHookTarget(null)}
                         >
-                          Cancel
+                          <FormattedMessage id="connections.cancel" defaultMessage="Cancel" />
                         </WorkshopButton>
                       </div>
                     ) : (
@@ -429,11 +503,15 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                             disabled={togglingHooks.has(hook.id)}
                             onToggle={(enabled) => handleToggleHook(hook.id, enabled)}
                           />
-                          <Tooltip content="Delete hook" asChild>
+                          <Tooltip content={formatMessage({
+                            id: 'connections.deleteHookTooltip', defaultMessage: 'Delete hook',
+                          })} asChild>
                             <WorkshopIconButton
                               danger
                               onClick={() => setDeleteHookTarget({ id: hook.id, title: hook.description.title })}
-                              aria-label="Delete hook"
+                              aria-label={formatMessage({
+                                id: 'connections.deleteHookTooltip', defaultMessage: 'Delete hook',
+                              })}
                             >
                               <Trash size={14} />
                             </WorkshopIconButton>
@@ -461,8 +539,13 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
             await gadget.bindWithSuggestedName(gatekeeperId, chatId)
             toasts.add({
               title: chatId === undefined
-                ? 'Connection created successfully'
-                : "Connection created — accept the chat's changes to keep it",
+                ? formatMessage({
+                    id: 'connections.toastConnectionCreated', defaultMessage: 'Connection created successfully',
+                  })
+                : formatMessage({
+                    id: 'connections.toastConnectionCreatedProvisional',
+                    defaultMessage: "Connection created — accept the chat's changes to keep it",
+                  }),
               variant: 'success',
             })
             await loadGatekeepers()
@@ -478,7 +561,12 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
         gadget={gadget}
         onClose={() => setAnnotationTarget(null)}
         onSaved={() => {
-          toasts.add({ title: 'Blueprint settings saved.', variant: 'success' })
+          toasts.add({
+            title: formatMessage({
+              id: 'connections.toastBlueprintSettingsSaved', defaultMessage: 'Blueprint settings saved.',
+            }),
+            variant: 'success',
+          })
           setAnnotationTarget(null)
         }}
       />
@@ -498,6 +586,7 @@ function BlueprintAnnotationModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { formatMessage } = useIntl()
   const [data, setData] = useState<BindingCardData | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -518,20 +607,24 @@ function BlueprintAnnotationModal({
           if (loaded) {
             setData(loaded)
           } else {
-            setLoadError('Connection not found.')
+            setLoadError(formatMessage({
+              id: 'connections.connectionNotFound', defaultMessage: 'Connection not found.',
+            }))
           }
         }
       } catch (err: any) {
         if (!cancelled) {
           reportIssue('connections.binding-load', err)
-          setLoadError(err?.message || 'Could not load binding.')
+          setLoadError(err?.message || formatMessage({
+            id: 'connections.couldNotLoadBinding', defaultMessage: 'Could not load binding.',
+          }))
         }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [target, gadget])
+  }, [target, gadget, formatMessage])
 
   const handleSave = async () => {
     if (!data || !target) return
@@ -542,7 +635,9 @@ function BlueprintAnnotationModal({
       onSaved()
     } catch (err: any) {
       reportIssue('connections.binding-save', err)
-      setSaveError(err?.message || 'Could not save.')
+      setSaveError(err?.message || formatMessage({
+        id: 'connections.couldNotSave', defaultMessage: 'Could not save.',
+      }))
     } finally {
       setSaving(false)
     }
@@ -557,15 +652,18 @@ function BlueprintAnnotationModal({
           <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-4 py-4 sm:px-5">
             <div className="min-w-0">
               <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-                Blueprint settings
+                <FormattedMessage id="connections.blueprintSettingsTitle" defaultMessage="Blueprint settings" />
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-                How this connection appears in blueprints.
+                <FormattedMessage
+                  id="connections.blueprintSettingsDescription"
+                  defaultMessage="How this connection appears in blueprints."
+                />
               </Dialog.Description>
             </div>
             <Dialog.Close
               render={(props) => (
-                <WorkshopIconButton {...props} aria-label="Close">
+                <WorkshopIconButton {...props} aria-label={formatMessage({ id: 'connections.close', defaultMessage: 'Close' })}>
                   <X size={16} />
                 </WorkshopIconButton>
               )}
@@ -576,7 +674,9 @@ function BlueprintAnnotationModal({
             {loadError ? (
               <div className="text-[13px] text-kumo-subtle">{loadError}</div>
             ) : !data ? (
-              <div className="py-2 text-center text-[13px] text-kumo-subtle">Loading...</div>
+              <div className="py-2 text-center text-[13px] text-kumo-subtle">
+                <FormattedMessage id="connections.loading" defaultMessage="Loading..." />
+              </div>
             ) : (
               <>
                 <BlueprintBindingCard
@@ -601,14 +701,16 @@ function BlueprintAnnotationModal({
                 onClick={onClose}
                 disabled={saving}
               >
-                Cancel
+                <FormattedMessage id="connections.cancel" defaultMessage="Cancel" />
               </WorkshopButton>
               <WorkshopButton
                 tone="primary"
                 onClick={handleSave}
                 disabled={saving || !data}
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving
+                  ? <FormattedMessage id="connections.savingEllipsis" defaultMessage="Saving..." />
+                  : <FormattedMessage id="connections.save" defaultMessage="Save" />}
               </WorkshopButton>
             </div>
           </div>
