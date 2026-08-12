@@ -18,6 +18,7 @@ import type {
   GatekeeperAppThemeReceiver,
 } from "@gadgets/workshop-shared/theme";
 import SandboxedGatekeeperApp from "./SandboxedGatekeeperApp";
+import { TestIntlProvider } from "./i18n/testIntlProvider";
 
 vi.mock("./ThemeContext", () => ({
   useTheme: () => ({ resolvedThemeMode: "light" }),
@@ -79,7 +80,11 @@ describe("SandboxedGatekeeperApp navigation", () => {
       ui: new RpcStub(new EmptyUi()),
     } as unknown as GatekeeperUiFrame;
     const rootRoute = createRootRoute({
-      component: () => <SandboxedGatekeeperApp frame={frame} gatekeeperVendorId="scheduler" />,
+      component: () => (
+        <TestIntlProvider>
+          <SandboxedGatekeeperApp frame={frame} gatekeeperVendorId="scheduler" />
+        </TestIntlProvider>
+      ),
     });
     const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" });
     const gadgetRoute = createRoute({

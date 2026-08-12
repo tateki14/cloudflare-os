@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import type { GatekeeperUiFrame } from '@gadgets/workshop-shared/gatekeeper'
 import { useAuthenticatedApi } from './AuthContext'
 import SandboxedGatekeeperApp from './SandboxedGatekeeperApp'
@@ -13,6 +14,7 @@ function disposeFrame(frame: GatekeeperUiFrame | null) {
 // Fetches the app frame (iframe HTML + `ui` capability) from the backend and hosts it.
 export default function GatekeeperAppPage({ appId }: { appId: string }) {
   const { authenticatedApi } = useAuthenticatedApi()
+  const { formatMessage } = useIntl()
   // Wrap the frame in an object: it holds a `ui` RPC stub, and we never want useState's setter to
   // treat a stored value as an updater function.
   const [state, setState] = useState<{ frame: GatekeeperUiFrame } | null>(null)
@@ -25,7 +27,11 @@ export default function GatekeeperAppPage({ appId }: { appId: string }) {
       .getGatekeeperApp(appId)
       .then((frame) => {
         if (!frame) {
-          if (!cancelled) setError('This app is not available on this deployment.')
+          if (!cancelled) {
+            setError(formatMessage({
+              id: 'gatekeeperAppPage.appNotAvailable', defaultMessage: 'This app is not available on this deployment.',
+            }))
+          }
           return
         }
         if (cancelled) {
@@ -46,7 +52,7 @@ export default function GatekeeperAppPage({ appId }: { appId: string }) {
       cancelled = true
       disposeFrame(acquired)
     }
-  }, [authenticatedApi, appId])
+  }, [authenticatedApi, appId, formatMessage])
 
   if (error) {
     return (
@@ -54,7 +60,11 @@ export default function GatekeeperAppPage({ appId }: { appId: string }) {
     )
   }
   if (!state) {
-    return <div className="px-4 py-16 text-center text-sm text-kumo-subtle">Loading…</div>
+    return (
+      <div className="px-4 py-16 text-center text-sm text-kumo-subtle">
+        <FormattedMessage id="gatekeeperAppPage.loading" defaultMessage="Loading…" />
+      </div>
+    )
   }
 
   // Fill the viewport below the header so the embedded app can manage its own internal layout.

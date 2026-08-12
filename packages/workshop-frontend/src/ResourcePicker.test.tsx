@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RpcStub } from 'capnweb'
 import type { AuthenticatedApi } from '@gadgets/workshop-shared/api'
 import ResourcePicker from './ResourcePicker'
+import { TestIntlProvider } from './i18n/testIntlProvider'
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -45,11 +46,13 @@ describe('ResourcePicker', () => {
     document.body.append(container)
     root = createRoot(container)
     await act(async () => root!.render(
-      <ResourcePicker
-        authenticatedApi={authenticatedApi}
-        searchText="https://example.com"
-        onSelectAccount={() => {}}
-      />,
+      <TestIntlProvider>
+        <ResourcePicker
+          authenticatedApi={authenticatedApi}
+          searchText="https://example.com"
+          onSelectAccount={() => {}}
+        />
+      </TestIntlProvider>,
     ))
 
     act(() => root!.unmount())

@@ -1,4 +1,5 @@
 import { ResourceConfiguratorFrame } from '@gadgets/workshop-shared/gatekeeper'
+import { FormattedMessage } from 'react-intl'
 import SandboxedResourceConfigurator from './SandboxedResourceConfigurator'
 
 // Renders the resource configurator slot inside the gatekeeper modal.
@@ -25,8 +26,20 @@ export default function ResourceConfiguratorHost({
   initialResourceUrl?: string
   resourceUrlPattern?: string
 }) {
-  if (disabled) return <Placeholder>Choose an account before selecting a resource.</Placeholder>
-  if (loading) return <Placeholder>Loading configurator...</Placeholder>
+  if (disabled) {
+    return (
+      <Placeholder>
+        <FormattedMessage id="resourceConfiguratorHost.chooseAccountFirst" defaultMessage="Choose an account before selecting a resource." />
+      </Placeholder>
+    )
+  }
+  if (loading) {
+    return (
+      <Placeholder>
+        <FormattedMessage id="resourceConfiguratorHost.loadingConfigurator" defaultMessage="Loading configurator..." />
+      </Placeholder>
+    )
+  }
   if (error) return <Placeholder>{error}</Placeholder>
   if (!frame) return null
 

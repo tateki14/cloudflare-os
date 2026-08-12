@@ -5,6 +5,7 @@ import { useAuth, CF_ACCESS_MODE } from './useAuth'
 import { AuthProvider } from './AuthContext'
 import LoginPage from './LoginPage'
 import { Loader, Banner, Button } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -13,6 +14,7 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, rpcStub }: ProtectedRouteProps) {
   const { isAuthenticated, authenticatedApi, isLoading, error, logout, login } = useAuth(rpcStub)
+  const { formatMessage } = useIntl()
 
   const handleLoginSuccess = () => {
     // Trigger re-authentication by calling login with stored token
@@ -36,7 +38,7 @@ export default function ProtectedRoute({ children, rpcStub }: ProtectedRouteProp
       >
         <Loader size="lg" />
         <div style={{ textAlign: 'center' }}>
-          Loading...
+          <FormattedMessage id="protectedRoute.loading" defaultMessage="Loading..." />
         </div>
       </div>
     )
@@ -57,11 +59,11 @@ export default function ProtectedRoute({ children, rpcStub }: ProtectedRouteProp
       >
         <Banner
           variant="error"
-          title={`Authentication error: ${error}`}
+          title={formatMessage({ id: 'protectedRoute.authenticationError', defaultMessage: 'Authentication error: {error}' }, { error })}
           className="mb-4"
         />
         <Button variant="primary" onClick={() => window.location.reload()}>
-          Retry
+          <FormattedMessage id="protectedRoute.retry" defaultMessage="Retry" />
         </Button>
       </div>
     )
@@ -85,7 +87,7 @@ export default function ProtectedRoute({ children, rpcStub }: ProtectedRouteProp
         >
           <Loader size="lg" />
           <div style={{ textAlign: 'center' }}>
-            Authenticating...
+            <FormattedMessage id="protectedRoute.authenticating" defaultMessage="Authenticating..." />
           </div>
         </div>
       )

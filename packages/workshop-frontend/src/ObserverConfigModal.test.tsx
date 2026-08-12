@@ -45,6 +45,7 @@ vi.mock('./components/WorkshopControls', () => ({
 vi.mock('./components/Avatar', () => ({ default: () => <span data-testid="avatar" /> }))
 
 import ObserverConfigModal from './ObserverConfigModal'
+import { TestIntlProvider } from './i18n/testIntlProvider'
 
 const VENDOR = {
   displayName: 'Google',
@@ -138,12 +139,14 @@ describe('ObserverConfigModal account selection', () => {
     root = createRoot(container)
     await act(async () => {
       root!.render(
-        <ObserverConfigModal
-          needs={[NEED]}
-          authenticatedApi={options.api ?? fakeApi(accountEntries)}
-          onConfirm={options.onConfirm ?? (() => {})}
-          onCancel={() => {}}
-        />,
+        <TestIntlProvider>
+          <ObserverConfigModal
+            needs={[NEED]}
+            authenticatedApi={options.api ?? fakeApi(accountEntries)}
+            onConfirm={options.onConfirm ?? (() => {})}
+            onCancel={() => {}}
+          />
+        </TestIntlProvider>,
       )
       await Promise.resolve()
     })

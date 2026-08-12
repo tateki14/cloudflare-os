@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Tooltip, useKumoToastManager } from '@cloudflare/kumo'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { useIntl } from 'react-intl'
 import type { RpcStub } from 'capnweb'
 import type { GadgetClient } from '@gadgets/workshop-shared/api'
 import { WorkshopIconButton } from './components/WorkshopControls'
@@ -16,6 +17,7 @@ type Props = {
 export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, disabled }: Props) {
   const [exporting, setExporting] = useState(false)
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const download = async () => {
     if (!gadget || exporting) return
@@ -26,24 +28,32 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, disabled
         () => gadget.exportPdf(chatId),
         makeExportFilename(gadgetTitle, '.pdf'),
         {
-          description: 'PDF document',
+          description: formatMessage({ id: 'gadgetExportMenu.pdfDocument', defaultMessage: 'PDF document' }),
           contentType: 'application/pdf',
           extension: '.pdf',
         },
       )
     } catch (error) {
       console.error('Failed to export Gadget as PDF:', error)
-      toasts.add({ title: 'Failed to export PDF', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'gadgetExportMenu.toastExportFailed', defaultMessage: 'Failed to export PDF' }),
+        variant: 'error',
+      })
     } finally {
       setExporting(false)
     }
   }
 
   return (
-    <Tooltip content={exporting ? 'Exporting to PDF' : 'Export to PDF'} asChild>
+    <Tooltip
+      content={exporting
+        ? formatMessage({ id: 'gadgetExportMenu.exportingToPdf', defaultMessage: 'Exporting to PDF' })
+        : formatMessage({ id: 'gadgetExportMenu.exportToPdf', defaultMessage: 'Export to PDF' })}
+      asChild
+    >
       <span className="relative inline-flex">
         <WorkshopIconButton
-          aria-label="Export to PDF"
+          aria-label={formatMessage({ id: 'gadgetExportMenu.exportToPdf', defaultMessage: 'Export to PDF' })}
           disabled={disabled || !gadget || exporting}
           onClick={() => { void download() }}
         >

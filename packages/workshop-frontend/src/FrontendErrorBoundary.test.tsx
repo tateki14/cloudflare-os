@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import FrontendErrorBoundary from './FrontendErrorBoundary'
 import { reportIssue } from './errorReporting'
+import { TestIntlProvider } from './i18n/testIntlProvider'
 
 vi.mock('./errorReporting', () => ({ reportIssue: vi.fn<typeof reportIssue>() }))
 
@@ -21,9 +22,11 @@ describe('FrontendErrorBoundary', () => {
     document.body.append(container)
     root = createRoot(container)
     await act(async () => root!.render(
-      <FrontendErrorBoundary>
-        <Broken />
-      </FrontendErrorBoundary>,
+      <TestIntlProvider>
+        <FrontendErrorBoundary>
+          <Broken />
+        </FrontendErrorBoundary>
+      </TestIntlProvider>,
     ))
     expect(container.textContent).toContain('Something went wrong')
     expect(container.querySelector('button')?.textContent).toContain('Reload')

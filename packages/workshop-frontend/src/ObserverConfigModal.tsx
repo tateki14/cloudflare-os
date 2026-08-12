@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Dialog, Select, Loader, Text, useKumoToastManager } from '@cloudflare/kumo'
 import { Warning, Plus, ArrowClockwise, CheckCircle } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { RpcStub } from 'capnweb'
 import {
   AuthenticatedApi,
@@ -39,8 +40,13 @@ interface AccountInfo {
 
 // How to name one of the user's accounts in the UI. Falls back to the id, which is all we can show
 // for an account that has since been disconnected (so `accounts` no longer has it).
-function accountLabel(account: AccountInfo | undefined, accountId: number): string {
-  return account?.description.uniqueName || account?.description.displayName || `Account ${accountId}`
+function accountLabel(
+  account: AccountInfo | undefined,
+  accountId: number,
+  formatMessage: IntlShape['formatMessage'],
+): string {
+  return account?.description.uniqueName || account?.description.displayName
+    || formatMessage({ id: 'observerConfigModal.accountFallbackName', defaultMessage: 'Account {accountId}' }, { accountId })
 }
 
 // Return the grantable resource type needed to verify one observer binding. Account metadata is
@@ -81,6 +87,7 @@ export default function ObserverConfigModal({
   onCancel,
 }: ObserverConfigModalProps) {
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const [accounts, setAccounts] = useState<Map<number, AccountInfo>>(new Map())
   const [ready, setReady] = useState(false)
@@ -143,7 +150,12 @@ export default function ObserverConfigModal({
         // Loud on purpose: the modal has no retry path, so a quieted transient failure would
         // strand the user on a permanent loader.
         console.error('Failed to subscribe to connected accounts:', err)
-        toasts.add({ title: 'Failed to load your connected accounts', variant: 'error' })
+        toasts.add({
+          title: formatMessage({
+            id: 'observerConfigModal.toastLoadAccountsFailed', defaultMessage: 'Failed to load your connected accounts',
+          }),
+          variant: 'error',
+        })
       })
 
     return () => {
@@ -220,7 +232,10 @@ export default function ObserverConfigModal({
       }
     } catch (err) {
       console.error('Failed to initiate connection:', err)
-      toasts.add({ title: 'Failed to start connection flow', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'observerConfigModal.toastConnectionFlowFailed', defaultMessage: 'Failed to start connection flow' }),
+        variant: 'error',
+      })
       connectingRef.current = null
       setConnecting(null)
     }
@@ -234,7 +249,12 @@ export default function ObserverConfigModal({
       // Subscription fires add() with credentialsValid:true on completion, clearing `reconnecting`.
     } catch (err) {
       console.error('Failed to initiate reconnection:', err)
-      toasts.add({ title: 'Failed to start re-authentication flow', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'observerConfigModal.toastReauthFlowFailed', defaultMessage: 'Failed to start re-authentication flow',
+        }),
+        variant: 'error',
+      })
       setReconnecting(null)
     }
   }
@@ -276,7 +296,12 @@ export default function ObserverConfigModal({
       }
     } catch (err) {
       console.error('Failed to request additional access:', err)
-      toasts.add({ title: 'Failed to request additional access', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'observerConfigModal.toastAdditionalAccessFailed', defaultMessage: 'Failed to request additional access',
+        }),
+        variant: 'error',
+      })
       setGranting(null)
     }
   }
@@ -316,14 +341,24 @@ export default function ObserverConfigModal({
     <Dialog.Root open disablePointerDismissal onOpenChange={open => { if (!open) onCancel() }}>
       <Dialog className="p-6" size="lg">
         <Dialog.Title className="mb-2 text-lg font-semibold">
-          {isRetry ? 'Verify your access again' : 'Verify your access'}
+          {isRetry
+            ? <FormattedMessage id="observerConfigModal.titleRetry" defaultMessage="Verify your access again" />
+            : <FormattedMessage id="observerConfigModal.title" defaultMessage="Verify your access" />}
         </Dialog.Title>
         <Text variant="secondary" size="sm" as="p">
           {isRetry
-            ? 'We couldn’t confirm your access to everything this workspace has read. Re-authenticate ' +
-              'the account below, or choose a different one, then try again.'
-            : 'Before opening this workspace, confirm that your own accounts can access the connected ' +
-              'data it uses.'}
+            ? (
+              <FormattedMessage
+                id="observerConfigModal.descriptionRetry"
+                defaultMessage="We couldn’t confirm your access to everything this workspace has read. Re-authenticate the account below, or choose a different one, then try again."
+              />
+            )
+            : (
+              <FormattedMessage
+                id="observerConfigModal.description"
+                defaultMessage="Before opening this workspace, confirm that your own accounts can access the connected data it uses."
+              />
+            )}
         </Text>
 
         {!ready || !vendorsReady ? (
@@ -336,7 +371,8 @@ export default function ObserverConfigModal({
               const matching = [...accounts.values()].filter(a => a.vendorId === need.vendorId)
               const vendorInfo = vendorsById.get(need.vendorId)
               const vendor = matching[0]?.vendor ?? vendorInfo?.description
-              const vendorName = vendor?.displayName || need.vendorId || 'service'
+              const vendorName = vendor?.displayName || need.vendorId
+                || formatMessage({ id: 'observerConfigModal.serviceFallbackName', defaultMessage: 'service' })
               const chosen = accountFor(need.gatekeeperId)
               const required = requiredResourceUrlPatterns(need, vendorInfo, chosen)
               const missing = chosen ? missingResourceUrlPatterns(chosen, required) : []
@@ -366,7 +402,9 @@ export default function ObserverConfigModal({
                         onClick={() => handleConnect(need)}
                         disabled={connecting === need.vendorId}
                       >
-                        {connecting === need.vendorId ? 'Waiting for connection…' : 'Connect'}
+                        {connecting === need.vendorId
+                          ? <FormattedMessage id="observerConfigModal.waitingForConnection" defaultMessage="Waiting for connection…" />
+                          : <FormattedMessage id="observerConfigModal.connect" defaultMessage="Connect" />}
                       </WorkshopButton>
                     )}
                   </div>
@@ -378,7 +416,7 @@ export default function ObserverConfigModal({
                       <Warning size={14} className="mt-0.5 shrink-0" />
                       <div className="min-w-0">
                         <span className="font-medium">
-                          {accountLabel(accounts.get(need.failure.accountId), need.failure.accountId)}
+                          {accountLabel(accounts.get(need.failure.accountId), need.failure.accountId, formatMessage)}
                         </span>
                         {' — '}
                         {need.failure.reason}
@@ -391,14 +429,17 @@ export default function ObserverConfigModal({
                       {matching.length === 1 ? (
                         <div className="flex min-h-10 items-center gap-3 rounded-lg border border-kumo-line bg-kumo-elevated/50 px-3 py-2">
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11px] leading-4 text-kumo-subtle">Using your account</div>
+                            <div className="text-[11px] leading-4 text-kumo-subtle">
+                              <FormattedMessage id="observerConfigModal.usingYourAccount" defaultMessage="Using your account" />
+                            </div>
                             <div className="truncate text-sm font-medium text-kumo-default">
-                              {accountLabel(matching[0], matching[0].id)}
+                              {accountLabel(matching[0], matching[0].id, formatMessage)}
                             </div>
                           </div>
                           {accountSatisfies(need, matching[0]) && (
                             <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-kumo-success">
-                              <CheckCircle size={15} weight="fill" /> Ready
+                              <CheckCircle size={15} weight="fill" />
+                              <FormattedMessage id="observerConfigModal.ready" defaultMessage="Ready" />
                             </span>
                           )}
                         </div>
@@ -410,16 +451,21 @@ export default function ObserverConfigModal({
                               ? String(choices[need.gatekeeperId])
                               : undefined
                           }
-                          placeholder={`Choose a ${vendorName} account…`}
+                          placeholder={formatMessage(
+                            { id: 'observerConfigModal.chooseAccountPlaceholder', defaultMessage: 'Choose a {vendorName} account…' },
+                            { vendorName },
+                          )}
                           onValueChange={v =>
                             setChoices(prev => ({ ...prev, [need.gatekeeperId]: Number(v) }))
                           }
-                          renderValue={v => accountLabel(accounts.get(Number(v)), Number(v))}
+                          renderValue={v => accountLabel(accounts.get(Number(v)), Number(v), formatMessage)}
                         >
                           {matching.map(acct => (
                             <Select.Option key={acct.id} value={String(acct.id)}>
-                              {accountLabel(acct, acct.id)}
-                              {!acct.credentialsValid ? ' (expired)' : ''}
+                              {accountLabel(acct, acct.id, formatMessage)}
+                              {!acct.credentialsValid
+                                ? ` ${formatMessage({ id: 'observerConfigModal.expiredSuffix', defaultMessage: '(expired)' })}`
+                                : ''}
                             </Select.Option>
                           ))}
                         </Select>
@@ -440,8 +486,13 @@ export default function ObserverConfigModal({
                             <Warning size={12} />
                           )}
                           {granting === chosen.id
-                            ? 'Waiting for access…'
-                            : 'Grant the access needed to verify this resource'}
+                            ? <FormattedMessage id="observerConfigModal.waitingForAccess" defaultMessage="Waiting for access…" />
+                            : (
+                              <FormattedMessage
+                                id="observerConfigModal.grantAccessNeeded"
+                                defaultMessage="Grant the access needed to verify this resource"
+                              />
+                            )}
                         </button>
                       )}
 
@@ -464,10 +515,20 @@ export default function ObserverConfigModal({
                             <Warning size={12} />
                           )}
                           {reconnecting === chosen.id
-                            ? 'Re-authenticating…'
+                            ? <FormattedMessage id="observerConfigModal.reauthenticating" defaultMessage="Re-authenticating…" />
                             : chosen.credentialsValid
-                              ? 'Click to re-authenticate this account'
-                              : 'This account has expired — click to re-authenticate'}
+                              ? (
+                                <FormattedMessage
+                                  id="observerConfigModal.clickToReauthenticate"
+                                  defaultMessage="Click to re-authenticate this account"
+                                />
+                              )
+                              : (
+                                <FormattedMessage
+                                  id="observerConfigModal.accountExpired"
+                                  defaultMessage="This account has expired — click to re-authenticate"
+                                />
+                              )}
                         </button>
                       )}
 
@@ -479,7 +540,9 @@ export default function ObserverConfigModal({
                           className="flex items-center gap-1 text-xs text-kumo-subtle hover:text-kumo-default disabled:opacity-60 self-start"
                         >
                           <Plus size={11} />
-                          {connecting === need.vendorId ? 'Waiting for connection…' : 'Connect a different account'}
+                          {connecting === need.vendorId
+                            ? <FormattedMessage id="observerConfigModal.waitingForConnection" defaultMessage="Waiting for connection…" />
+                            : <FormattedMessage id="observerConfigModal.connectDifferentAccount" defaultMessage="Connect a different account" />}
                         </button>
                       )}
                     </div>
@@ -492,14 +555,16 @@ export default function ObserverConfigModal({
 
         <div className="flex justify-end gap-2 mt-6">
           <WorkshopButton tone="secondary" onClick={onCancel}>
-            Cancel
+            <FormattedMessage id="observerConfigModal.cancel" defaultMessage="Cancel" />
           </WorkshopButton>
           <WorkshopButton
             tone="primary"
             onClick={handleConfirm}
             disabled={!ready || !vendorsReady || !allSatisfied}
           >
-            {isRetry ? 'Verify again' : 'Verify and open'}
+            {isRetry
+              ? <FormattedMessage id="observerConfigModal.verifyAgain" defaultMessage="Verify again" />
+              : <FormattedMessage id="observerConfigModal.verifyAndOpen" defaultMessage="Verify and open" />}
           </WorkshopButton>
         </div>
       </Dialog>

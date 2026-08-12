@@ -4,6 +4,7 @@ import { RpcStub } from 'capnweb'
 import { PublicApi } from '@gadgets/workshop-shared/api'
 import { Hexagon } from '@phosphor-icons/react'
 import { Input, Button, Banner, Loader } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { hashPassword } from './passwordHash'
 import { useServerConfig, useServerConfigError, useSiteName } from './ServerConfigContext'
 import { useDocumentTitle } from './useDocumentTitle'
@@ -26,7 +27,8 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
   const serverConfigError = useServerConfigError()
   const siteName = useSiteName()
   const connectionLost = useConnectionLost()
-  useDocumentTitle('Sign in')
+  const { formatMessage } = useIntl()
+  useDocumentTitle(formatMessage({ id: 'loginPage.documentTitle', defaultMessage: 'Sign in' }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -45,10 +47,12 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
           window.location.reload()
         }
       } else {
-        setError('Invalid username or password')
+        setError(formatMessage({ id: 'loginPage.invalidCredentials', defaultMessage: 'Invalid username or password' }))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error
+        ? err.message
+        : formatMessage({ id: 'loginPage.loginFailed', defaultMessage: 'Login failed' }))
     } finally {
       setLoading(false)
     }
@@ -66,9 +70,11 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
           className="min-h-screen flex flex-col items-center justify-center gap-4 bg-kumo-base px-4"
         >
           <p className="text-sm text-kumo-danger text-center">
-            Couldn&apos;t load deployment settings.
+            <FormattedMessage id="loginPage.deploymentSettingsLoadFailed" defaultMessage="Couldn’t load deployment settings." />
           </p>
-          <Button variant="secondary" onClick={() => window.location.reload()}>Reload</Button>
+          <Button variant="secondary" onClick={() => window.location.reload()}>
+            <FormattedMessage id="loginPage.reload" defaultMessage="Reload" />
+          </Button>
         </div>
       )
     }
@@ -76,7 +82,9 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-kumo-base px-4">
         <Loader size="lg" />
         <p className="text-sm text-kumo-subtle text-center">
-          {connectionLost ? "Can't reach the server. Retrying…" : 'Loading…'}
+          {connectionLost
+            ? <FormattedMessage id="loginPage.retryingConnection" defaultMessage="Can't reach the server. Retrying…" />
+            : <FormattedMessage id="loginPage.loading" defaultMessage="Loading…" />}
         </p>
       </div>
     )
@@ -107,7 +115,9 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             </div>
           </SiteLogo>
           <h1 className="text-xl font-semibold text-kumo-default">{siteName}</h1>
-          <p className="text-sm text-kumo-subtle mt-1">Sign in to your account</p>
+          <p className="text-sm text-kumo-subtle mt-1">
+            <FormattedMessage id="loginPage.signInToYourAccount" defaultMessage="Sign in to your account" />
+          </p>
         </div>
 
         {passwordAuthEnabled && (
@@ -115,18 +125,18 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             {/* Username / password form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
-                label="Username"
+                label={formatMessage({ id: 'loginPage.usernameLabel', defaultMessage: 'Username' })}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
                 autoComplete="username"
                 disabled={loading}
-                placeholder="your-username"
+                placeholder={formatMessage({ id: 'loginPage.usernamePlaceholder', defaultMessage: 'your-username' })}
               />
 
               <Input
                 type="password"
-                label="Password"
+                label={formatMessage({ id: 'loginPage.passwordLabel', defaultMessage: 'Password' })}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -145,15 +155,22 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
                 loading={loading}
                 className="w-full justify-center"
               >
-                Sign in
+                <FormattedMessage id="loginPage.signIn" defaultMessage="Sign in" />
               </Button>
             </form>
 
             <p className="text-center text-sm text-kumo-subtle mt-6">
-              Don't have an account?{' '}
-              <Link to="/signup" className="text-kumo-brand hover:underline font-medium">
-                Create one
-              </Link>
+              <FormattedMessage
+                id="loginPage.noAccountPrompt"
+                defaultMessage="Don't have an account? {link}"
+                values={{
+                  link: (
+                    <Link to="/signup" className="text-kumo-brand hover:underline font-medium">
+                      <FormattedMessage id="loginPage.createOne" defaultMessage="Create one" />
+                    </Link>
+                  ),
+                }}
+              />
             </p>
           </>
         )}
@@ -164,7 +181,9 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             {passwordAuthEnabled && (
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-px flex-1 bg-kumo-line" />
-                <span className="text-xs text-kumo-subtle">or</span>
+                <span className="text-xs text-kumo-subtle">
+                  <FormattedMessage id="loginPage.or" defaultMessage="or" />
+                </span>
                 <div className="h-px flex-1 bg-kumo-line" />
               </div>
             )}
