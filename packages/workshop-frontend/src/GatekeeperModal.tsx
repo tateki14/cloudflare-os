@@ -218,7 +218,7 @@ export default function GatekeeperModal({
   const [spawnerDisplayName, setSpawnerDisplayName] = useState('')
   const [spawnerModelId, setSpawnerModelId] = useState<string | null>(null)
   const [spawnerEnv, setSpawnerEnv] = useState<SpawnerEnvRow[]>([])
-  const spawnerEnvError = validateSpawnerEnv(spawnerEnv)
+  const spawnerEnvError = validateSpawnerEnv(spawnerEnv, formatMessage)
 
   // Read only when the modal opens, so a caller that rebuilds the candidate array on every render
   // doesn't clobber the user's edits.

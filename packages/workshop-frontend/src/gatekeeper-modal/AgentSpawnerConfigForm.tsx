@@ -1,4 +1,5 @@
 import { Checkbox, Select, type PortalContainer } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { AiChatAuthorInfo, WorkpieceId, validateBindingName } from '@gadgets/workshop-shared/api'
 import { WorkshopInput } from '../components/WorkshopControls'
 import { ConnectionConfigField } from './ConnectionConfigField'
@@ -23,7 +24,7 @@ export interface SpawnerEnvRow {
 
 // Returns a human-readable complaint about the env rows, or null if they're acceptable. Only
 // enabled rows matter: a disabled row is simply not part of the env.
-export function validateSpawnerEnv(rows: SpawnerEnvRow[]): string | null {
+export function validateSpawnerEnv(rows: SpawnerEnvRow[], formatMessage: IntlShape['formatMessage']): string | null {
   const seen = new Set<string>()
   for (const row of rows) {
     if (!row.enabled) continue
@@ -33,7 +34,10 @@ export function validateSpawnerEnv(rows: SpawnerEnvRow[]): string | null {
       return err instanceof Error ? err.message : String(err)
     }
     if (seen.has(row.name)) {
-      return `Two bindings are both named "${row.name}".`
+      return formatMessage(
+        { id: 'agentSpawnerConfigForm.duplicateBindingName', defaultMessage: 'Two bindings are both named "{name}".' },
+        { name: row.name },
+      )
     }
     seen.add(row.name)
   }
@@ -72,19 +76,23 @@ export function AgentSpawnerConfigForm({
   onEnvChange,
   selectContainer,
 }: AgentSpawnerConfigFormProps) {
+  const { formatMessage } = useIntl()
   const updateRow = (index: number, updates: Partial<SpawnerEnvRow>) => {
     onEnvChange(env.map((row, i) => (i === index ? { ...row, ...updates } : row)))
   }
+  const noneNoAgentLabel = formatMessage({ id: 'agentSpawnerConfigForm.noneNoAgent', defaultMessage: 'None (no agent)' })
 
   return (
     <section className="grid gap-4">
       <ConnectionConfigField
-        label="Display name"
-        description="Name this agent capability for this connection."
+        label={formatMessage({ id: 'agentSpawnerConfigForm.displayNameLabel', defaultMessage: 'Display name' })}
+        description={formatMessage({
+          id: 'agentSpawnerConfigForm.displayNameDescription', defaultMessage: 'Name this agent capability for this connection.',
+        })}
       >
         <WorkshopInput
-          aria-label="Agent display name"
-          placeholder="e.g. Email Responder"
+          aria-label={formatMessage({ id: 'agentSpawnerConfigForm.agentDisplayName', defaultMessage: 'Agent display name' })}
+          placeholder={formatMessage({ id: 'agentSpawnerConfigForm.displayNamePlaceholder', defaultMessage: 'e.g. Email Responder' })}
           value={displayName}
           onChange={(e) => onDisplayNameChange(e.target.value)}
           className="w-full"
@@ -92,23 +100,25 @@ export function AgentSpawnerConfigForm({
       </ConnectionConfigField>
 
       <ConnectionConfigField
-        label="Model"
-        description="Choose the model spawned agents will use."
+        label={formatMessage({ id: 'agentSpawnerConfigForm.modelLabel', defaultMessage: 'Model' })}
+        description={formatMessage({
+          id: 'agentSpawnerConfigForm.modelDescription', defaultMessage: 'Choose the model spawned agents will use.',
+        })}
       >
         <Select
-          aria-label="Agent model"
+          aria-label={formatMessage({ id: 'agentSpawnerConfigForm.agentModel', defaultMessage: 'Agent model' })}
           className="w-full text-sm [&_button]:!h-9"
           container={selectContainer}
-          placeholder="Select a model"
+          placeholder={formatMessage({ id: 'agentSpawnerConfigForm.selectModel', defaultMessage: 'Select a model' })}
           value={modelId}
           onValueChange={(v) => onModelIdChange(v as string | null)}
           renderValue={(id) => {
-            if (id === null) return 'None (no agent)'
+            if (id === null) return noneNoAgentLabel
             return availableModels.find((m) => m.id === id)?.name ?? String(id)
           }}
         >
           <Select.Option value={null as any}>
-            None (no agent)
+            {noneNoAgentLabel}
           </Select.Option>
           {availableModels.map(model => (
             <Select.Option key={model.id} value={model.id}>
@@ -117,30 +127,44 @@ export function AgentSpawnerConfigForm({
           ))}
         </Select>
         <p className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-          Choose "None" to create conversations without an agent.
+          <FormattedMessage
+            id="agentSpawnerConfigForm.chooseNoneHint"
+            defaultMessage='Choose "None" to create conversations without an agent.'
+          />
         </p>
       </ConnectionConfigField>
 
       <ConnectionConfigField
-        label="Agent bindings"
-        description="What spawned agents may use, and the names they see it under."
+        label={formatMessage({ id: 'agentSpawnerConfigForm.agentBindingsLabel', defaultMessage: 'Agent bindings' })}
+        description={formatMessage({
+          id: 'agentSpawnerConfigForm.agentBindingsDescription',
+          defaultMessage: 'What spawned agents may use, and the names they see it under.',
+        })}
       >
         {env.length === 0 ? (
           <p className="text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-            Nothing is available to offer spawned agents here. Create the agent from a gadget's
-            Connections tab to give it access to that gadget and its resources.
+            <FormattedMessage
+              id="agentSpawnerConfigForm.noEnvAvailable"
+              defaultMessage="Nothing is available to offer spawned agents here. Create the agent from a gadget's Connections tab to give it access to that gadget and its resources."
+            />
           </p>
         ) : (
           <div className="grid gap-2">
             {env.map((row, index) => (
               <div key={`${row.target}:${index}`} className="flex items-center gap-2">
                 <Checkbox
-                  aria-label={`Give spawned agents access to ${row.targetTitle}`}
+                  aria-label={formatMessage(
+                    { id: 'agentSpawnerConfigForm.giveAccessTo', defaultMessage: 'Give spawned agents access to {target}' },
+                    { target: row.targetTitle },
+                  )}
                   checked={row.enabled}
                   onCheckedChange={(checked) => updateRow(index, { enabled: checked === true })}
                 />
                 <WorkshopInput
-                  aria-label={`Binding name for ${row.targetTitle}`}
+                  aria-label={formatMessage(
+                    { id: 'agentSpawnerConfigForm.bindingNameFor', defaultMessage: 'Binding name for {target}' },
+                    { target: row.targetTitle },
+                  )}
                   value={row.name}
                   disabled={!row.enabled}
                   onChange={(e) => updateRow(index, { name: e.target.value })}
