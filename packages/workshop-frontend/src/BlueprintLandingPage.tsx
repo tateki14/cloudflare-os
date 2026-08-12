@@ -1798,7 +1798,13 @@ function BlueprintGatekeeperBindingField({
     return (
       <div className="rounded-lg border border-kumo-danger/30 bg-kumo-danger-tint px-3 py-2.5 text-sm text-kumo-danger">
         <p className="font-semibold mb-0.5">{title}</p>
-        <p>The "{binding.gatekeeperName}" gatekeeper is not available on this workshop, so this connection can't be configured.</p>
+        <p>
+          <FormattedMessage
+            id="blueprintLandingPage.gatekeeperNotAvailable"
+            defaultMessage={'The "{gatekeeperName}" gatekeeper is not available on this workshop, so this connection can\'t be configured.'}
+            values={{ gatekeeperName: binding.gatekeeperName }}
+          />
+        </p>
       </div>
     )
   }
@@ -1806,7 +1812,13 @@ function BlueprintGatekeeperBindingField({
     return (
       <div className="rounded-lg border border-kumo-danger/30 bg-kumo-danger-tint px-3 py-2.5 text-sm text-kumo-danger">
         <p className="font-semibold mb-0.5">{title}</p>
-        <p>The required resource type for this binding isn't offered by {vendor.description.displayName}.</p>
+        <p>
+          <FormattedMessage
+            id="blueprintLandingPage.resourceTypeNotOffered"
+            defaultMessage="The required resource type for this binding isn't offered by {vendorName}."
+            values={{ vendorName: vendor.description.displayName }}
+          />
+        </p>
       </div>
     )
   }
@@ -1830,7 +1842,13 @@ function BlueprintGatekeeperBindingField({
         <div className="space-y-2.5">
           {binding.resourceUrl && (
             <p className="m-0 pl-[2px] text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-              Blueprint recommends: <span className="break-all text-kumo-default">{formatSuggestedResource(binding.resourceUrl)}</span>
+              <FormattedMessage
+                id="blueprintLandingPage.blueprintRecommends"
+                defaultMessage="Blueprint recommends: {resource}"
+                values={{
+                  resource: <span className="break-all text-kumo-default">{formatSuggestedResource(binding.resourceUrl)}</span>,
+                }}
+              />
             </p>
           )}
 
