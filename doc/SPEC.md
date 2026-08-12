@@ -153,6 +153,38 @@ git merge main                       # または git rebase main
 git push origin work
 ```
 
+## workshop-frontendの日本語化（react-intl）
+
+**方針**: `packages/workshop-frontend` のUIをreact-intlで日本語化。英語の`defaultMessage`をソースオブトゥルースとして残し、`ja.json`で日本語訳を上書きする方式（フレームワーク導入・単一ロケール固定、言語切り替えUIはなし）。対象は`packages/workshop-frontend`のみで、`gatekeeper-context/app`・`gatekeeper-scheduler/app`・`gatekeeper-mcp/connect-form.ts`・各`gatekeeper-*`パッケージのバックエンド側（VendorDescription等）は対象外。
+
+### 構成
+
+- `src/i18n/messages/ja.json` — フラットな`{ "id": "訳文" }`マップ。全メッセージIDをここに集約
+- `src/i18n/testIntlProvider.tsx` — テスト用`<TestIntlProvider>`（`locale="en"`, `messages={{}}`, `MISSING_TRANSLATION`のみ無視するonError）。`messages`が空だと`defaultMessage`（＝元の英語）がそのまま描画されるため、既存テストの英語文字列アサーションを無改修で通せる
+- `main.tsx`で`<IntlProvider locale="ja" messages={jaMessages}>`をルートに1回だけ適用（`<ThemeProvider>`と同じ階層）
+
+### 変換ルール
+
+- メッセージID: `${ファイル名camelCase}.${内容を表す短い説明}`
+- JSXテキスト → `<FormattedMessage id defaultMessage>`、属性値・toast等の非JSX文字列 → `useIntl().formatMessage({id, defaultMessage})`
+- 動的な値はICUプレースホルダ（`{name}`等）、複数形は`{count, plural, other {...}}`（日本語はCLDR上`other`のみで足りる）
+- モジュールスコープの定数（フック不可）は`{id, defaultMessage}`ディスクリプタを保持し、呼び出し元のコンポーネントから`formatMessage`を渡す
+- `@cloudflare/kumo`（デザインシステム）の内蔵デフォルト文言（ダイアログの閉じるボタン等）はソース上に文字列が現れず見落としやすいため、明示的にラベルpropを渡す
+
+### 既知の未対応・対象外
+
+- `components/format/formats.ts`の`GENERIC_OUTPUT.noun`/`.plural`（"App"/"Apps"フォールバック）は`formatOf()`の呼び出し箇所が多いため未対応
+- 各Gatekeeperカードの名称・説明（GitHub/Slack等）や、ワークスペースの`Docs`/`Sheets`/`Slides`等のフォーマット名はバックエンド（各`gatekeeper-*`パッケージ・ブループリント宣言）由来のため対象外
+- "Gatekeepers"・"Workshop"はプロダクト機能名として意図的に英語のまま残している
+
+### 今後upstreamの新規UI文言を取り込む際の注意
+
+`work`へ`merge main`した際、upstream側で追加された新しいJSXテキストはそのままでは英語表示になる（`ja.json`に対応IDがないだけでビルド・テスト自体は通ってしまう）。取り込み後は上記の変換ルールに従って新規文字列をラップし、`ja.json`に翻訳を追加すること。カバレッジは「全`.tsx`から`id: '...'`/`id="..."`パターンを正規表現で抽出し`ja.json`のキー集合との差分を取る」小さなNodeスクリプトで機械的にチェックできる（差分ゼロを確認してからコミットする）。
+
+### 検証結果（2026-08-12）
+
+`pnpm dev-server` + `pnpm dev-client`で実機起動し、Playwrightでサインアップ→オンボーディング→ホーム/アウトプット/Gatekeepers/ブループリント/ワークスペース/プロバイダー/コンテキストの各画面を巡回。すべて日本語表示・コンソールエラーなしを確認。
+
 ## 既知の注意事項
 
 - 本リポジトリは Early Access（v2への全面書き換え、2026年8月時点）。粗い部分が多いことが公式にアナウンスされている。
@@ -190,3 +222,4 @@ Node.jsの `execFileSync("pnpm", ...)` は、Windows上では `pnpm` が実体 `
 - 2026-08-09: `cloudflare/cloudflare-os` を `c:\_Project\dev\cloudflare-os` にクローンし、`pnpm run-local` でローカル起動をセットアップ。Windows向けにpnpm spawnまわりを3ファイルパッチし、メモリ不足の原因となっていた他プロジェクトの重複プロセスを整理して起動確認完了。
 - 2026-08-09: `cloudflare-os-starter` を使って本番デプロイを実施。`tateki14/cloudflare-os-starter`（private）を作成しGitHubにpush。Cloudflare Access配下で `https://cloudflare-os.10good.org` に4 Worker（workshop/context/gatekeeper/error-reporter）をデプロイし、HTTP 302でAccessログインへのリダイレクトを確認。
 - 2026-08-12: 本リポジトリをフォーク＋upstream追跡構成に移行。`gh repo fork --remote=true` で `tateki14/cloudflare-os` を作成し、`origin`=フォーク／`upstream`=本体に設定。Windowsパッチと本ドキュメントは `work` ブランチにコミットして `origin` へpush、`main` は `upstream/main` を追従するミラー専用ブランチとした（この時点でupstream側が15コミット進んでいたため`main`をfast-forwardし、`work`へ`merge main`して無コンフリクトで追従できることを確認済み）。
+- 2026-08-12: `packages/workshop-frontend` をreact-intlで日本語化。ShareModal.tsxを変換パターンの雛形として自分で変換した後、components/AppShell・chat・format・トップレベルsrc・gatekeeper-modal・routesの各バッチに分けて変換（一部はAgentへ委譲、一部は自分で直接実施）。委譲したAgentが内部で無断にネストしたバックグラウンドAgentを生成し一時的にファイルが競合する事態が発生したため、以降は「サブエージェントを使わない」ことを明示して指示。さらに1つのバッチがAPI利用上限で中断され、コード変換は完了していたがja.jsonへの翻訳追加漏れ（187件）が発生 — ブラウザでの実機確認で発覚し、全.tsxからのID抽出スクリプトで機械的に検出・修正。最終的に`pnpm dev-server`+`pnpm dev-client`実機起動とPlaywrightでの主要画面巡回により、日本語表示・コンソールエラーなしを確認。詳細は「workshop-frontendの日本語化」節を参照。
