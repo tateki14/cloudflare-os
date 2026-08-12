@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Desktop, Moon, Plug, Sun } from '@phosphor-icons/react'
 import { Tooltip } from '@cloudflare/kumo'
+import { useIntl } from 'react-intl'
 import UserMenu from '../UserMenu'
 import { useTheme } from '../../ThemeContext'
 import type { ThemeMode } from '../../theme'
@@ -11,20 +12,37 @@ function nextThemeMode(mode: ThemeMode): ThemeMode {
   return THEME_SEQUENCE[(THEME_SEQUENCE.indexOf(mode) + 1) % THEME_SEQUENCE.length]
 }
 
+const THEME_MODE_MESSAGES: Record<ThemeMode, { id: string; defaultMessage: string }> = {
+  system: { id: 'sidebarUtilityStrip.themeModeSystem', defaultMessage: 'system' },
+  light: { id: 'sidebarUtilityStrip.themeModeLight', defaultMessage: 'light' },
+  dark: { id: 'sidebarUtilityStrip.themeModeDark', defaultMessage: 'dark' },
+}
+
 function ThemeModeButton() {
+  const { formatMessage } = useIntl()
   const { themeMode, resolvedThemeMode, setThemeMode } = useTheme()
   const label = themeMode === 'system'
-    ? `Theme: system (${resolvedThemeMode})`
-    : `Theme: ${themeMode}`
+    ? formatMessage(
+        { id: 'sidebarUtilityStrip.themeLabelSystem', defaultMessage: 'Theme: system ({resolved})' },
+        { resolved: formatMessage(THEME_MODE_MESSAGES[resolvedThemeMode]) },
+      )
+    : formatMessage(
+        { id: 'sidebarUtilityStrip.themeLabelMode', defaultMessage: 'Theme: {mode}' },
+        { mode: formatMessage(THEME_MODE_MESSAGES[themeMode]) },
+      )
   const nextMode = nextThemeMode(themeMode)
+  const tooltipText = formatMessage(
+    { id: 'sidebarUtilityStrip.themeSwitchToTooltip', defaultMessage: '{label}. Switch to {next}.' },
+    { label, next: formatMessage(THEME_MODE_MESSAGES[nextMode]) },
+  )
 
   return (
     <Tooltip
-      content={`${label}. Switch to ${nextMode}.`}
+      content={tooltipText}
       render={(
         <button
           type="button"
-          aria-label={`${label}. Switch to ${nextMode}.`}
+          aria-label={tooltipText}
           onClick={() => setThemeMode(nextMode)}
           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-kumo-inactive transition-colors hover:bg-kumo-tint hover:text-kumo-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-elevated"
         >
@@ -74,6 +92,7 @@ function StripLink({
 }
 
 export default function SidebarUtilityStrip({ collapsed = false }: { collapsed?: boolean }) {
+  const { formatMessage } = useIntl()
   return (
     <div
       className={[
@@ -83,7 +102,7 @@ export default function SidebarUtilityStrip({ collapsed = false }: { collapsed?:
         collapsed ? 'flex-col justify-center gap-2 px-1.5' : '',
       ].join(' ')}
     >
-      <StripLink to="/gatekeepers" label="Gatekeepers">
+      <StripLink to="/gatekeepers" label={formatMessage({ id: 'sidebarUtilityStrip.gatekeepers', defaultMessage: 'Gatekeepers' })}>
         <Plug size={15} />
       </StripLink>
       <div className={collapsed ? 'flex flex-col items-center gap-2' : 'ml-auto flex items-center gap-1'}>

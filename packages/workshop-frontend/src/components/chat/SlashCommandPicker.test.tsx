@@ -40,7 +40,10 @@ function pickerOverseer(result: SlashCommandChoice[]) {
   } as unknown as RpcStub<Overseer>;
 }
 
-function Harness({
+// `useSlashCommandPicker` calls `useIntl()` internally, so the component that calls the hook must
+// itself be a descendant of an IntlProvider — wrapping only the hook's *returned* JSX wouldn't put
+// the hook call itself inside the provider's context. Hence the inner/outer split below.
+function HarnessInner({
   inputValue,
   cursorPosition = inputValue.length,
   getOverseer,
@@ -64,7 +67,7 @@ function Harness({
     onSelect,
     chatExists,
   });
-  return <TestIntlProvider>
+  return <>
     <div ref={(element) => {
       anchorRef.current = element;
       if (element) {
@@ -89,7 +92,17 @@ function Harness({
       onClick={() => picker.setIndex(1)}
     />
     {picker.popup}
-  </TestIntlProvider>;
+  </>;
+}
+
+function Harness(props: {
+  inputValue: string;
+  cursorPosition?: number;
+  getOverseer: () => RpcStub<Overseer>;
+  onSelect: (choice: SlashCommandChoice, tokenStart: number, tokenEnd: number) => void;
+  chatExists?: boolean;
+}) {
+  return <TestIntlProvider><HarnessInner {...props} /></TestIntlProvider>;
 }
 
 async function waitFor(check: () => boolean) {

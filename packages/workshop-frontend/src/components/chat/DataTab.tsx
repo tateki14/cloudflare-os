@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Table } from '@cloudflare/kumo'
 import { Badge } from '@cloudflare/kumo'
 import { Button } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { sampleDataRows } from '../../data/chat'
 
 export default function DataTab() {
+  const { formatMessage } = useIntl()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   function toggleRow(id: string) {
@@ -30,16 +32,18 @@ export default function DataTab() {
       <div className="flex items-center justify-between px-4 py-2 border-b border-kumo-fill bg-kumo-elevated">
         <div className="flex items-center gap-3">
           <span className="font-mono text-sm text-kumo-default">channels</span>
-          <Badge variant="secondary">{sampleDataRows.length} rows</Badge>
+          <Badge variant="secondary">
+            {formatMessage({ id: 'dataTab.rowsCount', defaultMessage: '{count, plural, one {# row} other {# rows}}' }, { count: sampleDataRows.length })}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
             <span className="text-xs text-kumo-subtle">
-              {selectedIds.size} selected
+              {formatMessage({ id: 'dataTab.selectedCount', defaultMessage: '{count, plural, one {# selected} other {# selected}}' }, { count: selectedIds.size })}
             </span>
           )}
-          <Button variant="ghost" size="xs">Filter</Button>
-          <Button variant="ghost" size="xs">Sort</Button>
+          <Button variant="ghost" size="xs"><FormattedMessage id="dataTab.filter" defaultMessage="Filter" /></Button>
+          <Button variant="ghost" size="xs"><FormattedMessage id="dataTab.sort" defaultMessage="Sort" /></Button>
         </div>
       </div>
 
@@ -52,12 +56,12 @@ export default function DataTab() {
                 checked={selectedIds.size === sampleDataRows.length}
                 indeterminate={selectedIds.size > 0 && selectedIds.size < sampleDataRows.length}
                 onValueChange={toggleAll}
-                aria-label="Select all rows"
+                aria-label={formatMessage({ id: 'dataTab.selectAllRows', defaultMessage: 'Select all rows' })}
               />
-              <Table.Head>Channel</Table.Head>
-              <Table.Head>Messages</Table.Head>
-              <Table.Head>Last Active</Table.Head>
-              <Table.Head>Status</Table.Head>
+              <Table.Head><FormattedMessage id="dataTab.channelHeader" defaultMessage="Channel" /></Table.Head>
+              <Table.Head><FormattedMessage id="dataTab.messagesHeader" defaultMessage="Messages" /></Table.Head>
+              <Table.Head><FormattedMessage id="dataTab.lastActiveHeader" defaultMessage="Last Active" /></Table.Head>
+              <Table.Head><FormattedMessage id="dataTab.statusHeader" defaultMessage="Status" /></Table.Head>
             </Table.Row>
           </Table.Header>
           <Table.Body>
@@ -66,7 +70,7 @@ export default function DataTab() {
                 <Table.CheckCell
                   checked={selectedIds.has(row.id)}
                   onValueChange={() => toggleRow(row.id)}
-                  aria-label={`Select ${row.channel}`}
+                  aria-label={formatMessage({ id: 'dataTab.selectChannel', defaultMessage: 'Select {channel}' }, { channel: row.channel })}
                 />
                 <Table.Cell>
                   <span className="font-mono text-sm text-kumo-default">{row.channel}</span>
@@ -81,9 +85,9 @@ export default function DataTab() {
                 </Table.Cell>
                 <Table.Cell>
                   {row.unread ? (
-                    <Badge variant="primary">Unread</Badge>
+                    <Badge variant="primary"><FormattedMessage id="dataTab.unread" defaultMessage="Unread" /></Badge>
                   ) : (
-                    <Badge variant="secondary">Read</Badge>
+                    <Badge variant="secondary"><FormattedMessage id="dataTab.read" defaultMessage="Read" /></Badge>
                   )}
                 </Table.Cell>
               </Table.Row>
@@ -95,10 +99,16 @@ export default function DataTab() {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-kumo-fill bg-kumo-elevated flex items-center justify-between">
         <span className="font-mono text-xs text-kumo-subtle">
-          {sampleDataRows.length} rows in channels
+          {formatMessage(
+            { id: 'dataTab.rowsInChannels', defaultMessage: '{count, plural, one {# row} other {# rows}} in channels' },
+            { count: sampleDataRows.length },
+          )}
         </span>
         <span className="font-mono text-xs text-kumo-subtle">
-          {sampleDataRows.reduce((sum, r) => sum + r.messages, 0).toLocaleString()} total messages
+          {formatMessage(
+            { id: 'dataTab.totalMessages', defaultMessage: '{count} total messages' },
+            { count: sampleDataRows.reduce((sum, r) => sum + r.messages, 0).toLocaleString() },
+          )}
         </span>
       </div>
     </div>

@@ -7,6 +7,7 @@
 // Returns null when the deployment promotes no formats, leaving the menu untouched.
 
 import { DropdownMenu } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl } from 'react-intl'
 import type { OutputFormatOffer } from '@gadgets/workshop-shared/api'
 import { FormatGlyph } from './FormatVisuals'
 import { useOutputFormats } from './useOutputFormats'
@@ -23,6 +24,7 @@ export default function ComposerFormatMenuItems({
   onSelect: (format: OutputFormatOffer) => void
 }) {
   const { formats, creating, create } = useOutputFormats()
+  const { formatMessage } = useIntl()
 
   if (formats.length === 0) return null
 
@@ -32,7 +34,7 @@ export default function ComposerFormatMenuItems({
   return (
     <>
       <p className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase leading-4 tracking-[0.06em] text-kumo-inactive">
-        Start with
+        <FormattedMessage id="composerFormatMenuItems.startWith" defaultMessage="Start with" />
       </p>
       {formats.map((format) => (
         <DropdownMenu.Item
@@ -49,7 +51,9 @@ export default function ComposerFormatMenuItems({
             />
           </span>
           <span className="flex-1 truncate">
-            {creating === format.blueprintId ? 'Creating…' : format.output.noun}
+            {creating === format.blueprintId
+              ? formatMessage({ id: 'composerFormatMenuItems.creatingEllipsis', defaultMessage: 'Creating…' })
+              : format.output.noun}
           </span>
         </DropdownMenu.Item>
       ))}

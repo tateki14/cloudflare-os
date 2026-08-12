@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo'
 import { Badge } from '@cloudflare/kumo'
 import { Text } from '@cloudflare/kumo'
 import { Shield, X, Check } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { samplePermissions, type PermissionRequest } from '../../data/chat'
 import { logoComponents } from '../ConnectionLogos'
 
@@ -15,6 +16,7 @@ function PermissionCard({
   onGrant: () => void
   onDeny: () => void
 }) {
+  const { formatMessage } = useIntl()
   const [showScopes, setShowScopes] = useState(false)
   const Logo = logoComponents[perm.connectionLogo]
 
@@ -28,15 +30,22 @@ function PermissionCard({
           <Shield size={14} className="text-kumo-brand" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-kumo-default">Permission requested</div>
+          <div className="text-sm font-semibold text-kumo-default">
+            <FormattedMessage id="permissionToast.permissionRequested" defaultMessage="Permission requested" />
+          </div>
           <div className="mt-0.5">
             <Text variant="secondary" size="xs" as="span">
-              Workshop wants to access <strong>{perm.connectionName}</strong>
+              <FormattedMessage
+                id="permissionToast.wantsToAccess"
+                defaultMessage="Workshop wants to access <b>{name}</b>"
+                values={{ name: perm.connectionName, b: (chunks: ReactNode) => <strong>{chunks}</strong> }}
+              />
             </Text>
           </div>
         </div>
         <button
           onClick={onDeny}
+          aria-label={formatMessage({ id: 'permissionToast.dismiss', defaultMessage: 'Dismiss' })}
           className="p-1 text-kumo-subtle hover:text-kumo-default rounded-md hover:bg-kumo-tint transition-colors flex-shrink-0"
         >
           <X size={14} />
@@ -52,7 +61,10 @@ function PermissionCard({
         <Text variant="body" size="sm" bold as="span">{perm.connectionName}</Text>
         <div className="ml-auto flex items-center gap-1.5">
           <Badge variant="secondary">
-            {perm.scopes.length} {perm.scopes.length === 1 ? 'scope' : 'scopes'}
+            {formatMessage(
+              { id: 'permissionToast.scopesCount', defaultMessage: '{count, plural, one {# scope} other {# scopes}}' },
+              { count: perm.scopes.length },
+            )}
           </Badge>
           <svg
             className={`w-3.5 h-3.5 text-kumo-subtle transition-transform ${showScopes ? 'rotate-180' : ''}`}
@@ -73,7 +85,7 @@ function PermissionCard({
           {perm.resources && perm.resources.length > 0 && (
             <div className="px-3 py-2 rounded-md bg-kumo-tint/50">
               <span className="font-mono text-[10px] text-kumo-subtle uppercase tracking-wider block mb-1">
-                Resources
+                <FormattedMessage id="permissionToast.resources" defaultMessage="Resources" />
               </span>
               {perm.resources.map((res) => (
                 <div key={res} className="flex items-center gap-1.5 mt-0.5">
@@ -86,7 +98,7 @@ function PermissionCard({
           {/* API scopes */}
           <div className="px-3 py-2 rounded-md bg-kumo-tint/50">
             <span className="font-mono text-[10px] text-kumo-subtle uppercase tracking-wider block mb-1">
-              API scopes
+              <FormattedMessage id="permissionToast.apiScopes" defaultMessage="API scopes" />
             </span>
             {perm.scopes.map((scope) => (
               <div key={scope} className="font-mono text-xs text-kumo-subtle">{scope}</div>
@@ -98,10 +110,10 @@ function PermissionCard({
       {/* Actions */}
       <div className="grid grid-cols-2 gap-2 p-3 pt-2">
         <Button variant="outline" size="sm" onClick={onDeny} className="w-full justify-center">
-          Deny
+          <FormattedMessage id="permissionToast.deny" defaultMessage="Deny" />
         </Button>
         <Button variant="primary" size="sm" onClick={onGrant} className="w-full justify-center">
-          Allow access
+          <FormattedMessage id="permissionToast.allowAccess" defaultMessage="Allow access" />
         </Button>
       </div>
     </div>
@@ -151,7 +163,11 @@ export default function PermissionToasts() {
             <Check size={11} className="text-kumo-success" />
           </div>
           <span className="text-xs text-kumo-default">
-            <strong>{grantedToast}</strong> access granted
+            <FormattedMessage
+              id="permissionToast.accessGranted"
+              defaultMessage="<b>{name}</b> access granted"
+              values={{ name: grantedToast, b: (chunks: ReactNode) => <strong>{chunks}</strong> }}
+            />
           </span>
         </div>
       )}

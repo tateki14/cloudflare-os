@@ -1,18 +1,20 @@
 // "Start with a format": one click per standard output the deployment offers. Renders nothing when
 // it promotes none, which is the default.
 
+import { useIntl } from 'react-intl'
 import { FormatGlyph } from './FormatVisuals'
 import { useOutputFormats } from './useOutputFormats'
 
-export default function NewFormatRow({ label = 'Start with' }: { label?: string }) {
+export default function NewFormatRow({ label }: { label?: string }) {
   const { formats, creating, create } = useOutputFormats()
+  const { formatMessage } = useIntl()
 
   if (formats.length === 0) return null
 
   return (
     <div className="flex flex-col items-center gap-2.5">
       <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-inactive">
-        {label}
+        {label ?? formatMessage({ id: 'newFormatRow.startWith', defaultMessage: 'Start with' })}
       </span>
       <div className="flex flex-wrap items-center justify-center gap-2">
         {formats.map((format) => (
@@ -29,7 +31,9 @@ export default function NewFormatRow({ label = 'Start with' }: { label?: string 
               size="md"
               className={creating === format.blueprintId ? 'animate-pulse' : 'text-kumo-subtle'}
             />
-            {creating === format.blueprintId ? `Creating…` : `New ${format.output.noun}`}
+            {creating === format.blueprintId
+              ? formatMessage({ id: 'newFormatRow.creatingEllipsis', defaultMessage: 'Creating…' })
+              : formatMessage({ id: 'newFormatRow.newNoun', defaultMessage: 'New {noun}' }, { noun: format.output.noun })}
           </button>
         ))}
       </div>

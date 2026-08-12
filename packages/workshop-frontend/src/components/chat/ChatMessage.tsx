@@ -1,5 +1,6 @@
 import { Loader } from '@cloudflare/kumo'
 import { Hexagon } from '@phosphor-icons/react'
+import { FormattedMessage } from 'react-intl'
 import type { ChatMessage as ChatMessageType } from '../../data/chat'
 import ToolCallCard from './ToolCallCard'
 
@@ -67,7 +68,9 @@ export default function ChatMessage({ message }: { message: ChatMessageType }) {
         {/* Role + time */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-kumo-default">
-            {isUser ? 'You' : 'Workshop'}
+            {isUser
+              ? <FormattedMessage id="chatMessage.you" defaultMessage="You" />
+              : <FormattedMessage id="chatMessage.workshop" defaultMessage="Workshop" />}
           </span>
           <span className="font-mono text-xs text-kumo-subtle">{message.timestamp}</span>
         </div>

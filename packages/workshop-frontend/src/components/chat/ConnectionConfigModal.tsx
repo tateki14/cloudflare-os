@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Dialog, Button, Input } from '@cloudflare/kumo'
 import { X } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import type { Connection, ConnectionResource } from '../../data/sample'
 import { logoComponents } from '../ConnectionLogos'
 
@@ -15,6 +16,7 @@ export default function ConnectionConfigModal({
   onOpenChange: (open: boolean) => void
   onSave?: (resources: ConnectionResource[]) => void
 }) {
+  const { formatMessage } = useIntl()
   const [resources, setResources] = useState<ConnectionResource[]>(
     connection.resources ?? []
   )
@@ -60,6 +62,7 @@ export default function ConnectionConfigModal({
             render={(props) => (
               <button
                 {...props}
+                aria-label={formatMessage({ id: 'connectionConfigModal.close', defaultMessage: 'Close' })}
                 className="p-1 text-kumo-subtle hover:text-kumo-default rounded-md hover:bg-kumo-tint transition-colors"
               >
                 <X size={14} />
@@ -92,7 +95,7 @@ export default function ConnectionConfigModal({
                 onClick={handleAdd}
                 disabled={!inputValue.trim()}
               >
-                Add
+                <FormattedMessage id="connectionConfigModal.add" defaultMessage="Add" />
               </Button>
             </div>
           </div>
@@ -102,7 +105,7 @@ export default function ConnectionConfigModal({
         <div className="max-h-56 overflow-y-auto px-5 pb-4">
           {resources.length === 0 ? (
             <p className="text-sm text-kumo-inactive text-center py-4">
-              No resources added yet
+              <FormattedMessage id="connectionConfigModal.noResourcesAddedYet" defaultMessage="No resources added yet" />
             </p>
           ) : (
             <div className="space-y-1">
@@ -131,7 +134,7 @@ export default function ConnectionConfigModal({
           <Dialog.Close
             render={(props) => (
               <Button {...props} variant="outline" size="sm">
-                Cancel
+                <FormattedMessage id="connectionConfigModal.cancel" defaultMessage="Cancel" />
               </Button>
             )}
           />
@@ -143,7 +146,7 @@ export default function ConnectionConfigModal({
               onOpenChange(false)
             }}
           >
-            Save
+            <FormattedMessage id="connectionConfigModal.save" defaultMessage="Save" />
           </Button>
         </div>
       </Dialog>
