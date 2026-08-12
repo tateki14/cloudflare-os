@@ -16,6 +16,7 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { OutputSummary } from '@gadgets/workshop-shared/api'
 import { useAuthenticatedApi } from '../AuthContext'
 import { useDocumentTitle } from '../useDocumentTitle'
@@ -36,15 +37,19 @@ export const Route = createFileRoute('/outputs')({
   component: OutputsPage,
 })
 
-function formatRelativeTime(date: Date): string {
+function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
   const diff = Date.now() - date.getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return formatMessage({ id: 'outputsPage.relativeTimeJustNow', defaultMessage: 'just now' })
+  if (minutes < 60) {
+    return formatMessage({ id: 'outputsPage.relativeTimeMinutes', defaultMessage: '{minutes}m ago' }, { minutes })
+  }
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) {
+    return formatMessage({ id: 'outputsPage.relativeTimeHours', defaultMessage: '{hours}h ago' }, { hours })
+  }
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return formatMessage({ id: 'outputsPage.relativeTimeDays', defaultMessage: '{days}d ago' }, { days })
 }
 
 function outputKey(output: OutputSummary): string {
@@ -74,6 +79,7 @@ function OutputMenu({
   onRename?: () => void
   onRemove?: () => void
 }) {
+  const { formatMessage } = useIntl()
   return (
     <div
       className="press-exempt"
@@ -87,7 +93,7 @@ function OutputMenu({
           render={
             <button
               type="button"
-              aria-label="Output actions"
+              aria-label={formatMessage({ id: 'outputsPage.outputActions', defaultMessage: 'Output actions' })}
               className="cursor-pointer rounded-md p-1.5 text-kumo-subtle transition-colors hover:bg-kumo-fill hover:text-kumo-default focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
             >
               <DotsThreeVertical size={16} />
@@ -96,19 +102,19 @@ function OutputMenu({
         />
         <DropdownMenu.Content className={MENU_CONTENT}>
           <DropdownMenu.Item onClick={onOpen} className={MENU_ITEM}>
-            <ArrowSquareOut size={13} className="mr-2" /> Open
+            <ArrowSquareOut size={13} className="mr-2" /> <FormattedMessage id="outputsPage.open" defaultMessage="Open" />
           </DropdownMenu.Item>
           <DropdownMenu.Item onClick={onOpenWorkspace} className={MENU_ITEM}>
-            <Cube size={13} className="mr-2" /> Open workspace
+            <Cube size={13} className="mr-2" /> <FormattedMessage id="outputsPage.openWorkspace" defaultMessage="Open workspace" />
           </DropdownMenu.Item>
           {onRename && (
             <DropdownMenu.Item onClick={onRename} className={MENU_ITEM}>
-              <PencilSimple size={13} className="mr-2" /> Rename
+              <PencilSimple size={13} className="mr-2" /> <FormattedMessage id="outputsPage.rename" defaultMessage="Rename" />
             </DropdownMenu.Item>
           )}
           {onRemove && (
             <DropdownMenu.Item onClick={onRemove} className={`${MENU_ITEM} text-kumo-danger`}>
-              <Trash size={13} className="mr-2" /> Remove
+              <Trash size={13} className="mr-2" /> <FormattedMessage id="outputsPage.remove" defaultMessage="Remove" />
             </DropdownMenu.Item>
           )}
         </DropdownMenu.Content>
@@ -118,22 +124,39 @@ function OutputMenu({
 }
 
 // Secondary line under an output's title in the grid, where there's no room for meta columns.
-function subtitle(output: OutputSummary): string {
-  const parts = [output.workspaceTitle || 'Untitled workspace']
-  if (output.owner) parts.push(`Shared by ${output.owner.name}`)
-  parts.push(`Workspace active ${formatRelativeTime(output.lastActive)}`)
+function subtitle(output: OutputSummary, formatMessage: IntlShape['formatMessage']): string {
+  const parts = [
+    output.workspaceTitle
+      || formatMessage({ id: 'outputsPage.untitledWorkspace', defaultMessage: 'Untitled workspace' }),
+  ]
+  if (output.owner) {
+    parts.push(formatMessage(
+      { id: 'outputsPage.sharedByName', defaultMessage: 'Shared by {name}' }, { name: output.owner.name },
+    ))
+  }
+  parts.push(formatMessage(
+    { id: 'outputsPage.workspaceActive', defaultMessage: 'Workspace active {time}' },
+    { time: formatRelativeTime(output.lastActive, formatMessage) },
+  ))
   return parts.join(' · ')
 }
 
 // Provenance for a list row: the output came out of the user's own workspace or a shared one.
 function OutputProvenance({ owner }: { owner?: OutputSummary['owner'] }) {
+  const { formatMessage } = useIntl()
   return (
     <span
       className="flex w-52 items-center gap-1 truncate whitespace-nowrap"
-      title={owner ? `In a workspace shared by ${owner.name}` : 'In a workspace you created'}
+      title={owner
+        ? formatMessage({ id: 'outputsPage.inWorkspaceSharedBy', defaultMessage: 'In a workspace shared by {name}' }, { name: owner.name })
+        : formatMessage({ id: 'outputsPage.inWorkspaceYouCreated', defaultMessage: 'In a workspace you created' })}
     >
       {owner ? <ShareNetwork size={11} /> : <User size={11} />}
-      <span className="truncate">{owner ? `Shared by ${owner.name}` : 'Created by you'}</span>
+      <span className="truncate">
+        {owner
+          ? <FormattedMessage id="outputsPage.sharedByName" defaultMessage="Shared by {name}" values={{ name: owner.name }} />
+          : <FormattedMessage id="outputsPage.createdByYou" defaultMessage="Created by you" />}
+      </span>
     </span>
   )
 }
@@ -148,6 +171,7 @@ type OutputActions = {
 function OutputCard({
   output, onOpen, onOpenWorkspace, onRename, onRemove,
 }: { output: OutputSummary } & OutputActions) {
+  const { formatMessage } = useIntl()
   return (
     <div
       role="button"
@@ -163,10 +187,10 @@ function OutputCard({
         <FormatTile output={output.output} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-medium leading-[18px] tracking-[-0.25px] text-kumo-default">
-            {output.title || 'Untitled'}
+            {output.title || <FormattedMessage id="outputsPage.untitled" defaultMessage="Untitled" />}
           </p>
           <p className="mt-0.5 truncate text-[12px] leading-4 tracking-[-0.2px] text-kumo-subtle">
-            {subtitle(output)}
+            {subtitle(output, formatMessage)}
           </p>
         </div>
         <OutputMenu onOpen={onOpen} onOpenWorkspace={onOpenWorkspace}
@@ -179,6 +203,7 @@ function OutputCard({
 function OutputRow({
   output, onOpen, onOpenWorkspace, onRename, onRemove,
 }: { output: OutputSummary } & OutputActions) {
+  const { formatMessage } = useIntl()
   return (
     <div
       role="button"
@@ -190,10 +215,11 @@ function OutputRow({
       <FormatTile output={output.output} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium tracking-[-0.25px] text-kumo-default">
-          {output.title || 'Untitled'}
+          {output.title || <FormattedMessage id="outputsPage.untitled" defaultMessage="Untitled" />}
         </p>
         <p className="mt-0.5 truncate text-[12px] leading-4 tracking-[-0.2px] text-kumo-subtle">
-          {formatOf(output.output).noun} · {output.workspaceTitle || 'Untitled workspace'}
+          {formatOf(output.output).noun} · {output.workspaceTitle
+            || formatMessage({ id: 'outputsPage.untitledWorkspace', defaultMessage: 'Untitled workspace' })}
         </p>
       </div>
       {/* Fixed-width meta columns so rows line up like a table. */}
@@ -201,7 +227,11 @@ function OutputRow({
         <OutputProvenance owner={output.owner} />
         <span className="flex w-40 items-center justify-end gap-1 whitespace-nowrap">
           <Clock size={10} />
-          Workspace active {formatRelativeTime(output.lastActive)}
+          <FormattedMessage
+            id="outputsPage.workspaceActive"
+            defaultMessage="Workspace active {time}"
+            values={{ time: formatRelativeTime(output.lastActive, formatMessage) }}
+          />
         </span>
       </div>
       <OutputMenu onOpen={onOpen} onOpenWorkspace={onOpenWorkspace}
@@ -257,13 +287,14 @@ function ScopeSelect({
   counts: Record<OwnerFilter, number>
   onChange: (value: OwnerFilter) => void
 }) {
+  const { formatMessage } = useIntl()
   // The trigger shows the chosen option verbatim, so the default label has to spell out the union
   // of the other two. Anything shorter ("Anyone", "All") reads as a directory of other people,
   // when nothing here is reachable without having made it or been given access.
   const options: { value: OwnerFilter; label: string }[] = [
-    { value: 'all', label: 'Yours and shared' },
-    { value: 'mine', label: 'Created by you' },
-    { value: 'shared', label: 'Shared with you' },
+    { value: 'all', label: formatMessage({ id: 'outputsPage.scopeAll', defaultMessage: 'Yours and shared' }) },
+    { value: 'mine', label: formatMessage({ id: 'outputsPage.scopeMine', defaultMessage: 'Created by you' }) },
+    { value: 'shared', label: formatMessage({ id: 'outputsPage.scopeShared', defaultMessage: 'Shared with you' }) },
   ]
   const current = options.find((o) => o.value === value)!
   const CurrentIcon = SCOPE_ICON[value]
@@ -335,6 +366,7 @@ function RenameOutputDialog({
   onClose: () => void
   onSave: () => void
 }) {
+  const { formatMessage } = useIntl()
   return (
     <Dialog.Root open={output !== null} onOpenChange={(open) => { if (!open && !busy) onClose() }}>
       <Dialog
@@ -345,21 +377,29 @@ function RenameOutputDialog({
           <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
             <div className="min-w-0">
               <Dialog.Title className="text-[15px] font-medium leading-5 tracking-[-0.3px] text-kumo-default">
-                Rename output
+                <FormattedMessage id="outputsPage.renameOutputTitle" defaultMessage="Rename output" />
               </Dialog.Title>
               {/* Renames the output itself, unlike the sidebar's workspace rename, which relabels
                   only your own copy. */}
               <Dialog.Description className="mt-1 text-[12px] leading-4 text-kumo-subtle">
-                Renames the output for everyone with access to “{output?.workspaceTitle}”.
+                <FormattedMessage
+                  id="outputsPage.renameOutputDescription"
+                  defaultMessage="Renames the output for everyone with access to “{workspaceTitle}”."
+                  values={{ workspaceTitle: output?.workspaceTitle }}
+                />
               </Dialog.Description>
             </div>
-            <WorkshopIconButton type="button" className="!h-7 !w-7" disabled={busy} aria-label="Close" onClick={onClose}>
+            <WorkshopIconButton
+              type="button" className="!h-7 !w-7" disabled={busy}
+              aria-label={formatMessage({ id: 'outputsPage.close', defaultMessage: 'Close' })}
+              onClick={onClose}
+            >
               <X size={16} />
             </WorkshopIconButton>
           </div>
           <div className="px-5 py-4">
             <label className="block text-[12px] font-medium text-kumo-subtle" htmlFor="rename-output-title">
-              Name
+              <FormattedMessage id="outputsPage.nameLabel" defaultMessage="Name" />
             </label>
             <input
               id="rename-output-title"
@@ -371,9 +411,13 @@ function RenameOutputDialog({
             />
           </div>
           <div className="flex items-center justify-end gap-2 border-t border-kumo-line px-5 py-3">
-            <WorkshopButton type="button" disabled={busy} onClick={onClose}>Cancel</WorkshopButton>
+            <WorkshopButton type="button" disabled={busy} onClick={onClose}>
+              <FormattedMessage id="outputsPage.cancel" defaultMessage="Cancel" />
+            </WorkshopButton>
             <WorkshopButton tone="primary" type="submit" disabled={busy || !value.trim()}>
-              {busy ? 'Saving…' : 'Save'}
+              {busy
+                ? <FormattedMessage id="outputsPage.savingEllipsis" defaultMessage="Saving…" />
+                : <FormattedMessage id="outputsPage.save" defaultMessage="Save" />}
             </WorkshopButton>
           </div>
         </form>
@@ -388,7 +432,8 @@ function RenameOutputDialog({
 type TypeFilter = 'all' | string
 
 function OutputsPage() {
-  useDocumentTitle('Outputs')
+  const { formatMessage } = useIntl()
+  useDocumentTitle(formatMessage({ id: 'outputsPage.documentTitle', defaultMessage: 'Outputs' }))
   const { authenticatedApi } = useAuthenticatedApi()
   const navigate = useNavigate()
   const toasts = useKumoToastManager()
@@ -445,13 +490,16 @@ function OutputsPage() {
       // A failed *refresh* must not discard a page already showing something: it is still the last
       // good answer, and the next focus retries. The error state is for having nothing to show.
       if (loadedOnce.current) {
-        toastsRef.current.add({ title: "Couldn't refresh outputs", variant: 'error' })
+        toastsRef.current.add({
+          title: formatMessage({ id: 'outputsPage.toastRefreshFailed', defaultMessage: "Couldn't refresh outputs" }),
+          variant: 'error',
+        })
       } else {
         setLoadError(true)
       }
     })
     return () => { cancelled = true }
-  }, [authenticatedApi, reloadToken])
+  }, [authenticatedApi, reloadToken, formatMessage])
 
   // A cheap snapshot rather than another live subscription, so refetch when the user returns to
   // the window.
@@ -494,7 +542,10 @@ function OutputsPage() {
       setRenameOutput(null)
     } catch (err) {
       console.error('Failed to rename output:', err)
-      toasts.add({ title: "Couldn't rename this output", variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'outputsPage.toastRenameFailed', defaultMessage: "Couldn't rename this output" }),
+        variant: 'error',
+      })
     } finally {
       gadget?.[Symbol.dispose]()
       overseer?.[Symbol.dispose]()
@@ -516,7 +567,10 @@ function OutputsPage() {
       setRemoveOutput(null)
     } catch (err) {
       console.error('Failed to remove output:', err)
-      toasts.add({ title: "Couldn't remove this output", variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'outputsPage.toastRemoveFailed', defaultMessage: "Couldn't remove this output" }),
+        variant: 'error',
+      })
     } finally {
       gadget?.[Symbol.dispose]()
       overseer?.[Symbol.dispose]()
@@ -576,9 +630,11 @@ function OutputsPage() {
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-6 sm:px-10">
       <header className="flex items-end justify-between gap-4 px-3 pb-4 pt-10">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">Outputs</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">
+            <FormattedMessage id="outputsPage.heading" defaultMessage="Outputs" />
+          </h1>
           <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle">
-            Everything your workspaces have produced, in one place.
+            <FormattedMessage id="outputsPage.description" defaultMessage="Everything your workspaces have produced, in one place." />
           </p>
         </div>
         <ViewToggle view={view} onChange={setView} />
@@ -591,8 +647,12 @@ function OutputsPage() {
         <div className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 sidebar-scroll">
           {showTypeFilters && (
             <>
-              <FilterChip active={typeFilter === 'all'} label="All" count={inTypeScope.length}
-                          onClick={() => setTypeFilter('all')} />
+              <FilterChip
+                active={typeFilter === 'all'}
+                label={formatMessage({ id: 'outputsPage.allTypesLabel', defaultMessage: 'All' })}
+                count={inTypeScope.length}
+                onClick={() => setTypeFilter('all')}
+              />
               {presentTypes.map(([id, plural]) => (
                 <FilterChip
                   key={id}
@@ -623,7 +683,7 @@ function OutputsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search outputs…"
+              placeholder={formatMessage({ id: 'outputsPage.searchPlaceholder', defaultMessage: 'Search outputs…' })}
               className="h-9 w-full rounded-lg border border-kumo-line bg-kumo-base pl-9 pr-4 text-[13px] tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive transition-[border-color,box-shadow] duration-150 ease-out focus:border-kumo-ring focus:outline-none focus:ring-[3px] focus:ring-kumo-ring/15"
             />
           </div>
@@ -639,9 +699,11 @@ function OutputsPage() {
           </div>
         ) : loadError ? (
           <div className="py-12 text-center text-sm">
-            <p className="text-kumo-danger">Something went wrong loading your outputs.</p>
+            <p className="text-kumo-danger">
+              <FormattedMessage id="outputsPage.loadError" defaultMessage="Something went wrong loading your outputs." />
+            </p>
             <button onClick={() => setReloadToken((n) => n + 1)} className="mt-1 text-kumo-brand underline">
-              Try again
+              <FormattedMessage id="outputsPage.tryAgain" defaultMessage="Try again" />
             </button>
           </div>
         ) : filtered.length === 0 ? (
@@ -651,16 +713,20 @@ function OutputsPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-kumo-default">
-                {isFiltered ? 'No outputs match' : 'No outputs yet'}
+                {isFiltered
+                  ? <FormattedMessage id="outputsPage.noMatchTitle" defaultMessage="No outputs match" />
+                  : <FormattedMessage id="outputsPage.noneYetTitle" defaultMessage="No outputs yet" />}
               </p>
               <p className="mt-1 text-[13px] leading-[18px] text-kumo-subtle">
                 {isFiltered
-                  ? 'Try a different filter or search term.'
-                  : 'Anything your workspaces build will show up here.'}
+                  ? <FormattedMessage id="outputsPage.noMatchDescription" defaultMessage="Try a different filter or search term." />
+                  : <FormattedMessage id="outputsPage.noneYetDescription" defaultMessage="Anything your workspaces build will show up here." />}
               </p>
             </div>
             {/* Offer the deployment's formats here rather than sending them to the home page. */}
-            {!isFiltered && <NewFormatRow label="Start with" />}
+            {!isFiltered && (
+              <NewFormatRow label={formatMessage({ id: 'outputsPage.startWith', defaultMessage: 'Start with' })} />
+            )}
           </div>
         ) : view === 'grid' ? (
           <div className="grid grid-cols-2 gap-4 px-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -695,16 +761,27 @@ function OutputsPage() {
       />
       <DeleteConfirmationDialog
         open={removeOutput !== null}
-        title={`Remove “${removeOutput?.title || 'Untitled'}”?`}
+        title={formatMessage(
+          { id: 'outputsPage.removeOutputTitle', defaultMessage: 'Remove "{title}"?' },
+          { title: removeOutput?.title || formatMessage({ id: 'outputsPage.untitled', defaultMessage: 'Untitled' }) },
+        )}
         description={
-          <>
-            This permanently removes the output from “{removeOutput?.workspaceTitle}”
-            {removeOutput?.owner ? ', for everyone with access to that workspace' : ''}. Other
-            outputs in that workspace stay available. This can’t be undone.
-          </>
+          removeOutput?.owner ? (
+            <FormattedMessage
+              id="outputsPage.removeOutputDescriptionShared"
+              defaultMessage='This permanently removes the output from "{workspaceTitle}", for everyone with access to that workspace. Other outputs in that workspace stay available. This can’t be undone.'
+              values={{ workspaceTitle: removeOutput?.workspaceTitle }}
+            />
+          ) : (
+            <FormattedMessage
+              id="outputsPage.removeOutputDescription"
+              defaultMessage='This permanently removes the output from "{workspaceTitle}". Other outputs in that workspace stay available. This can’t be undone.'
+              values={{ workspaceTitle: removeOutput?.workspaceTitle }}
+            />
+          )
         }
-        confirmLabel="Remove"
-        confirmingLabel="Removing…"
+        confirmLabel={formatMessage({ id: 'outputsPage.remove', defaultMessage: 'Remove' })}
+        confirmingLabel={formatMessage({ id: 'outputsPage.removingEllipsis', defaultMessage: 'Removing…' })}
         isDeleting={mutationBusy}
         onOpenChange={(open) => { if (!open) setRemoveOutput(null) }}
         onConfirm={() => { void confirmRemove() }}

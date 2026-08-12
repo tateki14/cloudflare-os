@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useIntl } from 'react-intl'
 import GatekeeperAppPage from '../GatekeeperAppPage'
 import { useDocumentTitle } from '../useDocumentTitle'
 import { useGatekeeperApps } from '../useGatekeeperApps'
@@ -14,8 +15,9 @@ export const Route = createFileRoute('/gatekeepers_/$appId')({
 })
 
 function GatekeeperApp() {
+  const { formatMessage } = useIntl()
   const { appId } = Route.useParams()
   const app = useGatekeeperApps().find((a) => a.id === appId)
-  useDocumentTitle(app?.title ?? 'App')
+  useDocumentTitle(app?.title ?? formatMessage({ id: 'gatekeeperAppRoute.appFallback', defaultMessage: 'App' }))
   return <GatekeeperAppPage appId={appId} />
 }

@@ -2,6 +2,7 @@ import { classifyRpcError, logRpcFailure } from "../rpcErrors";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useKumoToastManager } from "@cloudflare/kumo";
+import { FormattedMessage, useIntl } from "react-intl";
 import { ChatInput } from "../ChatInterface";
 import MeshBackground from "../components/MeshBackground";
 import HomeTaskSuggestions from "../components/AppShell/HomeTaskSuggestions";
@@ -40,7 +41,8 @@ function HomePage() {
 }
 
 export function HomePageContent({ prompt }: HomeSearch) {
-  useDocumentTitle("Home");
+  const { formatMessage } = useIntl();
+  useDocumentTitle(formatMessage({ id: "homePage.documentTitle", defaultMessage: "Home" }));
 
   const { authenticatedApi, currentUser } = useAuthenticatedApi();
   const navigate = useNavigate();
@@ -70,13 +72,16 @@ export function HomePageContent({ prompt }: HomeSearch) {
         // Toast unless it's a connection error (reconnect refetches); a do-reset here already
         // survived the Worker's same-colo retry, so the user should hear about it.
         if (classifyRpcError(err) !== "connection") {
-          toasts.add({ title: "Couldn't load AI models", variant: "error" });
+          toasts.add({
+            title: formatMessage({ id: "homePage.toastCouldNotLoadModels", defaultMessage: "Couldn't load AI models" }),
+            variant: "error",
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [authenticatedApi]);
+  }, [authenticatedApi, formatMessage]);
 
   const handleModelChange = useCallback((value: string | null) => {
     setSelectedModel(value);
@@ -130,12 +135,15 @@ export function HomePageContent({ prompt }: HomeSearch) {
           provisionalOverseerRef.current = null;
         }
         if (!transient) {
-          toasts.add({ title: "Failed to create workspace", variant: "error" });
+          toasts.add({
+            title: formatMessage({ id: "homePage.toastFailedToCreateWorkspace", defaultMessage: "Failed to create workspace" }),
+            variant: "error",
+          });
         }
         throw err;
       }
     },
-    [ensureProvisionalGadget, navigate, toasts],
+    [ensureProvisionalGadget, navigate, toasts, formatMessage],
   );
 
   const getOverseer = useCallback((): RpcStub<Overseer> => {
@@ -173,10 +181,13 @@ export function HomePageContent({ prompt }: HomeSearch) {
         {/* Hero */}
         <header className="text-center">
           <h1 className="text-3xl font-semibold tracking-tight leading-tight text-kumo-default sm:text-4xl">
-            What are we working on?
+            <FormattedMessage id="homePage.heading" defaultMessage="What are we working on?" />
           </h1>
           <p className="mx-auto mt-3 max-w-md text-[14px] leading-5 tracking-[-0.25px] text-kumo-subtle">
-            Ask a question, create an output, or create an app that works with your tools and data.
+            <FormattedMessage
+              id="homePage.description"
+              defaultMessage="Ask a question, create an output, or create an app that works with your tools and data."
+            />
           </p>
         </header>
 

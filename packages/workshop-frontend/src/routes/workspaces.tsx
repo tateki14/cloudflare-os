@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Plus } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import GadgetList from '../components/GadgetList'
 import { useDocumentTitle } from '../useDocumentTitle'
 
@@ -10,14 +11,20 @@ export const Route = createFileRoute('/workspaces')({
 })
 
 function WorkspacesPage() {
-  useDocumentTitle('Workspaces')
+  const { formatMessage } = useIntl()
+  useDocumentTitle(formatMessage({ id: 'workspacesPage.documentTitle', defaultMessage: 'Workspaces' }))
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-6 sm:px-10">
       <header className="flex items-end justify-between gap-4 px-3 pb-3 pt-10">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">Workspaces</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">
+            <FormattedMessage id="workspacesPage.heading" defaultMessage="Workspaces" />
+          </h1>
           <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle">
-            Each workspace is an isolated environment with its own conversations, gatekeepers, and outputs.
+            <FormattedMessage
+              id="workspacesPage.description"
+              defaultMessage="Each workspace is an isolated environment with its own conversations, gatekeepers, and outputs."
+            />
           </p>
         </div>
         {/* "Create" just routes to Home (the new-workspace launcher) for now. */}
@@ -26,7 +33,7 @@ function WorkspacesPage() {
           className="press inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-kumo-brand px-3.5 text-[13px] font-medium tracking-[-0.25px] text-white transition-colors hover:bg-kumo-brand-hover"
         >
           <Plus size={14} weight="bold" />
-          Create workspace
+          <FormattedMessage id="workspacesPage.createWorkspace" defaultMessage="Create workspace" />
         </Link>
       </header>
       <div className="min-h-0 flex-1">
