@@ -1,6 +1,6 @@
 import { logRpcFailure } from '../rpcErrors'
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useKumoToastManager } from '@cloudflare/kumo'
 import { FormattedMessage, useIntl } from 'react-intl'
 import {
@@ -26,6 +26,7 @@ import { GatekeeperVendorInfo } from '@gadgets/workshop-shared/api'
 import { useDocumentTitle } from '../useDocumentTitle'
 import { useSiteName } from '../ServerConfigContext'
 import { AccountsSubscriberAdapter } from '../accountsSubscriber'
+import { openConnectWindow } from '../connectHandoff'
 
 export const Route = createFileRoute('/gatekeepers')({
   component: ConnectorsPage,
@@ -485,8 +486,6 @@ function ConnectorsPage() {
     localStorage.setItem('gatekeepers-view', view)
   }, [view])
 
-  const subscriptionRef = useRef<{ [Symbol.dispose](): void } | null>(null)
-
   useEffect(() => {
     let cancelled = false
     const accountMap = new Map<number, AccountEntry>()
@@ -553,23 +552,16 @@ function ConnectorsPage() {
       },
     })
 
-    authenticatedApi.subscribeConnectedAccounts(subscriber)
-      .then((stub) => {
-        if (cancelled) {
-          stub[Symbol.dispose]()
-        } else {
-          subscriptionRef.current = stub
-        }
-      })
-      .catch((err) => {
-        logRpcFailure('Failed to subscribe to connected accounts:', err)
-        if (!cancelled) setLoadError(true)
-      })
+    const subscription = authenticatedApi.subscribeConnectedAccounts(subscriber)
+    subscription.catch((err) => {
+      if (cancelled) return
+      logRpcFailure('Failed to subscribe to connected accounts:', err)
+      setLoadError(true)
+    })
 
     return () => {
       cancelled = true
-      subscriptionRef.current?.[Symbol.dispose]()
-      subscriptionRef.current = null
+      subscription[Symbol.dispose]()
     }
   }, [authenticatedApi, formatMessage])
 
@@ -599,8 +591,7 @@ function ConnectorsPage() {
         // If the gatekeeper provides a management UI, its nav entry should appear without a reload.
         refreshGatekeeperApps(authenticatedApi)
       } else {
-        const { url } = await authenticatedApi.connectAccount(vendorId, resourceUrlPatterns)
-        window.open(url, '_blank', 'noopener,noreferrer')
+        openConnectWindow(await authenticatedApi.connectAccount(vendorId, resourceUrlPatterns))
       }
       handleCloseModal()
     } catch (err) {
@@ -618,15 +609,13 @@ function ConnectorsPage() {
     if (!modalTarget || modalTarget.kind !== 'manage') return
     setEnsuringResourceUrlPatterns((prev) => [...new Set([...prev, ...resourceUrlPatterns])])
     try {
-      const result = await authenticatedApi.ensureAccountResources(
+      const flow = await authenticatedApi.ensureAccountResources(
         modalTarget.accountId,
         resourceUrlPatterns,
       )
-      if (result.url) {
-        window.open(result.url, '_blank', 'noopener,noreferrer')
-      }
-      // On success the new grant arrives via subscribeConnectedAccounts(); the toggle reflects it
-      // once `grantedResourceUrlPatterns` updates.
+      if (flow) openConnectWindow(flow)
+      // The popup redeems the ticket itself; the new grant arrives via subscribeConnectedAccounts(),
+      // and the toggle reflects it once `grantedResourceUrlPatterns` updates.
     } catch (err) {
       console.error('Failed to expand account access:', err)
       toasts.add({
@@ -665,8 +654,7 @@ function ConnectorsPage() {
   const handleReconnect = async (accountId: number) => {
     setReconnectingAccountId(accountId)
     try {
-      const { url } = await authenticatedApi.reconnectAccount(accountId)
-      window.open(url, '_blank', 'noopener,noreferrer')
+      openConnectWindow(await authenticatedApi.reconnectAccount(accountId))
     } catch (err) {
       console.error('Failed to reconnect account:', err)
       toasts.add({
@@ -750,8 +738,8 @@ function ConnectorsPage() {
     accounts.length === 0
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem-1px)] bg-kumo-base">
-      <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:px-8 sm:py-14">
+    <div className="h-full overflow-y-auto bg-kumo-base">
+      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 sm:py-14">
         <header className="mb-8 grid gap-8 lg:grid-cols-[minmax(0,540px)_444px] lg:items-center lg:justify-between">
           <div>
             <h1 className="m-0 text-3xl font-semibold leading-tight tracking-tight text-kumo-default sm:text-[34px]">

@@ -20,8 +20,10 @@ const COMPOSER_MENU_ITEM =
 
 export default function ComposerFormatMenuItems({
   onSelect,
+  showTrailingSeparator = false,
 }: {
   onSelect: (format: OutputFormatOffer) => void
+  showTrailingSeparator?: boolean
 }) {
   const { formats, creating, create } = useOutputFormats()
   const { formatMessage } = useIntl()
@@ -57,7 +59,7 @@ export default function ComposerFormatMenuItems({
           </span>
         </DropdownMenu.Item>
       ))}
-      <div className="my-1 border-t border-kumo-line/70" />
+      {showTrailingSeparator && <div className="my-1 border-t border-kumo-line/70" />}
     </>
   )
 }

@@ -266,7 +266,7 @@ export default function AddModelModal({ visible, onCancel, onSuccess, authentica
 
   return (
     <Dialog.Root open={visible} onOpenChange={(open) => { if (!open) onCancel() }}>
-      <Dialog className="p-6" size="lg">
+      <Dialog className="responsive-dialog overflow-y-auto p-6" size="lg">
         <Dialog.Title className="text-lg font-semibold mb-4">
           <FormattedMessage id="addModelModal.title" defaultMessage="Add AI Model" />
         </Dialog.Title>

@@ -59,9 +59,12 @@ function iframeStyleForOverlay(overlay: OverlayState): CSSProperties {
     return {
       ...baseIframeStyle,
       position: 'fixed',
-      inset: 0,
-      width: '100vw',
-      height: '100vh',
+      top: 'calc(var(--app-top) + env(safe-area-inset-top))',
+      right: 'env(safe-area-inset-right)',
+      bottom: 'calc(var(--app-bottom) + env(safe-area-inset-bottom))',
+      left: 'env(safe-area-inset-left)',
+      width: 'calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right))',
+      height: 'calc(100vh - var(--app-top) - var(--app-bottom) - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
       zIndex: overlayZIndex,
     }
   }
@@ -209,9 +212,11 @@ class GatekeeperAppHostImpl extends RpcTarget {
   }
 }
 
-// Hosts a gatekeeper's full-page management SPA in a sandboxed, network-isolated iframe. The app
-// talks to the gatekeeper only through the `ui` capability carried over the MessagePort RPC session.
-// The iframe fills its parent container.
+/**
+ * Hosts a gatekeeper's full-page management SPA in a sandboxed, network-isolated iframe. The app
+ * talks to the gatekeeper only through the `ui` capability carried over the MessagePort RPC session.
+ * The iframe fills its parent container.
+ */
 export default function SandboxedGatekeeperApp({ frame, gatekeeperVendorId }: {
   frame: GatekeeperUiFrame,
   gatekeeperVendorId: string,

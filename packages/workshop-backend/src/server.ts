@@ -1,14 +1,15 @@
 import { RpcStub, RpcTarget, newHttpBatchRpcResponse, newWebSocketRpcSession, RpcSessionOptions } from "capnweb";
 import { validateRpc } from "capnweb-validate";
 import type { JWTPayload } from "jose";
-import { PublicApi, AuthenticatedApi, Overseer, GadgetMetadataWithTimestamps, AiChatAuthorInfo, AiModelConfig, AiGatewayInfo, AiModelProvider, ConnectedAccountsSubscriber, ConnectedAccountsFilter, GatekeeperVendorFilter, ObserverConfigCallback, BlueprintLibrarySummary, BlueprintPublicInfo, BlueprintUserSummary, BlueprintBindingAssignment, AgentSpawnerConfig, WorkpieceId, BLUEPRINT_SCREENSHOT_PATH_PREFIX, BLUEPRINT_SCREENSHOT_R2_PREFIX, blueprintScreenshotUrl, ServerConfig, CloudflareUsageInfo, CloudflareAccountOption, LoginAttempt, GatekeeperAppInfo, AdminApi, GatekeeperVendorInfo, OutputFormatOffer, ListOutputsResult, createOpenGadgetError, getOpenGadgetErrorCode, OPEN_GADGET_ERROR_CODES, AUTH_ERROR_CODES, createAuthError } from '@gadgets/workshop-shared/api';
+import { PublicApi, AuthenticatedApi, Overseer, GadgetMetadataWithTimestamps, AiChatAuthorInfo, AiModelConfig, AiGatewayInfo, AiModelProvider, ConnectedAccountsSubscriber, ConnectedAccountsFilter, GatekeeperVendorFilter, ObserverConfigCallback, BlueprintLibrarySummary, BlueprintPublicInfo, BlueprintUserSummary, BlueprintBindingAssignment, AgentSpawnerConfig, WorkpieceId, BLUEPRINT_SCREENSHOT_PATH_PREFIX, BLUEPRINT_SCREENSHOT_R2_PREFIX, blueprintScreenshotUrl, ServerConfig, CloudflareUsageInfo, CloudflareAccountOption, LoginAttempt, GatekeeperAppInfo, AdminApi, GatekeeperVendorInfo, OutputFormatOffer, ListOutputsResult, UserDirectoryRecord, createOpenGadgetError, getOpenGadgetErrorCode, OPEN_GADGET_ERROR_CODES, AUTH_ERROR_CODES, createAuthError, ConnectFlowStart } from '@gadgets/workshop-shared/api';
 import type { UiFeatureFlags } from "@gadgets/workshop-shared/feature-flags";
 import { getServerConfig } from "./deployment-config.js";
 import { isPasswordAuthEnabled, getAuthGatekeeperAllowlist } from "./auth/config.js";
 import { getAuthVendorBinding } from "./auth/auth-vendors.js";
 import { getUsageInfo } from "./ai-gateway-billing/limits/usage-checker.js";
 import { listConnectedAccounts, selectAccount } from "./ai-gateway-billing/cloudflare/connection-service.js";
-import { PendingLogin, LoginConnectCallbackImpl } from "./auth/login-flow.js";
+import { PendingLogin, LoginConnectCallbackImpl, EXPIRED_MESSAGE } from "./auth/login-flow.js";
+import { hashPresentedSecret, newSecretToken } from "./connect-handoff.js";
 import { deploymentOutputForBlueprint, listFormatOffers, readAdminConfig } from "./admin-config.js";
 
 // Re-export the optional-feature Durable Objects + entrypoints so they can be bound in wrangler.
@@ -19,7 +20,8 @@ import { getAiGatewayConfig } from "./ai-gateway.js";
 import { AdminSettings, AdminApiImpl } from "./admin-settings.js";
 import { BlueprintKvRecord, buildBlueprintArchiveStream, sanitizeBlueprintOutput, listFeaturedBlueprintsFromKv, parseBlueprintArchive, randomBlueprintId, readBlueprintContent, readBlueprintKvRecord } from "./blueprint-archive.js";
 import { GatekeeperConnectCallbackImpl, normalizeUsername, UserDurableObject, CLOUDFLARE_VENDOR_ID } from "./user";
-import { OverseerDurableObject, GatekeeperLoopback, CodeModeTailLoopback, AgentSpawnerGatekeeper, GatekeeperHookLoopback, GadgetTailLoopback, AgentSelfLoopback, TransientStubLoopback } from "./overseer";
+import { OverseerDurableObject, GatekeeperLoopback, CodeModeTailLoopback, AgentSpawnerGatekeeper, GatekeeperHookLoopback, GadgetTailLoopback, AgentSelfLoopback } from "./overseer";
+import { UserDirectoryDurableObject } from "./user-directory.js";
 import { ExternalMessageGateway } from "./external-message-gateway";
 import { RpcStub as NativeRpcStub } from "cloudflare:workers";
 import { recordAnalytics } from "./analytics";
@@ -28,13 +30,15 @@ import { verifyCfAccessJwt } from "./access.js";
 import { resolveUiFeatureFlags } from "./feature-flags";
 import { serveSiteLogo, SITE_LOGO_PATH } from "./site-logo.js";
 import { createWorkshopLogger } from "./observability";
-import { wrapDoStubForTelemetry } from "./do-telemetry";
+import { retryOnDoReset, wrapDoStubForTelemetry } from "./do-retry";
 
 const logger = createWorkshopLogger("workshop.server");
 
-// Set once we've asked the AdminSettings DO to install the bundled format blueprints (see the
+// Set once we've asked the AdminSettings DO to install the bundled blueprints (see the
 // fetch handler), so later requests skip the call. The DO holds the real answer.
-let formatBlueprintInstallStarted = false;
+let bundledBlueprintInstallStarted = false;
+
+const USER_SEARCH_POLICY_CACHE_TTL_MS = 30_000;
 
 function publicBlueprintInfo(id: string, metadata: BlueprintPublicInfo['metadata']): BlueprintPublicInfo {
   return {
@@ -50,13 +54,16 @@ export { LanguageModelGatekeeper };
 // Re-export entrypoint types from admin-settings.ts.
 export { AdminSettings };
 
+// Re-export the deployment-wide user directory Durable Object.
+export { UserDirectoryDurableObject };
+
 // Re-export entrypoint types from user.ts.
 export { UserDurableObject, GatekeeperConnectCallbackImpl };
 
 // Re-export entrypoint types from overseer.ts.
 export { OverseerDurableObject, GatekeeperLoopback, GatekeeperHookLoopback,
     CodeModeTailLoopback, AgentSpawnerGatekeeper, GadgetTailLoopback,
-    AgentSelfLoopback, TransientStubLoopback };
+    AgentSelfLoopback };
 
 // Re-export service-binding entrypoint for external channel integrations.
 export { ExternalMessageGateway };
@@ -90,6 +97,20 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   private users: DurableObjectNamespace<UserDurableObject>;
 
   #userId: DurableObjectId;
+  #userSearchPolicyCache?: { expiresAt: number; promise: Promise<boolean> };
+
+  #userSearchEnabled(): Promise<boolean> {
+    let cached = this.#userSearchPolicyCache;
+    if (cached && Date.now() < cached.expiresAt) return cached.promise;
+
+    let promise = readAdminConfig(this.env).then(config => config.userSearchEnabled);
+    let next = { expiresAt: Date.now() + USER_SEARCH_POLICY_CACHE_TTL_MS, promise };
+    this.#userSearchPolicyCache = next;
+    promise.catch(() => {
+      if (this.#userSearchPolicyCache === next) this.#userSearchPolicyCache = undefined;
+    });
+    return promise;
+  }
 
   // Get a stub pointing at the user DO. We create a new stub for every request so that we don't
   // have to worry about detecting when a stub has become broken.
@@ -117,19 +138,25 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   whoami(): Promise<AiChatAuthorInfo> {
-    return this.#user.whoami();
+    // Pure-read delegations retry once across a user-DO reset (see retryOnDoReset); writes never do.
+    return retryOnDoReset(() => this.#user.whoami());
   }
   setOwnDisplayName(name: string): Promise<void> {
     return this.#user.setOwnDisplayName(name);
+  }
+  async searchUsers(query: string, excludeIds: string[]): Promise<UserDirectoryRecord[]> {
+    if (!(await this.#userSearchEnabled())) return [];
+    return retryOnDoReset(() => this.ctx.exports.UserDirectoryDurableObject.getByName("")
+        .searchUsers(query, [this.#userId.name!, ...excludeIds]));
   }
   changePassword(oldHash: Uint8Array, newHash: Uint8Array): Promise<void> {
     return this.#user.changePassword(oldHash, newHash);
   }
   hasPasswordLogin(): Promise<boolean> {
-    return this.#user.hasPasswordLogin();
+    return retryOnDoReset(() => this.#user.hasPasswordLogin());
   }
   listModels(): Promise<AiChatAuthorInfo[]> {
-    return this.#user.listModels();
+    return retryOnDoReset(() => this.#user.listModels());
   }
   addModel(profile: AiChatAuthorInfo, config: AiModelConfig): Promise<void> {
     return this.#user.addModel(profile, config);
@@ -141,17 +168,17 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
     return this.#user.setQuickModel(id);
   }
   getQuickModel(): Promise<null | string> {
-    return this.#user.getQuickModel();
+    return retryOnDoReset(() => this.#user.getQuickModel());
   }
 
   getPreferredModel(): Promise<string | null> {
-    return this.#user.getPreferredModel();
+    return retryOnDoReset(() => this.#user.getPreferredModel());
   }
   setPreferredModel(id: string | null): Promise<void> {
     return this.#user.setPreferredModel(id);
   }
   isOnboardingCompleted(): Promise<boolean> {
-    return this.#user.isOnboardingCompleted();
+    return retryOnDoReset(() => this.#user.isOnboardingCompleted());
   }
   completeOnboarding(): Promise<void> {
     return this.#user.completeOnboarding();
@@ -296,7 +323,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   async listGadgets(): Promise<GadgetMetadataWithTimestamps[]> {
-    return this.#user.listGadgets();
+    return retryOnDoReset(() => this.#user.listGadgets());
   }
 
   listOutputs(): Promise<ListOutputsResult> {
@@ -310,19 +337,24 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   listGatekeeperVendors(filter?: GatekeeperVendorFilter): Promise<GatekeeperVendorInfo[]> {
-    return this.#user.listGatekeeperVendors(filter);
+    return retryOnDoReset(() => this.#user.listGatekeeperVendors(filter));
   }
 
-  connectAccount(vendorId: string, resourceUrlPatterns?: string[]): Promise<{url: string}> {
+  connectAccount(vendorId: string, resourceUrlPatterns?: string[]): Promise<ConnectFlowStart> {
     return this.#user.connectAccount(vendorId, resourceUrlPatterns);
   }
 
-  ensureAccountResources(accountId: number, resourceUrlPatterns: string[]): Promise<{url?: string}> {
+  completeConnectHandoff(ticket: string, nonce: string): Promise<void> {
+    return this.#user.completeConnectHandoff(ticket, nonce);
+  }
+
+  ensureAccountResources(accountId: number, resourceUrlPatterns: string[])
+      : Promise<ConnectFlowStart | null> {
     return this.#user.ensureAccountResources(accountId, resourceUrlPatterns);
   }
 
   listAddableGatekeepers(): Promise<GatekeeperVendorInfo[]> {
-    return this.#user.listAddableGatekeepers();
+    return retryOnDoReset(() => this.#user.listAddableGatekeepers());
   }
 
   provisionAmbientAccount(vendorId: string): Promise<void> {
@@ -339,7 +371,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
     return this.#user.disconnectAccount(accountId);
   }
 
-  reconnectAccount(accountId: number): Promise<{url: string}> {
+  reconnectAccount(accountId: number): Promise<ConnectFlowStart> {
     return this.#user.reconnectAccount(accountId);
   }
 
@@ -354,15 +386,15 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   async listOwnBlueprints(): Promise<BlueprintUserSummary[]> {
-    return this.#user.listBlueprints();
+    return retryOnDoReset(() => this.#user.listBlueprints());
   }
 
   async getOwnBlueprint(blueprintId: string): Promise<BlueprintUserSummary | null> {
-    return this.#user.getBlueprint(blueprintId);
+    return retryOnDoReset(() => this.#user.getBlueprint(blueprintId));
   }
 
   async listLibraryBlueprints(): Promise<BlueprintLibrarySummary[]> {
-    return this.#user.listLibraryBlueprints();
+    return retryOnDoReset(() => this.#user.listLibraryBlueprints());
   }
 
   async setBlueprintPinned(blueprintId: string, pinned: boolean): Promise<void> {
@@ -370,7 +402,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   async isBlueprintPinned(blueprintId: string): Promise<boolean> {
-    return this.#user.isBlueprintPinned(blueprintId);
+    return retryOnDoReset(() => this.#user.isBlueprintPinned(blueprintId));
   }
 
   async listFeaturedBlueprints(): Promise<BlueprintPublicInfo[]> {
@@ -387,7 +419,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
   }
 
   isBlueprintInLibrary(blueprintId: string): Promise<{ uploaded: boolean } | null> {
-    return this.#user.isBlueprintInLibrary(blueprintId);
+    return retryOnDoReset(() => this.#user.isBlueprintInLibrary(blueprintId));
   }
 
   async importBlueprint(archive: ReadableStream<Uint8Array>): Promise<string> {
@@ -563,8 +595,8 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
     // appear in the nav even before the user opens a gadget — in a single round trip.
     let accounts = await this.#user.listProvidedAccounts();
     return accounts
-        .filter(account => account.description.providesUi)
-        .map(account => ({
+        .filter((account: (typeof accounts)[number]) => account.description.providesUi)
+        .map((account: (typeof accounts)[number]) => ({
           id: account.vendorId,
           title: account.description.providesUi!.title,
           icon: account.description.providesUi!.icon,
@@ -576,7 +608,7 @@ class AuthenticatedApiImpl extends RpcTarget implements AuthenticatedApi {
     // so a direct URL load of /gatekeepers/$id works without racing the Header's listGatekeeperApps.
     let user = this.#user;  // one stub for both calls
     let accounts = await user.listProvidedAccounts();
-    let app = accounts.find(account => account.vendorId === id && account.description.providesUi);
+    let app = accounts.find((account: (typeof accounts)[number]) => account.vendorId === id && account.description.providesUi);
     if (!app) return null;
     // isAdmin is supplied fresh per open so admin-gated features reflect the user's current status.
     return user.startAccountAppUi(app.accountId, { isAdmin: this.#isAdmin() });
@@ -616,18 +648,18 @@ async function serveBlueprintScreenshot(env: Env, blueprintId: string): Promise<
   });
 }
 
-// Returned by startGatekeeperLogin(). Wraps the PendingLogin DO so the client awaits the login
+// Returned by startGatekeeperLogin(). Wraps the PendingLogin DO so the client redeems the login
 // result through a capability (this stub) rather than a guessable id — no login id is ever exposed
-// to the client. Disposing the stub (e.g. when the pop-up closes or the component unmounts) cancels
-// the in-flight wait and lets the DO be evicted.
+// to the client. The stub alone is not enough: receive() yields the token only once the popup has
+// confirmed the attempt's ticket with the nonce (PublicApi.confirmLogin).
 @validateRpc()
 class LoginAttemptImpl extends RpcTarget implements LoginAttempt {
   constructor(private pending: DurableObjectStub<PendingLogin>) {
     super();
   }
 
-  async wait(): Promise<string> {
-    return await this.pending.awaitResult();
+  async receive(): Promise<string | null> {
+    return await this.pending.receive();
   }
 }
 
@@ -642,11 +674,14 @@ class PublicApiImpl extends RpcTarget implements PublicApi {
     this.users = this.ctx.exports.UserDurableObject;
   }
 
+  async ping(): Promise<void> {}
+
   async getServerConfig(): Promise<ServerConfig> {
     return getServerConfig(this.env);
   }
 
-  async startGatekeeperLogin(vendorId: string): Promise<{ url: string; attempt: RpcStub<LoginAttempt> }> {
+  async startGatekeeperLogin(vendorId: string)
+      : Promise<{ url: string; nonce: string; attempt: RpcStub<LoginAttempt> }> {
     if (!getAuthGatekeeperAllowlist(this.env).includes(vendorId)) {
       throw new Error(`Sign-in via "${vendorId}" is not enabled on this deployment.`);
     }
@@ -655,21 +690,38 @@ class PublicApiImpl extends RpcTarget implements PublicApi {
     const desc = await vendor.describe();
     if (!desc.providesAuth) throw new Error(`"${vendorId}" does not provide authentication.`);
 
-    // The PendingLogin DO is the rendezvous between this request and the (separate) OAuth-callback
-    // invocation. The client never sees its id — we hand back an `attempt` stub instead.
-    const pendingId = this.ctx.exports.PendingLogin.newUniqueId();
+    // The PendingLogin DO is the rendezvous between this request, the (separate) OAuth-callback
+    // invocation, and the popup's confirmLogin(). Its name is the hash of a secret only the popup
+    // will hold, so confirmLogin can address it while the client side holds no id at all; the client
+    // redeems through the `attempt` capability.
+    const { secret, hash } = await newSecretToken();
+    const pendingId = this.ctx.exports.PendingLogin.idFromName(hash);
     const pending = this.ctx.exports.PendingLogin.get(pendingId);
+    // Mark the attempt as started before the gatekeeper can deliver to it, so receive() answers null
+    // while it is still running instead of reporting it expired.
+    await pending.begin();
     const callback = this.ctx.exports.LoginConnectCallbackImpl(
         { props: { pendingId: pendingId.toString(), vendorId } });
     // For most providers, sign-in needs only minimal scopes to verify the user's email (the grant is
     // transient); capability scopes are requested later via an explicit connectAccount. Cloudflare is
-    // the exception: signing in with Cloudflare also links AI Gateway billing, so it requests the
-    // full (persistent) scope set up front and LoginConnectCallbackImpl persists the connection.
-    const scopes = vendorId === CLOUDFLARE_VENDOR_ID ? "full" : "auth";
-    const { url } = await vendor.connectAccount(callback, { scopes });
+    // the exception: signing in with Cloudflare also links AI Gateway billing, so it requests and
+    // persists the billing-only scope set up front.
+    const options = vendorId === CLOUDFLARE_VENDOR_ID
+      ? { scopes: "full" as const, resourceUrlPatterns: [] }
+      : { scopes: "auth" as const };
+    const { url } = await vendor.connectAccount(callback, options);
     // @ts-expect-error Cap'n Web RPC stubs and native RPC targets are compatible but the type
     //     system doesn't know this.
-    return { url, attempt: new LoginAttemptImpl(pending) };
+    return { url, nonce: secret.toHex(), attempt: new LoginAttemptImpl(pending) };
+  }
+
+  async confirmLogin(ticket: string, nonce: string): Promise<void> {
+    // A nonce naming a DO that never began finds no result there and is refused as expired; reading
+    // an empty DO creates nothing. The ticket is checked by confirm() itself.
+    const nonceHash = await hashPresentedSecret(nonce);
+    if (nonceHash === undefined) throw new Error(EXPIRED_MESSAGE);
+    const id = this.ctx.exports.PendingLogin.idFromName(nonceHash);
+    await this.ctx.exports.PendingLogin.get(id).confirm(ticket);
   }
 
   async authenticate(token: string): Promise<AuthenticatedApi> {
@@ -809,24 +861,24 @@ export default {
     }
 
     if (url.pathname === "/api") {
-      // Make sure the bundled format blueprints are installed. The AdminSettings DO doesn't wake
+      // Make sure the bundled blueprints are installed. The AdminSettings DO doesn't wake
       // merely because someone deployed, so the install needs a trigger; hanging it off API
       // traffic means a fresh deployment is provisioned by its first visitor. Fire-and-forget,
       // and the DO is idempotent.
-      if (!formatBlueprintInstallStarted) {
-        formatBlueprintInstallStarted = true;
-        ctx.waitUntil(ctx.exports.AdminSettings.getByName("").ensureFormatBlueprintsInstalled()
+      if (!bundledBlueprintInstallStarted) {
+        bundledBlueprintInstallStarted = true;
+        ctx.waitUntil(ctx.exports.AdminSettings.getByName("").ensureBundledBlueprintsInstalled()
             .then((complete: boolean) => {
               // A partial install resolves rather than throwing, and nothing else will call the DO
               // from here, so clearing this is the whole retry: one bad archive would otherwise
               // leave the deployment half-provisioned for as long as the isolate lives.
-              if (!complete) formatBlueprintInstallStarted = false;
+              if (!complete) bundledBlueprintInstallStarted = false;
             })
             .catch((err: unknown) => {
               // Likewise let the next request try again. The DO coalesces concurrent callers, so a
               // retry costs one comparison once it succeeds.
-              formatBlueprintInstallStarted = false;
-              logger.warn("failed to install bundled format blueprints", {
+              bundledBlueprintInstallStarted = false;
+              logger.warn("failed to install bundled blueprints", {
                 event: "formats.install.trigger.failed", error: err,
               });
             }));

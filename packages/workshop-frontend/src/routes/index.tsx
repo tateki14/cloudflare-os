@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useKumoToastManager } from "@cloudflare/kumo";
 import { FormattedMessage, useIntl } from "react-intl";
-import { ChatInput } from "../ChatInterface";
+import { ChatComposer } from "../features/chat/composer/ChatComposer";
 import MeshBackground from "../components/MeshBackground";
 import HomeTaskSuggestions from "../components/AppShell/HomeTaskSuggestions";
 import { useAuthenticatedApi } from "../AuthContext";
@@ -22,7 +22,7 @@ import {
 } from "../modelSelection";
 import { useDocumentTitle } from "../useDocumentTitle";
 import { homePromptFromSearch } from "../homePrompt";
-import { composerDraftStorageKey } from "../composerDraft";
+import { composerDraftStorageKey } from "../features/chat/composer/draft/composerDraft";
 
 type HomeSearch = { prompt?: string };
 
@@ -192,7 +192,7 @@ export function HomePageContent({ prompt }: HomeSearch) {
         </header>
 
         {/* Composer */}
-        <ChatInput
+        <ChatComposer
           createCapsuleGatekeeper={createCapsuleGatekeeper}
           getOverseer={getOverseer}
           onSend={handleSend}

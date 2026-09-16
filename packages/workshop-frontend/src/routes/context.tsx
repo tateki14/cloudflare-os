@@ -5,9 +5,11 @@ import { useDocumentTitle } from '../useDocumentTitle'
 import ComingSoonPreview from '../components/ComingSoonPreview'
 import { useSiteName } from '../ServerConfigContext'
 
-// Context & Skills. The knowledge/skills surface isn't built into the rail yet — agents read
-// curated collections of documents (context) and reusable skills. Until then this page shows a
-// frosted design mock so the nav entry has a stable, on-language target.
+/**
+ * Context & Skills. The knowledge/skills surface isn't built into the rail yet — agents read
+ * curated collections of documents (context) and reusable skills. Until then this page shows a
+ * frosted design mock so the nav entry has a stable, on-language target.
+ */
 export const Route = createFileRoute('/context')({
   component: ContextPage,
 })
@@ -67,8 +69,8 @@ function ContextPage() {
   useDocumentTitle(formatMessage({ id: 'contextPage.documentTitle', defaultMessage: 'Context & Skills' }))
   const siteName = useSiteName()
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-6 sm:px-10">
-      <header className="px-3 pb-4 pt-10">
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-3 sm:px-10">
+      <header className="px-3 pb-4 pt-6 sm:pt-10">
         <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">
           <FormattedMessage id="contextPage.heading" defaultMessage="Context & Skills" />
         </h1>

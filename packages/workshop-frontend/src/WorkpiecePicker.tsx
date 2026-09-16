@@ -6,6 +6,7 @@ import { FormattedMessage, useIntl } from 'react-intl'
 import type { WorkpieceId, WorkpieceSummary } from '@gadgets/workshop-shared/api'
 import { CountBadge } from './components/CountBadge'
 import { WorkshopIconButton, WorkshopInput } from './components/WorkshopControls'
+import { isImeComposing } from './keyboardEvent'
 
 export const WORKPIECE_RAIL_COLLAPSED_WIDTH = 48
 export const WORKPIECE_RAIL_EXPANDED_WIDTH = 220
@@ -96,6 +97,7 @@ export default function WorkpiecePicker({
                   value={editing.value}
                   onChange={e => setEditing({ id: gadget.id, value: e.target.value })}
                   onKeyDown={e => {
+                    if (isImeComposing(e)) return
                     if (e.key === 'Enter') commitRename()
                     if (e.key === 'Escape') setEditing(null)
                   }}
