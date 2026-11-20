@@ -42,13 +42,11 @@ describe('WorkspaceOpenErrorPage', () => {
     document.body.append(container)
     root = createRoot(container)
     await act(async () => root!.render(
-      <TestIntlProvider>
-        <WorkspaceOpenErrorPage
-          kind={kind}
-          onRetry={onRetry}
-          onGoToWorkspaces={onGoToWorkspaces}
-        />
-      </TestIntlProvider>,
+      <WorkspaceOpenErrorPage
+        kind={kind}
+        onRetry={onRetry}
+        onGoToWorkspaces={onGoToWorkspaces}
+      />,
     ))
     return { container, onGoToWorkspaces, onRetry }
   }

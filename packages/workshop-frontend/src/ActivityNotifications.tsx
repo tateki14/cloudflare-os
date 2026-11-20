@@ -2,7 +2,6 @@ import { useId, useState } from 'react'
 import { Popover } from '@cloudflare/kumo'
 import { ArrowRight, Pulse } from '@phosphor-icons/react'
 import type { RpcStub } from 'capnweb'
-import { FormattedMessage, useIntl } from 'react-intl'
 import type { Overseer } from '@gadgets/workshop-shared/api'
 import { CountBadge } from './components/CountBadge'
 import { IncompleteDescriptionNotice, isDescriptionIncomplete } from './components/IncompleteDescriptionNotice'
@@ -33,7 +32,6 @@ export default function ActivityNotifications({
   onViewActivity,
   restricted,
 }: ActivityNotificationsProps) {
-  const { formatMessage } = useIntl()
   const [open, setOpen] = useState(false)
   const [processing, setProcessing] = useState<Set<number>>(new Set())
   const { resolveAction, creationAccountModal } = useResolveAction(overseer, setProcessing)
@@ -54,14 +52,8 @@ export default function ActivityNotifications({
           <button
             type="button"
             aria-label={pending.length > 0
-              ? formatMessage(
-                  {
-                    id: 'activityNotifications.ariaActivityWithCount',
-                    defaultMessage: 'Activity — {count, plural, one {# request needs} other {# requests need}} review',
-                  },
-                  { count: pending.length },
-                )
-              : formatMessage({ id: 'activityNotifications.ariaActivity', defaultMessage: 'Activity' })}
+              ? `Activity — ${pending.length} ${pending.length === 1 ? 'request needs' : 'requests need'} review`
+              : 'Activity'}
             className={`relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors duration-150 hover:bg-kumo-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring ${
               pending.length > 0 ? 'text-kumo-strong' : 'text-kumo-subtle hover:text-kumo-default'
             }`}
@@ -81,7 +73,7 @@ export default function ActivityNotifications({
       >
         <div className="flex items-center justify-between gap-2 px-3.5 pb-1 pt-2.5">
           <Popover.Title className="text-[11px] font-medium uppercase tracking-[0.06em] text-kumo-inactive">
-            <FormattedMessage id="activityNotifications.needsReview" defaultMessage="Needs review" />
+            Needs review
           </Popover.Title>
           <CountBadge count={pending.length} />
         </div>
@@ -90,7 +82,7 @@ export default function ActivityNotifications({
           <p className="m-0 px-3.5 pb-3 pt-1 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle">
             {status === 'error' ? PENDING_ERROR_COPY
               : status === 'checking' ? PENDING_CHECKING_COPY
-              : <FormattedMessage id="activityNotifications.nothingWaiting" defaultMessage="Nothing is waiting on you." />}
+              : 'Nothing is waiting on you.'}
           </p>
         ) : (
           <div className="max-h-[min(58vh,420px)] overflow-y-auto pb-1">
@@ -129,7 +121,7 @@ export default function ActivityNotifications({
                       <span className="mt-0.5 block truncate text-[11.5px] leading-4 tracking-[-0.1px] text-kumo-inactive">
                         {action.resourceTitle}
                         <span className="px-1">·</span>
-                        {formatRelativeTime(action.createdAt, formatMessage)}
+                        {formatRelativeTime(action.createdAt)}
                       </span>
                       <span id={requestId} className={`mt-1.5 block whitespace-pre-wrap text-[12.5px] leading-[18px] tracking-[-0.2px] text-kumo-subtle ${restricted ? '' : 'line-clamp-2'}`}>
                         {action.description.description}
@@ -179,11 +171,8 @@ export default function ActivityNotifications({
           >
             <span>
               {pending.length > PREVIEW_LIMIT
-                ? formatMessage(
-                    { id: 'activityNotifications.viewAllRequests', defaultMessage: 'View all {count} requests' },
-                    { count: pending.length },
-                  )
-                : <FormattedMessage id="activityNotifications.viewAllActivity" defaultMessage="View all activity" />}
+                ? `View all ${pending.length} requests`
+                : 'View all activity'}
             </span>
             <ArrowRight size={13} className="text-kumo-inactive" />
           </button>

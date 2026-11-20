@@ -14,12 +14,7 @@ interface HookToggleProps {
 /** Enable/disable toggle for bound hooks. Used in the Connections tab, Activity log, and inline chat. */
 export function HookToggle({ hookTitle, enabled, pending = false, onToggle, size = 'sm' }: HookToggleProps) {
   return (
-    <Tooltip
-      content={enabled
-        ? formatMessage({ id: 'hookToggle.disableThisHook', defaultMessage: 'Disable this hook.' })
-        : formatMessage({ id: 'hookToggle.enableThisHook', defaultMessage: 'Enable this hook.' })}
-      asChild
-    >
+    <Tooltip content={enabled ? 'Disable this hook.' : 'Enable this hook.'} asChild>
       <span className="inline-flex items-center">
         <Switch
           checked={enabled}

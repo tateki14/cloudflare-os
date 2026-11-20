@@ -11,7 +11,6 @@ import {
   SquaresFour,
   Stack,
 } from '@phosphor-icons/react'
-import { useIntl } from 'react-intl'
 import { useSiteName } from '../../ServerConfigContext'
 import SiteLogo from '../SiteLogo'
 import { useGatekeeperApps } from '../../useGatekeeperApps'
@@ -45,7 +44,6 @@ export default function Sidebar({
   collapsed: boolean
   onToggleCollapsed: () => void
 }) {
-  const { formatMessage } = useIntl()
   const siteName = useSiteName()
   // Gatekeeper-served management apps the user can reach now (one per gatekeeper that provides a UI
   // and is connected / enabled for everyone). Disabled or not-yet-connected ones aren't returned, so
@@ -54,7 +52,7 @@ export default function Sidebar({
 
   return (
     <aside
-      aria-label={formatMessage({ id: 'sidebar.primaryAriaLabel', defaultMessage: 'Primary' })}
+      aria-label="Primary"
       className={[
         // Sidebar is the app chrome: a hair greyer than the (lighter) content canvas so the two
         // surfaces read as distinct without a heavy divider.
@@ -85,8 +83,8 @@ export default function Sidebar({
             <button
               type="button"
               onClick={() => openCommandPalette()}
-              aria-label={formatMessage({ id: 'sidebar.search', defaultMessage: 'Search' })}
-              title={formatMessage({ id: 'sidebar.searchShortcutTitle', defaultMessage: 'Search (⌘K)' })}
+              aria-label="Search"
+              title="Search (⌘K)"
               className="press flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-kumo-inactive transition-colors hover:bg-kumo-tint hover:text-kumo-default"
             >
               <MagnifyingGlass size={15} />
@@ -94,8 +92,8 @@ export default function Sidebar({
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label={formatMessage({ id: 'sidebar.collapseSidebar', defaultMessage: 'Collapse sidebar' })}
-              title={formatMessage({ id: 'sidebar.collapseSidebar', defaultMessage: 'Collapse sidebar' })}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-kumo-inactive transition-colors hover:bg-kumo-tint hover:text-kumo-default"
             >
               <SidebarSimple size={15} />
@@ -109,8 +107,8 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onToggleCollapsed}
-          aria-label={formatMessage({ id: 'sidebar.expandSidebar', defaultMessage: 'Expand sidebar' })}
-          title={formatMessage({ id: 'sidebar.expandSidebar', defaultMessage: 'Expand sidebar' })}
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
           className="mx-auto mt-2 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-kumo-inactive transition-colors hover:bg-kumo-tint hover:text-kumo-default"
         >
           <SidebarSimple size={15} className="rotate-180" />
@@ -124,25 +122,25 @@ export default function Sidebar({
           <nav className="flex flex-col gap-0.5 px-2">
             <SidebarItem
               to="/"
-              label={formatMessage({ id: 'sidebar.home', defaultMessage: 'Home' })}
+              label="Home"
               icon={<House size={14} weight="regular" />}
               collapsed={collapsed}
             />
             <SidebarItem
               to="/workspaces"
-              label={formatMessage({ id: 'sidebar.workspaces', defaultMessage: 'Workspaces' })}
+              label="Workspaces"
               icon={<SquaresFour size={14} weight="regular" />}
               collapsed={collapsed}
             />
             <SidebarItem
               to="/blueprints"
-              label={formatMessage({ id: 'sidebar.blueprints', defaultMessage: 'Blueprints' })}
+              label="Blueprints"
               icon={<Blueprint size={14} weight="regular" />}
               collapsed={collapsed}
             />
             <SidebarItem
               to="/outputs"
-              label={formatMessage({ id: 'sidebar.outputs', defaultMessage: 'Outputs' })}
+              label="Outputs"
               icon={<Stack size={14} weight="regular" />}
               collapsed={collapsed}
             />
@@ -187,7 +185,7 @@ export default function Sidebar({
             })}
             <SidebarItem
               to="/explore"
-              label={formatMessage({ id: 'sidebar.explore', defaultMessage: 'Explore' })}
+              label="Explore"
               icon={<Compass size={14} weight="regular" />}
               collapsed={collapsed}
             />

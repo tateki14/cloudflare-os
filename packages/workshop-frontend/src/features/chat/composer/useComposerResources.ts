@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useIntl } from "react-intl";
 import type { RpcStub } from "capnweb";
 import type { GatekeeperClient } from "@gadgets/workshop-shared/api";
 import type { ResourceDescription } from "@gadgets/workshop-shared/gatekeeper";
@@ -138,7 +137,6 @@ export const useComposerResources = ({
   onSelectionRequest,
   onError,
 }: UseComposerResourcesOptions) => {
-  const { formatMessage } = useIntl();
   const [activeUrl, setActiveUrl] = useState<ActiveResourceUrl | null>(null);
   const [attachModal, setAttachModal] = useState<{
     prefill?: ComposerAttachModalPrefill;

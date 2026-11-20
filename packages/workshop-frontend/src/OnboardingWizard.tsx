@@ -72,8 +72,7 @@ export default function OnboardingWizard({
   const { resolvedThemeMode } = useTheme()
   const toasts = useKumoToastManager()
   const siteName = useSiteName()
-  const { formatMessage } = useIntl()
-  useDocumentTitle(formatMessage({ id: 'onboardingWizard.documentTitle', defaultMessage: 'Setup' }))
+  useDocumentTitle('Setup')
 
   // Wizard state
   const [step, setStep] = useState(0) // 0 = avatar, 1 = model, 2 = connections
@@ -253,10 +252,7 @@ export default function OnboardingWizard({
 
   const handleFileSelect = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      toasts.add({
-        title: formatMessage({ id: 'onboardingWizard.toastSelectImageFile', defaultMessage: 'Please select an image file' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Please select an image file', variant: 'error' })
       return
     }
     setAvatarProcessing(true)
@@ -267,10 +263,7 @@ export default function OnboardingWizard({
       setAvatarPreview(avatarBlobUrl(compressed))
     } catch (err) {
       console.error('Failed to process avatar:', err)
-      toasts.add({
-        title: formatMessage({ id: 'onboardingWizard.toastProcessImageFailed', defaultMessage: 'Failed to process image' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to process image', variant: 'error' })
     } finally {
       setAvatarProcessing(false)
     }
@@ -361,12 +354,7 @@ export default function OnboardingWizard({
       onComplete()
     } catch (err) {
       console.error('Failed to complete onboarding:', err)
-      toasts.add({
-        title: formatMessage({
-          id: 'onboardingWizard.toastGenericFailure', defaultMessage: 'Something went wrong. Please try again.',
-        }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Something went wrong. Please try again.', variant: 'error' })
       setFinishing(false)
     }
   }
@@ -422,14 +410,14 @@ export default function OnboardingWizard({
               mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
             }`}
           >
-            <FormattedMessage id="onboardingWizard.letsSetYouUp" defaultMessage="Let's set you up" />
+            Let&apos;s set you up
           </h1>
           <p
             className={`mt-2 text-sm text-kumo-subtle transition-all duration-500 delay-200 ${
               mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
             }`}
           >
-            <FormattedMessage id="onboardingWizard.subtitle" defaultMessage="Just a few things before you start building" />
+            Just a few things before you start building
           </p>
         </div>
 
@@ -458,10 +446,10 @@ export default function OnboardingWizard({
             {/* ── Step 0: Profile ───────────────────────────────────────────── */}
             <div className="min-h-[320px] w-full flex-shrink-0 p-5 sm:min-h-[420px] sm:p-8">
               <h2 className="text-lg font-medium text-kumo-default mb-1">
-                <FormattedMessage id="onboardingWizard.createYourProfile" defaultMessage="Create your profile" />
+                Create your profile
               </h2>
               <p className="text-sm text-kumo-subtle mb-12">
-                <FormattedMessage id="onboardingWizard.profileSubtitle" defaultMessage="This is how you'll appear in conversations" />
+                This is how you&apos;ll appear in conversations
               </p>
 
               {/* Avatar + Display name side by side */}
@@ -519,9 +507,7 @@ export default function OnboardingWizard({
                     }}
                   />
                   <p className="text-xs text-kumo-inactive mt-1.5">
-                    {avatarPreview
-                      ? <FormattedMessage id="onboardingWizard.change" defaultMessage="Change" />
-                      : <FormattedMessage id="onboardingWizard.addPhoto" defaultMessage="Add photo" />}
+                    {avatarPreview ? 'Change' : 'Add photo'}
                   </p>
                 </div>
 
@@ -531,14 +517,14 @@ export default function OnboardingWizard({
                     htmlFor="onboarding-display-name"
                     className="block text-xs font-medium text-kumo-subtle mb-1.5"
                   >
-                    <FormattedMessage id="onboardingWizard.displayName" defaultMessage="Display name" />
+                    Display name
                   </label>
                   <input
                     id="onboarding-display-name"
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={formatMessage({ id: 'onboardingWizard.displayNamePlaceholder', defaultMessage: 'How should we call you?' })}
+                    placeholder="How should we call you?"
                     className="w-full rounded-lg border border-kumo-line bg-kumo-base px-3 py-2.5 text-[16px] text-kumo-default transition-colors placeholder:text-kumo-inactive focus:border-kumo-brand focus:outline-none sm:text-sm"
                   />
                 </div>
@@ -549,10 +535,10 @@ export default function OnboardingWizard({
             <div className="min-h-[320px] w-full flex-shrink-0 p-5 sm:min-h-[420px] sm:p-8">
               <div>
                 <h2 className="text-lg font-medium text-kumo-default mb-1">
-                  <FormattedMessage id="onboardingWizard.chooseYourModel" defaultMessage="Choose your model" />
+                  Choose your model
                 </h2>
                 <p className="text-sm text-kumo-subtle mb-6">
-                  <FormattedMessage id="onboardingWizard.chooseModelSubtitle" defaultMessage="Pick the AI model you'd like to use by default" />
+                  Pick the AI model you&apos;d like to use by default
                 </p>
 
                 {modelsLoading ? (
@@ -637,13 +623,10 @@ export default function OnboardingWizard({
             <div className={`min-h-[320px] w-full flex-shrink-0 p-5 sm:min-h-[420px] sm:p-8 ${showConnectionsStep ? '' : 'hidden'}`}>
               <div>
                 <h2 className="text-lg font-medium text-kumo-default mb-1">
-                  <FormattedMessage id="onboardingWizard.connectYourServices" defaultMessage="Connect your services" />
+                  Connect your services
                 </h2>
                 <p className="text-sm text-kumo-subtle mb-6">
-                  <FormattedMessage
-                    id="onboardingWizard.connectServicesSubtitle"
-                    defaultMessage="Link your accounts so your gadgets can access them. You can always add more later."
-                  />
+                  Link your accounts so your gadgets can access them. You can always add more later.
                 </p>
 
                 {connectionsLoading ? (
@@ -689,11 +672,7 @@ export default function OnboardingWizard({
                               {vendor.description.displayName}
                             </p>
                             <p className="text-xs text-kumo-subtle truncate">
-                              {isConnected
-                                ? <FormattedMessage id="onboardingWizard.connected" defaultMessage="Connected" />
-                                : isConnecting
-                                  ? <FormattedMessage id="onboardingWizard.connecting" defaultMessage="Connecting..." />
-                                  : <FormattedMessage id="onboardingWizard.notConnected" defaultMessage="Not connected" />}
+                              {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Not connected'}
                             </p>
                           </div>
                           {isConnected && (
@@ -721,7 +700,7 @@ export default function OnboardingWizard({
                 )}
 
                 <p className="text-xs text-kumo-inactive mt-4 text-center">
-                  <FormattedMessage id="onboardingWizard.optionalManageAnyTime" defaultMessage="Optional · you can manage connections any time" />
+                  Optional &middot; you can manage connections any time
                 </p>
               </div>
             </div>
@@ -740,7 +719,7 @@ export default function OnboardingWizard({
                 onClick={goBack}
                 className="text-sm text-kumo-subtle hover:text-kumo-default transition-colors"
               >
-                <FormattedMessage id="onboardingWizard.back" defaultMessage="Back" />
+                Back
               </button>
             ) : (
               <span />
@@ -761,7 +740,7 @@ export default function OnboardingWizard({
                     }
                   `}
                 >
-                  <FormattedMessage id="onboardingWizard.next" defaultMessage="Next" />
+                  Next
                   <ArrowRight size={14} weight="bold" />
                 </button>
               ) : (
@@ -780,11 +759,11 @@ export default function OnboardingWizard({
                   {finishing ? (
                     <>
                       <div className="w-4 h-4 border-2 border-kumo-inverse/30 border-t-kumo-inverse rounded-full animate-spin" />
-                      <FormattedMessage id="onboardingWizard.settingUp" defaultMessage="Setting up..." />
+                      Setting up...
                     </>
                   ) : (
                     <>
-                      <FormattedMessage id="onboardingWizard.letsBuild" defaultMessage="Let's build" />
+                      Let&apos;s build
                       <ArrowRight size={14} weight="bold" />
                     </>
                   )}
@@ -870,27 +849,22 @@ interface ShowcaseFeature {
   ownModels?: true
 }
 
-function showcaseFeatures(formatMessage: IntlShape['formatMessage']): ShowcaseFeature[] {
-  return [
+const SHOWCASE_FEATURES: ShowcaseFeature[] = [
   {
     icon: Sparkle,
     iconColor: 'text-media-100',
     iconBg: 'bg-media-200',
-    title: formatMessage({ id: 'onboardingWizard.featureGadgetsTitle', defaultMessage: 'Build gadgets or just chat' }),
-    description: formatMessage({
-      id: 'onboardingWizard.featureGadgetsDescription',
-      defaultMessage: 'Create full web apps, or keep it simple with agent-only conversations. Your call.',
-    }),
+    title: 'Build gadgets or just chat',
+    description:
+      'Create full web apps, or keep it simple with agent-only conversations. Your call.',
   },
   {
     icon: UsersThree,
     iconColor: 'text-compute-100',
     iconBg: 'bg-compute-200',
-    title: formatMessage({ id: 'onboardingWizard.featureCollaborateTitle', defaultMessage: 'Collaborate in real time' }),
-    description: formatMessage({
-      id: 'onboardingWizard.featureCollaborateDescription',
-      defaultMessage: 'Share a workspace with teammates and work on it together, live.',
-    }),
+    title: 'Collaborate in real time',
+    description:
+      'Share a workspace with teammates and work on it together, live.',
   },
   {
     icon: Key,
@@ -905,14 +879,11 @@ function showcaseFeatures(formatMessage: IntlShape['formatMessage']): ShowcaseFe
     icon: Plugs,
     iconColor: 'text-storage-100',
     iconBg: 'bg-storage-200',
-    title: formatMessage({ id: 'onboardingWizard.featureToolsTitle', defaultMessage: 'AI meets your tools' }),
-    description: formatMessage({
-      id: 'onboardingWizard.featureToolsDescription',
-      defaultMessage: 'Have AI review a Google Doc, summarize Slack threads, triage Jira tickets, and more.',
-    }),
+    title: 'AI meets your tools',
+    description:
+      'Have AI review a Google Doc, summarize Slack threads, triage Jira tickets, and more.',
   },
-  ]
-}
+]
 
 function ShowcaseStep({ active, siteName, canAddModels }: {
   active: boolean
@@ -921,8 +892,6 @@ function ShowcaseStep({ active, siteName, canAddModels }: {
 }) {
   // Mount-trigger for staggered fade-in when the step becomes visible
   const [revealed, setRevealed] = useState(false)
-  const { formatMessage } = useIntl()
-  const features = showcaseFeatures(formatMessage)
 
   useEffect(() => {
     if (active) {
@@ -936,14 +905,10 @@ function ShowcaseStep({ active, siteName, canAddModels }: {
     <div>
       <div className="text-center mb-6">
         <h2 className="text-lg font-medium text-kumo-default mb-1">
-          <FormattedMessage id="onboardingWizard.allSetTitle" defaultMessage="You're all set" />
+          You&apos;re all set
         </h2>
         <p className="text-sm text-kumo-subtle">
-          <FormattedMessage
-            id="onboardingWizard.allSetSubtitle"
-            defaultMessage="Here's a taste of what you can do with {siteName}"
-            values={{ siteName }}
-          />
+          Here&apos;s a taste of what you can do with {siteName}
         </p>
       </div>
 

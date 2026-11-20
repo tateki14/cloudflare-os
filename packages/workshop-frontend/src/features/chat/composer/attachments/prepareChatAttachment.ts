@@ -1,4 +1,3 @@
-import type { IntlShape } from "react-intl";
 import { formatAttachmentSize } from "../../attachmentFormatting";
 
 /** Per-file attachment size limit; mirrors the backend's (chat-attachment-validation.ts). */
@@ -7,7 +6,6 @@ export const MAX_CHAT_ATTACHMENT_TOTAL_BYTES = 5 * 1024 * 1024;
 
 export const prepareChatAttachment = async (
   file: File,
-  formatMessage: IntlShape["formatMessage"] = fallbackFormatMessage,
 ): Promise<{ blob: Blob; mimeType: string }> => {
   if (file.size > MAX_CHAT_ATTACHMENT_BYTES) {
     throw new Error(

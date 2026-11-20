@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Dialog, Select, Loader, Text, useKumoToastManager } from '@cloudflare/kumo'
 import { Warning, Plus, ArrowClockwise, CheckCircle } from '@phosphor-icons/react'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { RpcStub } from 'capnweb'
 import {
   AuthenticatedApi,
@@ -43,13 +42,8 @@ interface AccountInfo {
 
 // How to name one of the user's accounts in the UI. Falls back to the id, which is all we can show
 // for an account that has since been disconnected (so `accounts` no longer has it).
-function accountLabel(
-  account: AccountInfo | undefined,
-  accountId: number,
-  formatMessage: IntlShape['formatMessage'],
-): string {
-  return account?.description.uniqueName || account?.description.displayName
-    || formatMessage({ id: 'observerConfigModal.accountFallbackName', defaultMessage: 'Account {accountId}' }, { accountId })
+function accountLabel(account: AccountInfo | undefined, accountId: number): string {
+  return account?.description.uniqueName || account?.description.displayName || `Account ${accountId}`
 }
 
 // Return the grantable resource type needed to verify one observer binding. Account metadata is
@@ -93,7 +87,6 @@ export default function ObserverConfigModal({
   subject,
 }: ObserverConfigModalProps) {
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
 
   const [accounts, setAccounts] = useState<Map<number, AccountInfo>>(new Map())
   const [ready, setReady] = useState(false)
@@ -147,12 +140,7 @@ export default function ObserverConfigModal({
       // Loud on purpose: the modal has no retry path, so a quieted transient failure would
       // strand the user on a permanent loader.
       console.error('Failed to subscribe to connected accounts:', err)
-      toasts.add({
-        title: formatMessage({
-          id: 'observerConfigModal.toastLoadAccountsFailed', defaultMessage: 'Failed to load your connected accounts',
-        }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to load your connected accounts', variant: 'error' })
     })
 
     return () => {
@@ -515,16 +503,14 @@ export default function ObserverConfigModal({
 
         <div className="flex shrink-0 justify-end gap-2 border-t border-kumo-line px-6 py-4">
           <WorkshopButton tone="secondary" onClick={onCancel}>
-            <FormattedMessage id="observerConfigModal.cancel" defaultMessage="Cancel" />
+            Cancel
           </WorkshopButton>
           <WorkshopButton
             tone="primary"
             onClick={handleConfirm}
             disabled={!ready || !vendorsReady || !allSatisfied}
           >
-            {isRetry
-              ? <FormattedMessage id="observerConfigModal.verifyAgain" defaultMessage="Verify again" />
-              : <FormattedMessage id="observerConfigModal.verifyAndOpen" defaultMessage="Verify and open" />}
+            {isRetry ? 'Verify again' : 'Verify and open'}
           </WorkshopButton>
         </div>
       </Dialog>

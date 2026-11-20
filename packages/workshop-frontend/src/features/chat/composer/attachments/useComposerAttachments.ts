@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useIntl } from "react-intl";
 import type { RpcStub } from "capnweb";
 import type { ChatAttachmentHandle, Overseer } from "@gadgets/workshop-shared/api";
 import { reportIssue } from "../../../../errorReporting";
@@ -34,7 +33,6 @@ export const useComposerAttachments = ({
   getOverseer,
   onError,
 }: ComposerAttachmentsOptions) => {
-  const { formatMessage } = useIntl();
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const attachmentsRef = useRef<ComposerAttachment[]>([]);
   const mountedRef = useRef(true);
@@ -84,13 +82,10 @@ export const useComposerAttachments = ({
       if (!mountedRef.current || !attachmentsRef.current.some((item) => item.id === id)) return;
       console.error("Failed to upload chat attachment:", error);
       reportIssue("chat.attachment-upload", error);
-      const message = errorMessage(error, formatMessage({ id: "chatInterface.uploadFailed", defaultMessage: "Upload failed" }));
+      const message = errorMessage(error, "Upload failed");
       updateAttachments((current) => current.map((item) =>
         item.id === id ? { ...item, uploadState: "error", error: message } : item));
-      onErrorRef.current(errorMessage(
-        error,
-        formatMessage({ id: "chatInterface.toastFailedToUploadAttachment", defaultMessage: "Failed to upload attachment" }),
-      ));
+      onErrorRef.current(errorMessage(error, "Failed to upload attachment"));
     }
   };
 
@@ -98,45 +93,32 @@ export const useComposerAttachments = ({
     const candidates = Array.from(files);
     const initialRoom = MAX_COMPOSER_ATTACHMENTS - attachmentsRef.current.length;
     if (initialRoom <= 0) {
-      onErrorRef.current(formatMessage(
-        { id: "chatInterface.toastAttachLimit", defaultMessage: "You can attach up to {max} attachments" },
-        { max: MAX_COMPOSER_ATTACHMENTS },
-      ));
+      onErrorRef.current(`You can attach up to ${MAX_COMPOSER_ATTACHMENTS} attachments`);
       return;
     }
     const accepted = candidates.slice(0, initialRoom);
     if (candidates.length > initialRoom) {
-      onErrorRef.current(formatMessage(
-        {
-          id: "chatInterface.toastOnlyFirstAttachmentsAttached",
-          defaultMessage: "{count, plural, one {Only the first attachment was attached} other {Only the first # attachments were attached}}",
-        },
-        { count: initialRoom },
-      ));
+      onErrorRef.current(initialRoom === 1
+        ? "Only the first attachment was attached"
+        : `Only the first ${initialRoom} attachments were attached`);
     }
 
     const prepared = await Promise.allSettled(accepted.map(async (file) => ({
       file,
-      ...(await prepareChatAttachment(file, formatMessage)),
+      ...(await prepareChatAttachment(file)),
     })));
     if (!mountedRef.current) return;
 
     for (const result of prepared) {
       if (result.status === "rejected") {
         console.error("Failed to process chat attachment:", result.reason);
-        onErrorRef.current(errorMessage(
-          result.reason,
-          formatMessage({ id: "chatInterface.toastFailedToProcessAttachment", defaultMessage: "Failed to process attachment" }),
-        ));
+        onErrorRef.current(errorMessage(result.reason, "Failed to process attachment"));
         continue;
       }
 
       const { file, blob, mimeType } = result.value;
       if (attachmentsRef.current.length >= MAX_COMPOSER_ATTACHMENTS) {
-        onErrorRef.current(formatMessage(
-          { id: "chatInterface.toastAttachLimit", defaultMessage: "You can attach up to {max} attachments" },
-          { max: MAX_COMPOSER_ATTACHMENTS },
-        ));
+        onErrorRef.current(`You can attach up to ${MAX_COMPOSER_ATTACHMENTS} attachments`);
         continue;
       }
       const totalBytes = attachmentsRef.current.reduce(
@@ -144,10 +126,9 @@ export const useComposerAttachments = ({
         0,
       );
       if (totalBytes + blob.size > MAX_CHAT_ATTACHMENT_TOTAL_BYTES) {
-        onErrorRef.current(formatMessage(
-          { id: "chatInterface.toastAttachmentsTotalTooLarge", defaultMessage: "Attached files must total {size} or less" },
-          { size: formatAttachmentSize(MAX_CHAT_ATTACHMENT_TOTAL_BYTES) },
-        ));
+        onErrorRef.current(
+          `Attached files must total ${formatAttachmentSize(MAX_CHAT_ATTACHMENT_TOTAL_BYTES)} or less`,
+        );
         continue;
       }
 

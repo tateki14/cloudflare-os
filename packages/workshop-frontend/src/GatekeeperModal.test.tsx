@@ -102,7 +102,6 @@ vi.mock('./ResourceConfiguratorHost', async () => {
 })
 
 import GatekeeperModal from './GatekeeperModal'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

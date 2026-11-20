@@ -1,7 +1,6 @@
 import { Dialog, Switch } from '@cloudflare/kumo'
 import { X, ShieldCheck } from '@phosphor-icons/react'
 import { useEffect, useMemo, useState } from 'react'
-import { FormattedMessage, useIntl } from 'react-intl'
 import {
   AccountDescription,
   SupportedResource,
@@ -154,14 +153,11 @@ export default function ConnectConnectorModal({
   const accountDisplayName =
     accountDescription?.displayName ??
     accountDescription?.uniqueName ??
-    formatMessage({ id: 'connectConnectorModal.connected', defaultMessage: 'Connected' })
+    'Connected'
 
   const headerTitle = isManage
     ? vendorDescription.displayName
-    : formatMessage(
-        { id: 'connectConnectorModal.connectVendor', defaultMessage: 'Connect {vendorName}' },
-        { vendorName: vendorDescription.displayName },
-      )
+    : `Connect ${vendorDescription.displayName}`
 
   const headerSubline = isManage ? (
     <div className="mt-0.5 flex items-center gap-1.5 text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
@@ -174,15 +170,9 @@ export default function ConnectConnectorModal({
       <span className="truncate">
         {credentialsValid
           ? accountDescription?.uniqueName
-            ? formatMessage(
-                { id: 'connectConnectorModal.accountNameAndUniqueName', defaultMessage: '{accountDisplayName} / {uniqueName}' },
-                { accountDisplayName, uniqueName: accountDescription.uniqueName },
-              )
+            ? `${accountDisplayName} / ${accountDescription.uniqueName}`
             : accountDisplayName
-          : formatMessage({
-              id: 'connectConnectorModal.credentialsExpired',
-              defaultMessage: 'Credentials expired; reconnect from the Gatekeepers page',
-            })}
+          : 'Credentials expired; reconnect from the Gatekeepers page'}
       </span>
     </div>
   ) : (
@@ -247,11 +237,7 @@ export default function ConnectConnectorModal({
           </div>
           <Dialog.Close
             render={(props) => (
-              <WorkshopIconButton
-                {...props}
-                disabled={busy}
-                aria-label={formatMessage({ id: 'connectConnectorModal.close', defaultMessage: 'Close' })}
-              >
+              <WorkshopIconButton {...props} disabled={busy} aria-label="Close">
                 <X size={16} />
               </WorkshopIconButton>
             )}
@@ -270,9 +256,9 @@ export default function ConnectConnectorModal({
               <h3 className="mb-2 text-[12px] leading-4 font-semibold uppercase tracking-[0.6px] text-kumo-inactive">
                 {granular
                   ? isManage
-                    ? <FormattedMessage id="connectConnectorModal.resourcesHeading" defaultMessage="Resources" />
-                    : <FormattedMessage id="connectConnectorModal.resourcesToEnableHeading" defaultMessage="Resources to enable" />
-                  : <FormattedMessage id="connectConnectorModal.whatThisGatekeeperCanDoHeading" defaultMessage="What this gatekeeper can do" />}
+                    ? 'Resources'
+                    : 'Resources to enable'
+                  : 'What this gatekeeper can do'}
               </h3>
               <ul className="space-y-2">
                 {supportedResources.map((resource) => {
@@ -305,14 +291,8 @@ export default function ConnectConnectorModal({
                           className="shrink-0"
                           aria-label={
                             isManage
-                              ? formatMessage(
-                                  { id: 'connectConnectorModal.grantResource', defaultMessage: 'Grant {resourceTitle}' },
-                                  { resourceTitle: resource.title },
-                                )
-                              : formatMessage(
-                                  { id: 'connectConnectorModal.enableResource', defaultMessage: 'Enable {resourceTitle}' },
-                                  { resourceTitle: resource.title },
-                                )
+                              ? `Grant ${resource.title}`
+                              : `Enable ${resource.title}`
                           }
                           checked={checked}
                           disabled={disabled}
@@ -344,17 +324,12 @@ export default function ConnectConnectorModal({
                 />
                 <div className="text-[12px] leading-[17px] font-normal tracking-[-0.2px] text-kumo-default">
                   <span className="font-medium">
-                    <FormattedMessage
-                      id="connectConnectorModal.gatekeeperSitsBetween"
-                      defaultMessage="Gatekeeper sits between {vendorName} and your Gadgets."
-                      values={{ vendorName: vendorDescription.displayName }}
-                    />
+                    Gatekeeper sits between {vendorDescription.displayName} and your Gadgets.
                   </span>{' '}
                   <span className="text-kumo-subtle">
-                    <FormattedMessage
-                      id="connectConnectorModal.gatekeeperExplanation"
-                      defaultMessage="Each Gadget only sees the resources you connect. If the workspace is shared, Gatekeeper verifies other users have the required permissions before they can access those resources."
-                    />
+                    Each Gadget only sees the resources you connect. If the workspace is shared,
+                    Gatekeeper verifies other users have the required permissions before they can
+                    access those resources.
                   </span>
                 </div>
               </div>
@@ -363,10 +338,8 @@ export default function ConnectConnectorModal({
 
           {isManage && (
             <div className="mt-5 rounded-lg border border-kumo-line bg-kumo-elevated px-4 py-3 text-[12px] leading-[17px] font-normal tracking-[-0.2px] text-kumo-subtle">
-              <FormattedMessage
-                id="connectConnectorModal.accountUsedByGadgets"
-                defaultMessage="This account can be used by Gadgets you connect it to. Shared users must have the required permissions before they can access those connected resources."
-              />
+              This account can be used by Gadgets you connect it to. Shared users must have the
+              required permissions before they can access those connected resources.
             </div>
           )}
         </div>
@@ -374,11 +347,7 @@ export default function ConnectConnectorModal({
         <div className="shrink-0 flex items-center justify-between gap-3 border-t border-kumo-line bg-kumo-base px-5 py-3">
           {isManage && confirmingDisconnect ? (
             <p className="m-0 min-w-0 flex-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-default">
-              <FormattedMessage
-                id="connectConnectorModal.disconnectConfirm"
-                defaultMessage="Disconnect {vendorName}? Gadgets using this will lose access."
-                values={{ vendorName: vendorDescription.displayName }}
-              />
+              Disconnect {vendorDescription.displayName}? Gadgets using this will lose access.
             </p>
           ) : isManage && hasPending ? (
             <p className="m-0 min-w-0 flex-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
@@ -386,10 +355,7 @@ export default function ConnectConnectorModal({
             </p>
           ) : !isManage && granular && noneSelected ? (
             <p className="m-0 min-w-0 flex-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-              <FormattedMessage
-                id="connectConnectorModal.selectAtLeastOneResource"
-                defaultMessage="Select at least one resource to continue."
-              />
+              Select at least one resource to continue.
             </p>
           ) : (
             <span aria-hidden />
@@ -404,7 +370,7 @@ export default function ConnectConnectorModal({
                       disabled={disconnecting}
                       className="!h-9"
                     >
-                      <FormattedMessage id="connectConnectorModal.cancel" defaultMessage="Cancel" />
+                      Cancel
                     </WorkshopButton>
                     <WorkshopButton
                       tone="danger"
@@ -412,15 +378,13 @@ export default function ConnectConnectorModal({
                       disabled={disconnecting}
                       className="!h-9 min-w-[140px]"
                     >
-                      {disconnecting
-                        ? <FormattedMessage id="connectConnectorModal.disconnecting" defaultMessage="Disconnecting..." />
-                        : <FormattedMessage id="connectConnectorModal.yesDisconnect" defaultMessage="Yes, disconnect" />}
+                      {disconnecting ? 'Disconnecting...' : 'Yes, disconnect'}
                     </WorkshopButton>
                   </>
                 ) : hasPending ? (
                   <>
                     <WorkshopButton onClick={discardPending} disabled={ensuringBusy} className="!h-9">
-                      <FormattedMessage id="connectConnectorModal.cancel" defaultMessage="Cancel" />
+                      Cancel
                     </WorkshopButton>
                     <WorkshopButton
                       tone="primary"
@@ -429,12 +393,8 @@ export default function ConnectConnectorModal({
                       className="min-w-[140px]"
                     >
                       {ensuringBusy
-                        ? <FormattedMessage id="connectConnectorModal.opening" defaultMessage="Opening..." />
-                        : <FormattedMessage
-                            id="connectConnectorModal.continueToVendor"
-                            defaultMessage="Continue to {vendorName}"
-                            values={{ vendorName: vendorDescription.displayName }}
-                          />}
+                        ? 'Opening...'
+                        : `Continue to ${vendorDescription.displayName}`}
                     </WorkshopButton>
                   </>
                 ) : (
@@ -442,7 +402,7 @@ export default function ConnectConnectorModal({
                     <Dialog.Close
                       render={(props) => (
                         <WorkshopButton {...props} className="!h-9">
-                          <FormattedMessage id="connectConnectorModal.closeButton" defaultMessage="Close" />
+                          Close
                         </WorkshopButton>
                       )}
                     />
@@ -452,7 +412,7 @@ export default function ConnectConnectorModal({
                       disabled={disconnecting}
                       className="!h-9"
                     >
-                      <FormattedMessage id="connectConnectorModal.disconnect" defaultMessage="Disconnect" />
+                      Disconnect
                     </WorkshopButton>
                   </>
                 )}
@@ -466,7 +426,7 @@ export default function ConnectConnectorModal({
                 ) : <Dialog.Close
                   render={(props) => (
                     <WorkshopButton {...props} disabled={connecting} className="!h-9">
-                      <FormattedMessage id="connectConnectorModal.cancel" defaultMessage="Cancel" />
+                      Cancel
                     </WorkshopButton>
                   )}
                 />}
@@ -478,19 +438,11 @@ export default function ConnectConnectorModal({
                 >
                   {autoProvisions
                     ? connecting
-                      ? <FormattedMessage id="connectConnectorModal.adding" defaultMessage="Adding..." />
-                      : <FormattedMessage
-                          id="connectConnectorModal.addVendor"
-                          defaultMessage="Add {vendorName}"
-                          values={{ vendorName: vendorDescription.displayName }}
-                        />
+                      ? 'Adding...'
+                      : `Add ${vendorDescription.displayName}`
                     : connecting
-                    ? <FormattedMessage id="connectConnectorModal.opening" defaultMessage="Opening..." />
-                    : <FormattedMessage
-                        id="connectConnectorModal.continueToVendor"
-                        defaultMessage="Continue to {vendorName}"
-                        values={{ vendorName: vendorDescription.displayName }}
-                      />}
+                    ? 'Opening...'
+                    : `Continue to ${vendorDescription.displayName}`}
                 </WorkshopButton>
               </>
             )}

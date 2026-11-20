@@ -30,10 +30,10 @@ export function AiModelConnectionConfig({
         description="Language models write text. Decision models answer questions with probabilities."
       >
         <Select
-          aria-label={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
+          aria-label="Select an AI model"
           className="w-full text-sm [&_button]:!h-9"
           container={selectContainer}
-          placeholder={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
+          placeholder="Select an AI model"
           value={selectedModelId}
           onValueChange={(v) => onSelectedModelIdChange(v as string | undefined)}
           renderValue={(id) => [...chatModels, ...decisionModels].find((m) => m.id === id)?.name ?? id}

@@ -101,15 +101,13 @@ describe('CodeDiffEditor', () => {
     await act(async () => {
       root.render(
         <StrictMode>
-          <TestIntlProvider>
-            <ThemeProvider>
-              <CodeDiffEditor
-                filename="notes.txt"
-                original={original}
-                session={session}
-              />
-            </ThemeProvider>
-          </TestIntlProvider>
+          <ThemeProvider>
+            <CodeDiffEditor
+              filename="notes.txt"
+              original={original}
+              session={session}
+            />
+          </ThemeProvider>
         </StrictMode>,
       )
     })
@@ -186,11 +184,9 @@ describe('CodeDiffEditor', () => {
   it('renders the select-a-file placeholder without a filename', async () => {
     await act(async () => {
       root.render(
-        <TestIntlProvider>
-          <ThemeProvider>
-            <CodeDiffEditor filename={null} original={null} />
-          </ThemeProvider>
-        </TestIntlProvider>,
+        <ThemeProvider>
+          <CodeDiffEditor filename={null} original={null} />
+        </ThemeProvider>,
       )
     })
     expect(container.textContent).toContain('Select a file to view changes')

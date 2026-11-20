@@ -57,7 +57,6 @@ import ChatInterface from './ChatInterface'
 import { INCOMPLETE_DESCRIPTION_COPY } from './components/IncompleteDescriptionNotice'
 import { RESTRICTED_APPROVAL_COPY } from './components/RestrictedApprovalNotice'
 import { linkActionLog } from './useActions'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 const testRoot = makeTestRoot()
 

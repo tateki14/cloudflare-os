@@ -6,7 +6,6 @@ import { createRoot, type Root } from "react-dom/client";
 import type { RpcStub } from "capnweb";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Overseer } from "@gadgets/workshop-shared/api";
-import { TestIntlProvider } from "../../../../i18n/testIntlProvider";
 
 const testState = vi.hoisted(() => ({
   nextId: 0,
@@ -83,7 +82,7 @@ describe("useComposerAttachments", () => {
 
     container = document.createElement("div");
     root = createRoot(container);
-    await act(async () => root!.render(<TestIntlProvider><Harness /></TestIntlProvider>));
+    await act(async () => root!.render(<Harness />));
 
     await act(async () => addFiles!([
       new File(["one"], "one.txt", { type: "text/plain" }),
@@ -135,7 +134,7 @@ describe("useComposerAttachments", () => {
     };
     container = document.createElement("div");
     root = createRoot(container);
-    await act(async () => root!.render(<TestIntlProvider><Harness /></TestIntlProvider>));
+    await act(async () => root!.render(<Harness />));
     await act(async () => addFiles([
       new File(["one"], "one.txt", { type: "text/plain" }),
     ]));

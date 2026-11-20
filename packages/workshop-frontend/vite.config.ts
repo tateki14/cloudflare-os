@@ -95,6 +95,8 @@ export default defineConfig(({ mode }) => {
     test: {
       // Chromium's, under vitest.browser.config.ts.
       exclude: [...configDefaults.exclude, 'src/**/*.browser.test.tsx'],
+      // Wraps every render in an IntlProvider for the fork's react-intl strings.
+      setupFiles: ['src/i18n/testSetup.tsx'],
     },
     build: {
       // Production reporting uploads these separately; hidden maps never reveal a map URL to users.

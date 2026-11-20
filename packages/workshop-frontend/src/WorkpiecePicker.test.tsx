@@ -6,7 +6,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GadgetSummary } from '@gadgets/workshop-shared/api'
 import WorkpiecePicker from './WorkpiecePicker'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

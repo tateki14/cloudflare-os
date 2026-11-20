@@ -150,11 +150,7 @@ describe("SandboxedGatekeeperApp navigation", () => {
       ui: new RpcStub(new EmptyUi()),
     } as unknown as GatekeeperUiFrame;
     const rootRoute = createRootRoute({
-      component: () => (
-        <TestIntlProvider>
-          <SandboxedGatekeeperApp frame={frame} gatekeeperVendorId="scheduler" />
-        </TestIntlProvider>
-      ),
+      component: () => <SandboxedGatekeeperApp frame={frame} gatekeeperVendorId="scheduler" />,
     });
     const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" });
     const gadgetRoute = createRoute({

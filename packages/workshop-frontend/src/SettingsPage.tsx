@@ -56,7 +56,6 @@ function PasswordField({
   autoComplete?: string
 }) {
   const [show, setShow] = useState(false)
-  const { formatMessage } = useIntl()
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
@@ -72,9 +71,7 @@ function PasswordField({
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          aria-label={show
-            ? formatMessage({ id: 'settingsPage.hidePassword', defaultMessage: 'Hide password' })
-            : formatMessage({ id: 'settingsPage.showPassword', defaultMessage: 'Show password' })}
+          aria-label={show ? 'Hide password' : 'Show password'}
           className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 cursor-pointer place-items-center rounded-md text-kumo-inactive transition-colors hover:text-kumo-default"
         >
           {show ? <EyeSlash size={15} /> : <Eye size={15} />}
@@ -198,8 +195,7 @@ const CommitEmailRow = ({ initialCommitEmail }: { initialCommitEmail?: string })
 }
 
 export default function SettingsPage() {
-  const { formatMessage } = useIntl()
-  useDocumentTitle(formatMessage({ id: 'settingsPage.documentTitle', defaultMessage: 'Profile' }))
+  useDocumentTitle('Profile')
 
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
@@ -251,12 +247,7 @@ export default function SettingsPage() {
         setNameInput(info.name)
       } catch (error) {
         console.error('Failed to fetch user info:', error)
-        if (!cancelled) {
-          toasts.add({
-            title: formatMessage({ id: 'settingsPage.toastLoadUserInfoFailed', defaultMessage: 'Failed to load user information' }),
-            variant: 'error',
-          })
-        }
+        if (!cancelled) toasts.add({ title: 'Failed to load user information', variant: 'error' })
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -268,10 +259,7 @@ export default function SettingsPage() {
 
   const handleSaveName = async () => {
     if (!nameInput.trim()) {
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastDisplayNameEmpty', defaultMessage: 'Display name cannot be empty' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Display name cannot be empty', variant: 'error' })
       return
     }
 
@@ -279,16 +267,10 @@ export default function SettingsPage() {
       await authenticatedApi.setOwnDisplayName(nameInput.trim())
       setUserInfo(prev => prev ? { ...prev, name: nameInput.trim() } : null)
       setIsEditingName(false)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastDisplayNameUpdated', defaultMessage: 'Display name updated' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Display name updated', variant: 'success' })
     } catch (err) {
       console.error('Failed to update display name:', err)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastUpdateDisplayNameFailed', defaultMessage: 'Failed to update display name' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to update display name', variant: 'error' })
     }
   }
 
@@ -301,24 +283,15 @@ export default function SettingsPage() {
     if (!userInfo?.id) return
     try {
       await navigator.clipboard.writeText(userInfo.id)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastUserIdCopied', defaultMessage: 'User ID copied' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'User ID copied', variant: 'success' })
     } catch {
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastCopyFailed', defaultMessage: 'Failed to copy' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to copy', variant: 'error' })
     }
   }
 
   const handleAvatarUpload = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastSelectImageFile', defaultMessage: 'Please select an image file' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Please select an image file', variant: 'error' })
       return
     }
     setAvatarUploading(true)
@@ -331,17 +304,11 @@ export default function SettingsPage() {
       await authenticatedApi.setAvatar(compressed)
       // Invalidate cache so the hook refetches
       if (userInfo?.id) invalidateAvatarCache(userInfo.id)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastAvatarUpdated', defaultMessage: 'Avatar updated' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Avatar updated', variant: 'success' })
     } catch (err) {
       console.error('Failed to upload avatar:', err)
       setLocalAvatarPreview(null)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastUploadAvatarFailed', defaultMessage: 'Failed to upload avatar' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to upload avatar', variant: 'error' })
     } finally {
       setAvatarUploading(false)
     }
@@ -351,13 +318,11 @@ export default function SettingsPage() {
     if (!userInfo) return
     if (!currentPassword || !newPassword || !confirmPassword) return
     if (newPassword.length < 8) {
-      setPasswordError(formatMessage({
-        id: 'settingsPage.passwordTooShort', defaultMessage: 'Password must be at least 8 characters',
-      }))
+      setPasswordError('Password must be at least 8 characters')
       return
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError(formatMessage({ id: 'settingsPage.passwordsDoNotMatch', defaultMessage: 'Passwords do not match' }))
+      setPasswordError('Passwords do not match')
       return
     }
 
@@ -368,17 +333,12 @@ export default function SettingsPage() {
       const oldHash = await hashPassword(userInfo.id, currentPassword)
       const newHash = await hashPassword(userInfo.id, newPassword)
       await authenticatedApi.changePassword(oldHash, newHash)
-      toasts.add({
-        title: formatMessage({ id: 'settingsPage.toastPasswordChanged', defaultMessage: 'Password changed successfully' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Password changed successfully', variant: 'success' })
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err) {
-      const errorMessage = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'settingsPage.changePasswordFailed', defaultMessage: 'Failed to change password' })
+      const errorMessage = err instanceof Error ? err.message : 'Failed to change password'
       setPasswordError(errorMessage)
     } finally {
       setPasswordLoading(false)
@@ -390,9 +350,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-1 items-center justify-center">
-        <p className="text-[13px] tracking-[-0.25px] text-kumo-subtle">
-          <FormattedMessage id="settingsPage.loadingProfile" defaultMessage="Loading profile…" />
-        </p>
+        <p className="text-[13px] tracking-[-0.25px] text-kumo-subtle">Loading profile…</p>
       </div>
     )
   }
@@ -400,18 +358,16 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-4 pb-16 sm:px-10">
       <header className="px-1 pb-2 pt-6 sm:pt-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">
-          <FormattedMessage id="settingsPage.profile" defaultMessage="Profile" />
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">Profile</h1>
         <p className="mt-1 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle">
-          <FormattedMessage id="settingsPage.profileSubtitle" defaultMessage="Manage your account details, avatar, and security." />
+          Manage your account details, avatar, and security.
         </p>
       </header>
 
       <div className="mt-6 flex flex-col gap-9">
         {/* Account */}
         <section className="flex flex-col gap-3">
-          <SectionLabel><FormattedMessage id="settingsPage.account" defaultMessage="Account" /></SectionLabel>
+          <SectionLabel>Account</SectionLabel>
           <div className="divide-y divide-kumo-line overflow-hidden rounded-xl border border-kumo-line bg-kumo-base">
             {/* Avatar */}
             <div className="flex items-center gap-4 px-5 py-4">
@@ -422,11 +378,7 @@ export default function SettingsPage() {
                 className="press group relative flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-kumo-fill disabled:cursor-wait"
               >
                 {displayAvatarUrl ? (
-                  <img
-                    src={displayAvatarUrl}
-                    alt={formatMessage({ id: 'settingsPage.avatarAlt', defaultMessage: 'Avatar' })}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={displayAvatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
                   <User size={28} className="text-kumo-subtle" />
                 )}
@@ -455,7 +407,7 @@ export default function SettingsPage() {
                   {userInfo?.name}
                 </p>
                 <p className="mt-0.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-subtle">
-                  <FormattedMessage id="settingsPage.clickAvatarToUpload" defaultMessage="Click the avatar to upload a new photo" />
+                  Click the avatar to upload a new photo
                 </p>
               </div>
             </div>
@@ -463,7 +415,7 @@ export default function SettingsPage() {
             {/* Display name */}
             <div className="flex items-end gap-2 px-5 py-4">
               <div className="min-w-0 flex-1">
-                <FieldLabel><FormattedMessage id="settingsPage.displayName" defaultMessage="Display name" /></FieldLabel>
+                <FieldLabel>Display name</FieldLabel>
                 {isEditingName ? (
                   <input
                     value={nameInput}
@@ -473,7 +425,7 @@ export default function SettingsPage() {
                       if (e.key === 'Enter') handleSaveName()
                       if (e.key === 'Escape') handleCancelEdit()
                     }}
-                    placeholder={formatMessage({ id: 'settingsPage.enterDisplayName', defaultMessage: 'Enter display name' })}
+                    placeholder="Enter display name"
                     autoFocus
                     className={`mt-1.5 ${INPUT}`}
                   />
@@ -489,16 +441,16 @@ export default function SettingsPage() {
                     type="button"
                     onClick={handleSaveName}
                     disabled={!nameInput.trim()}
-                    aria-label={formatMessage({ id: 'settingsPage.saveDisplayName', defaultMessage: 'Save display name' })}
+                    aria-label="Save display name"
                     className={PRIMARY_BTN}
                   >
                     <Check size={15} weight="bold" />
-                    <FormattedMessage id="settingsPage.save" defaultMessage="Save" />
+                    Save
                   </button>
                   <button
                     type="button"
                     onClick={handleCancelEdit}
-                    aria-label={formatMessage({ id: 'settingsPage.cancel', defaultMessage: 'Cancel' })}
+                    aria-label="Cancel"
                     className={ICON_BTN}
                   >
                     <X size={15} />
@@ -508,7 +460,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setIsEditingName(true)}
-                  aria-label={formatMessage({ id: 'settingsPage.editDisplayName', defaultMessage: 'Edit display name' })}
+                  aria-label="Edit display name"
                   className={ICON_BTN}
                 >
                   <Pencil size={14} />
@@ -521,7 +473,7 @@ export default function SettingsPage() {
             {/* User ID */}
             <div className="flex items-center gap-2 px-5 py-4">
               <div className="min-w-0 flex-1">
-                <FieldLabel><FormattedMessage id="settingsPage.userId" defaultMessage="User ID" /></FieldLabel>
+                <FieldLabel>User ID</FieldLabel>
                 <p className="mt-1 truncate font-mono text-[12px] tracking-[-0.1px] text-kumo-subtle">
                   {userInfo?.id}
                 </p>
@@ -529,7 +481,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleCopyId}
-                aria-label={formatMessage({ id: 'settingsPage.copyUserId', defaultMessage: 'Copy user ID' })}
+                aria-label="Copy user ID"
                 className={ICON_BTN}
               >
                 <Copy size={14} />
@@ -546,31 +498,31 @@ export default function SettingsPage() {
         {/* Security — only for password accounts (hidden under CF Access or gatekeeper sign-in) */}
         {!CF_ACCESS_MODE && hasPassword === true && (
           <section className="flex flex-col gap-3">
-            <SectionLabel><FormattedMessage id="settingsPage.security" defaultMessage="Security" /></SectionLabel>
+            <SectionLabel>Security</SectionLabel>
             <div className="rounded-xl border border-kumo-line bg-kumo-base p-5">
               <div className="flex max-w-sm flex-col gap-4">
                 <PasswordField
-                  label={formatMessage({ id: 'settingsPage.currentPassword', defaultMessage: 'Current password' })}
+                  label="Current password"
                   value={currentPassword}
                   onChange={setCurrentPassword}
-                  placeholder={formatMessage({ id: 'settingsPage.enterCurrentPassword', defaultMessage: 'Enter current password' })}
+                  placeholder="Enter current password"
                   autoComplete="current-password"
                 />
 
                 <PasswordField
-                  label={formatMessage({ id: 'settingsPage.newPassword', defaultMessage: 'New password' })}
+                  label="New password"
                   value={newPassword}
                   onChange={setNewPassword}
-                  placeholder={formatMessage({ id: 'settingsPage.enterNewPassword', defaultMessage: 'Enter new password' })}
-                  description={formatMessage({ id: 'settingsPage.passwordMinLength', defaultMessage: 'Must be at least 8 characters' })}
+                  placeholder="Enter new password"
+                  description="Must be at least 8 characters"
                   autoComplete="new-password"
                 />
 
                 <PasswordField
-                  label={formatMessage({ id: 'settingsPage.confirmNewPassword', defaultMessage: 'Confirm new password' })}
+                  label="Confirm new password"
                   value={confirmPassword}
                   onChange={setConfirmPassword}
-                  placeholder={formatMessage({ id: 'settingsPage.confirmNewPasswordPlaceholder', defaultMessage: 'Confirm new password' })}
+                  placeholder="Confirm new password"
                   autoComplete="new-password"
                   error={passwordError}
                 />
@@ -583,9 +535,7 @@ export default function SettingsPage() {
                     className={PRIMARY_BTN}
                   >
                     <Lock size={14} weight="bold" />
-                    {passwordLoading
-                      ? <FormattedMessage id="settingsPage.changing" defaultMessage="Changing…" />
-                      : <FormattedMessage id="settingsPage.changePassword" defaultMessage="Change password" />}
+                    {passwordLoading ? 'Changing…' : 'Change password'}
                   </button>
                 </div>
               </div>

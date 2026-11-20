@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Text, Loader, Banner } from '@cloudflare/kumo'
 import { Sparkle } from '@phosphor-icons/react'
-import { FormattedMessage, useIntl } from 'react-intl'
 import { RpcStub, RpcTarget, newMessagePortRpcSession } from 'capnweb'
 import { GadgetClient, GadgetSnapshotClient, ConsoleLogEvent, type GadgetHost } from '@gadgets/workshop-shared/api'
 import { prepareUiPage, uiModuleKey, type UiPage } from '@gadgets/workshop-shared/ui-page'
@@ -567,7 +566,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
         style={{ height }}
       >
         <Text variant="secondary">
-          <FormattedMessage id="gadgetUi.switchTabToLoad" defaultMessage="Switch to this tab to load the Gadget UI" />
+          Switch to this tab to load the Gadget UI
         </Text>
       </div>
     )
@@ -608,7 +607,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
                 setRetryNonce(n => n + 1)
               }}
             >
-              <FormattedMessage id="gadgetUi.tryAgain" defaultMessage="Try again" />
+              Try again
             </Banner.Action>
           }
         />
@@ -640,10 +639,10 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
           </div>
           <div className="space-y-1">
             <h2 className="text-[20px] leading-7 font-normal tracking-[-0.45px] text-kumo-default">
-              <FormattedMessage id="gadgetUi.noGadgetUiYet" defaultMessage="No gadget UI yet" />
+              No gadget UI yet
             </h2>
             <p className="text-[15px] leading-5 font-normal tracking-[-0.3px] text-kumo-subtle">
-              <FormattedMessage id="gadgetUi.gadgetUiWillAppearHere" defaultMessage="When the gadget builds one, it will appear here." />
+              When the gadget builds one, it will appear here.
             </p>
           </div>
         </div>

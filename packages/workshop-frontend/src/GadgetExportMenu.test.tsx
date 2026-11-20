@@ -88,7 +88,6 @@ vi.mock('./features/gadget-save/GadgetSaveDialog', () => ({
 }))
 
 import GadgetExportMenu from './GadgetExportMenu'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 let container: HTMLDivElement
 let root: Root
@@ -141,7 +140,7 @@ describe('GadgetExportMenu', () => {
     })
 
     await act(async () => {
-      root.render(<TestIntlProvider><GadgetExportMenu gadget={client} gadgetTitle="Report" chatId={7} /></TestIntlProvider>)
+      root.render(<GadgetExportMenu gadget={client} gadgetTitle="Report" chatId={7} />)
     })
     expect(client.getExportFormats).not.toHaveBeenCalled()
 
@@ -175,7 +174,7 @@ describe('GadgetExportMenu', () => {
     mocks.saveStreamToFile.mockReturnValue(pendingExport)
 
     await act(async () => {
-      root.render(<TestIntlProvider><GadgetExportMenu gadget={client} gadgetTitle="Report" /></TestIntlProvider>)
+      root.render(<GadgetExportMenu gadget={client} gadgetTitle="Report" />)
     })
     await act(async () => { button('open export menu')?.click() })
     await act(async () => { button('CSV')?.click() })
@@ -201,7 +200,7 @@ describe('GadgetExportMenu', () => {
     })
 
     await act(async () => {
-      root.render(<TestIntlProvider><GadgetExportMenu gadget={client} gadgetTitle="Report" /></TestIntlProvider>)
+      root.render(<GadgetExportMenu gadget={client} gadgetTitle="Report" />)
     })
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Export gadget"]')
     expect(trigger).not.toBeNull()
@@ -215,7 +214,7 @@ describe('GadgetExportMenu', () => {
 
   it('does not render the control without a selected Gadget', async () => {
     await act(async () => {
-      root.render(<TestIntlProvider><GadgetExportMenu gadget={null} gadgetTitle="Gadget" /></TestIntlProvider>)
+      root.render(<GadgetExportMenu gadget={null} gadgetTitle="Gadget" />)
     })
 
     expect(container.querySelector('[aria-label="Export gadget"]')).toBeNull()
@@ -234,7 +233,7 @@ describe('GadgetExportMenu', () => {
     const client = gadget({ getExportFormats })
 
     await act(async () => {
-      root.render(<TestIntlProvider><GadgetExportMenu gadget={client} gadgetTitle="Report" /></TestIntlProvider>)
+      root.render(<GadgetExportMenu gadget={client} gadgetTitle="Report" />)
     })
     await act(async () => { button('open export menu')?.click() })
 
@@ -271,7 +270,7 @@ describe('GadgetExportMenu', () => {
 
     try {
       await act(async () => {
-        root.render(<TestIntlProvider><GadgetExportMenu gadget={client} gadgetTitle="Report" /></TestIntlProvider>)
+        root.render(<GadgetExportMenu gadget={client} gadgetTitle="Report" />)
       })
       await act(async () => { button('open export menu')?.click() })
 

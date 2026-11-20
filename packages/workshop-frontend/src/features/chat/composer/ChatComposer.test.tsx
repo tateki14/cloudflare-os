@@ -61,7 +61,6 @@ vi.mock("../../../GatekeeperModal", () => ({
 }));
 
 import { ChatComposer } from "./ChatComposer";
-import { TestIntlProvider } from "../../../i18n/testIntlProvider";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 Element.prototype.scrollIntoView ??= () => {};
@@ -540,7 +539,7 @@ describe("ChatComposer", () => {
     root = createRoot(container);
 
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => overseer}
         onSend={onSend}
@@ -548,7 +547,7 @@ describe("ChatComposer", () => {
         models={[]}
         selectedModel={{ id: "model-a" }}
         onModelChange={() => {}}
-      /></TestIntlProvider>,
+      />,
     ));
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[role="combobox"]')!;
@@ -599,7 +598,7 @@ describe("ChatComposer", () => {
     document.body.append(container);
     root = createRoot(container);
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => ({} as RpcStub<Overseer>)}
         onSend={onSend}
@@ -608,7 +607,7 @@ describe("ChatComposer", () => {
         selectedModel={{ id: "model-a" }}
         onModelChange={() => {}}
         chatKey={7}
-      /></TestIntlProvider>,
+      />,
     ));
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[role="combobox"]')!;
@@ -729,7 +728,7 @@ describe("ChatComposer", () => {
     document.body.append(container);
     root = createRoot(container);
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => overseer}
         onSend={() => {}}
@@ -738,7 +737,7 @@ describe("ChatComposer", () => {
         selectedModel={{ id: "model-a" }}
         onModelChange={() => {}}
         attachLabel="Legacy resource"
-      /></TestIntlProvider>,
+      />,
     ));
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[role="combobox"]')!;
@@ -796,7 +795,7 @@ describe("ChatComposer", () => {
     document.body.append(container);
     root = createRoot(container);
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => overseer}
         onSend={onSend}
@@ -804,7 +803,7 @@ describe("ChatComposer", () => {
         models={[]}
         selectedModel={{ id: "model-a" }}
         onModelChange={() => {}}
-      /></TestIntlProvider>,
+      />,
     ));
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[role="combobox"]')!;
@@ -839,7 +838,7 @@ describe("ChatComposer", () => {
     document.body.append(container);
     root = createRoot(container);
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => overseer}
         onSend={onSend}
@@ -847,7 +846,7 @@ describe("ChatComposer", () => {
         models={[]}
         selectedModel={null}
         onModelChange={() => {}}
-      /></TestIntlProvider>,
+      />,
     ));
 
     const textarea = container.querySelector<HTMLTextAreaElement>('[role="combobox"]')!;
@@ -886,7 +885,7 @@ describe("ChatComposer", () => {
     document.body.append(container);
     root = createRoot(container);
     await act(async () => root!.render(
-      <TestIntlProvider><ChatComposer
+      <ChatComposer
         createCapsuleGatekeeper={async () => null}
         getOverseer={() => overseer}
         onSend={() => {}}
@@ -894,7 +893,7 @@ describe("ChatComposer", () => {
         models={[]}
         selectedModel={{ id: "model-a" }}
         onModelChange={() => {}}
-      /></TestIntlProvider>,
+      />,
     ));
 
     const add = container.querySelector<HTMLButtonElement>('[aria-label="Add to conversation"]')!;

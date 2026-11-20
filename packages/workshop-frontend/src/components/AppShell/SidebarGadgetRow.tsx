@@ -10,8 +10,8 @@ import { isImeComposing } from '../../keyboardEvent'
 import { useUnreadState } from '../../features/notifications/UnreadStateBridge'
 import { UnreadBadge } from '../../features/notifications/UnreadBadge'
 
-function initials(title: string | undefined, untitledFallback: string): string {
-  const t = (title || untitledFallback).trim()
+function initials(title: string | undefined): string {
+  const t = (title || 'Untitled').trim()
   if (!t) return 'UG'
   const parts = t.split(/\s+/).slice(0, 2)
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || t.slice(0, 2).toUpperCase()
@@ -39,8 +39,6 @@ export default function SidebarGadgetRow({
   onNotificationMuteChange: (g: WorkspaceMetadataWithTimestamps, mute: NotificationMute | undefined) => void
   onDelete: (g: WorkspaceMetadataWithTimestamps) => void
 }) {
-  const { formatMessage } = useIntl()
-  const untitledWorkspace = formatMessage({ id: 'sidebarGadgetRow.untitledWorkspace', defaultMessage: 'Untitled workspace' })
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(gadget.title || '')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -73,7 +71,7 @@ export default function SidebarGadgetRow({
       onClick={(e) => {
         if (renaming) e.preventDefault()
       }}
-      title={collapsed ? gadget.title || untitledWorkspace : undefined}
+      title={collapsed ? gadget.title || 'Untitled workspace' : undefined}
     >
       <div className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-kumo-fill text-[10px] font-medium text-kumo-subtle">
         <span aria-hidden="true">{initials(gadget.title)}</span>
@@ -99,7 +97,7 @@ export default function SidebarGadgetRow({
               onClick={(e) => e.preventDefault()}
             />
           ) : (
-            <span className="min-w-0 flex-1 truncate">{gadget.title || untitledWorkspace}</span>
+            <span className="min-w-0 flex-1 truncate">{gadget.title || 'Untitled workspace'}</span>
           )}
           {muteDescription && (
             <BellSlash size={12} alt={muteDescription} className="shrink-0 text-kumo-inactive" />
@@ -172,7 +170,7 @@ export default function SidebarGadgetRow({
       )}
 
       {/* Collapsed rows show only the monogram (aria-hidden), so name the link for screen readers. */}
-      {collapsed && <span className="sr-only">{gadget.title || untitledWorkspace}</span>}
+      {collapsed && <span className="sr-only">{gadget.title || 'Untitled workspace'}</span>}
     </Link>
   )
 }

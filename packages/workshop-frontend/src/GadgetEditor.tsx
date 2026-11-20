@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ComponentProps, type PointerEvent as ReactPointerEvent } from 'react'
 import { useParams, useNavigate, useSearch, Link } from '@tanstack/react-router'
 import { DropdownMenu, useKumoToastManager } from '@cloudflare/kumo'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import {
   ShareNetwork,
   Pencil,
@@ -270,7 +269,6 @@ function PaneWorkpieceTabs({
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const activeRef = useRef<HTMLButtonElement>(null)
-  const { formatMessage } = useIntl()
 
   // Whatever is open must be fully readable; the rest may sit off-scroll. Once per selection
   // change isn't enough, because the layout keeps moving afterwards: the pane animates its width,
@@ -332,7 +330,7 @@ function PaneWorkpieceTabs({
             <span className="truncate">{gadget.title}</span>
             {gadget.type === 'gadget' && gadget.chatId !== undefined && (
               <span className="flex-shrink-0 rounded-full bg-kumo-fill px-1.5 py-0.5 text-[10px] font-medium leading-none text-kumo-subtle">
-                {formatMessage({ id: 'gadgetEditor.draftBadge', defaultMessage: 'Draft' })}
+                Draft
               </span>
             )}
           </button>
@@ -471,13 +469,10 @@ function NoGadgetPlaceholder({ height }: { height: string }) {
     <div className="flex items-center justify-center px-6 text-center" style={{ height }}>
       <div className="max-w-[360px]">
         <p className="m-0 text-[15px] leading-[22px] font-semibold tracking-[-0.3px] text-kumo-default">
-          <FormattedMessage id="gadgetEditor.noGadgetsYetTitle" defaultMessage="No gadgets yet" />
+          No gadgets yet
         </p>
         <p className="mt-1.5 mb-0 text-[13px] leading-[19px] tracking-[-0.25px] text-kumo-subtle">
-          <FormattedMessage
-            id="gadgetEditor.noGadgetsYetBody"
-            defaultMessage="Ask the agent in chat to build something, and it will appear here."
-          />
+          Ask the agent in chat to build something, and it will appear here.
         </p>
       </div>
     </div>
@@ -501,7 +496,6 @@ export default function GadgetEditor() {
 
   // ── toasts ─────────────────────────────────────────────────────────────────────
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
 
   // ── core state ──────────────────────────────────────────────────────────────
   // The workspace's workpiece list (gadget-type workpieces only in v1), kept live via
@@ -553,10 +547,7 @@ export default function GadgetEditor() {
       })
     },
     onInvalidShareKey: () => {
-      toasts.add({
-        title: formatMessage({ id: 'gadgetEditor.toastInvalidShareLink', defaultMessage: 'Invalid or expired share link.' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Invalid or expired share link.', variant: 'error' })
     },
   })
   const [userInfo, setUserInfo] = useState<AiChatAuthorInfo | null>(null)
@@ -1645,10 +1636,7 @@ export default function GadgetEditor() {
     try {
       await target.setTitle(title)
     } catch {
-      toasts.add({
-        title: formatMessage({ id: 'gadgetEditor.toastRenameGadgetFailed', defaultMessage: 'Failed to rename gadget' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to rename gadget', variant: 'error' })
     } finally {
       target[Symbol.dispose]()
     }
@@ -1734,12 +1722,7 @@ export default function GadgetEditor() {
       await overseer.stub.setTitle(titleInput.trim())
       updateTitle(titleInput.trim())
       setIsEditingTitle(false)
-    } catch {
-      toasts.add({
-        title: formatMessage({ id: 'gadgetEditor.toastUpdateTitleFailed', defaultMessage: 'Failed to update title' }),
-        variant: 'error',
-      })
-    }
+    } catch { toasts.add({ title: 'Failed to update title', variant: 'error' }) }
     finally { titleSaveInFlight.current = false }
   }
   const handleCancelEdit = () => {
@@ -1763,10 +1746,7 @@ export default function GadgetEditor() {
       await overseer.stub.deleteSelf()
       navigate({ to: '/' })
     } catch {
-      toasts.add({
-        title: formatMessage({ id: 'gadgetEditor.toastDeleteWorkspaceFailed', defaultMessage: 'Failed to delete workspace' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to delete workspace', variant: 'error' })
       setIsDeleting(false)
       setDeleteDialogOpen(false)
     }
@@ -1810,10 +1790,10 @@ export default function GadgetEditor() {
         </p>
         <div className="flex items-center gap-2">
           <WorkshopButton tone="secondary" onClick={handleGoToWorkspaces}>
-            <FormattedMessage id="gadgetEditor.goToWorkspaces" defaultMessage="Go to workspaces" />
+            Go to workspaces
           </WorkshopButton>
           <WorkshopButton tone="primary" onClick={retryOpen}>
-            <FormattedMessage id="gadgetEditor.tryAgain" defaultMessage="Try again" />
+            Try again
           </WorkshopButton>
         </div>
       </div>
@@ -1825,9 +1805,7 @@ export default function GadgetEditor() {
       <div className="flex min-h-full items-center justify-center bg-kumo-base">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-kumo-brand border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-kumo-subtle">
-            <FormattedMessage id="gadgetEditor.loadingWorkspace" defaultMessage="Loading workspace…" />
-          </p>
+          <p className="text-sm text-kumo-subtle">Loading workspace…</p>
         </div>
         {observerConfigModal}
       </div>
@@ -1885,7 +1863,7 @@ export default function GadgetEditor() {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <Link
             to="/"
-            aria-label={formatMessage({ id: 'gadgetEditor.homeAriaLabel', defaultMessage: 'Home' })}
+            aria-label="Home"
             className="flex-shrink-0 hover:opacity-80 transition-opacity"
           >
             <SiteLogo size={22}>
@@ -1913,14 +1891,14 @@ export default function GadgetEditor() {
                 onClick={handleSaveTitle}
                 disabled={!titleInput.trim()}
                 className="!h-9 !w-9 hover:text-kumo-brand disabled:opacity-30 md:!h-7 md:!w-7"
-                aria-label={formatMessage({ id: 'gadgetEditor.saveWorkspaceTitleAriaLabel', defaultMessage: 'Save workspace title' })}
+                aria-label="Save workspace title"
               >
                 <Check size={14} />
               </WorkshopIconButton>
               <WorkshopIconButton
                 onClick={handleCancelEdit}
                 className="!h-9 !w-9 md:!h-7 md:!w-7"
-                aria-label={formatMessage({ id: 'gadgetEditor.cancelTitleEditAriaLabel', defaultMessage: 'Cancel title edit' })}
+                aria-label="Cancel title edit"
               >
                 <X size={14} />
               </WorkshopIconButton>
@@ -1934,8 +1912,8 @@ export default function GadgetEditor() {
                 <WorkshopIconButton
                   onClick={() => setIsEditingTitle(true)}
                   className="!h-7 !w-7 flex-shrink-0"
-                  title={formatMessage({ id: 'gadgetEditor.renameWorkspace', defaultMessage: 'Rename workspace' })}
-                  aria-label={formatMessage({ id: 'gadgetEditor.renameWorkspace', defaultMessage: 'Rename workspace' })}
+                  title="Rename workspace"
+                  aria-label="Rename workspace"
                 >
                   <Pencil size={16} />
                 </WorkshopIconButton>
@@ -1945,11 +1923,7 @@ export default function GadgetEditor() {
 
           {metadata.owner && (
             <span className="hidden text-xs text-kumo-inactive sm:inline">
-              <FormattedMessage
-                id="gadgetEditor.byOwnerName"
-                defaultMessage="by {name}"
-                values={{ name: metadata.owner.name }}
-              />
+              by {metadata.owner.name}
             </span>
           )}
         </div>
@@ -2023,8 +1997,8 @@ export default function GadgetEditor() {
             <WorkshopIconButton
               danger
               onClick={() => setDeleteDialogOpen(true)}
-              title={formatMessage({ id: 'gadgetEditor.deleteWorkspace', defaultMessage: 'Delete workspace' })}
-              aria-label={formatMessage({ id: 'gadgetEditor.deleteWorkspace', defaultMessage: 'Delete workspace' })}
+              title="Delete workspace"
+              aria-label="Delete workspace"
             >
               <Trash size={16} />
             </WorkshopIconButton>
@@ -2274,9 +2248,7 @@ export default function GadgetEditor() {
                 <div className="absolute inset-0 flex items-center justify-center bg-kumo-base">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-6 h-6 border-2 border-kumo-brand border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-kumo-subtle">
-                      <FormattedMessage id="gadgetEditor.loadingConversation" defaultMessage="Loading conversation…" />
-                    </p>
+                    <p className="text-sm text-kumo-subtle">Loading conversation…</p>
                   </div>
                 </div>
               )}
@@ -2346,7 +2318,7 @@ export default function GadgetEditor() {
             <div className="flex flex-shrink-0 items-center gap-1.5">
               <div className="flex items-center rounded-lg border border-kumo-line p-0.5">
                 {paneShowsActivity
-                  ? activityTabs(formatMessage).map(tab => (
+                  ? ACTIVITY_TABS.map(tab => (
                     <PaneTab
                       key={tab.value}
                       active={activityView === tab.value}
@@ -2368,7 +2340,7 @@ export default function GadgetEditor() {
               {!paneShowsActivity && (
                 <GadgetExportMenu
                   gadget={selectedGadgetStub}
-                  gadgetTitle={selectedGadgetSummary?.title ?? formatMessage({ id: 'gadgetEditor.gadgetFallbackTitle', defaultMessage: 'Gadget' })}
+                  gadgetTitle={selectedGadgetSummary?.title ?? 'Gadget'}
                   chatId={previewChatId}
                   saveScope={gadgetSaveScope}
                 />
@@ -2414,7 +2386,7 @@ export default function GadgetEditor() {
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {paneShowsActivity && (
               <div className="flex h-11 items-center gap-1 overflow-x-auto border-b border-kumo-line px-2 md:hidden">
-                {activityTabs(formatMessage).map(tab => (
+                {ACTIVITY_TABS.map(tab => (
                   <PaneTab
                     key={tab.value}
                     active={activityView === tab.value}
@@ -2442,9 +2414,7 @@ export default function GadgetEditor() {
               tabIndex={isGadgetFullscreen ? -1 : undefined}
               role={isGadgetFullscreen ? 'dialog' : undefined}
               aria-modal={isGadgetFullscreen ? true : undefined}
-              aria-label={isGadgetFullscreen
-                ? formatMessage({ id: 'gadgetEditor.gadgetFullScreenAriaLabel', defaultMessage: 'Gadget full screen' })
-                : undefined}
+              aria-label={isGadgetFullscreen ? 'Gadget full screen' : undefined}
               className={
                 activeTab !== 'app'
                   ? 'hidden'
@@ -2592,16 +2562,8 @@ export default function GadgetEditor() {
 
       <DeleteConfirmationDialog
         open={deleteDialogOpen}
-        title={formatMessage({ id: 'gadgetEditor.deleteWorkspaceConfirmTitle', defaultMessage: 'Delete workspace?' })}
-        description={(
-          <FormattedMessage
-            id="gadgetEditor.deleteWorkspaceConfirmDescription"
-            defaultMessage="This removes {title}. You can’t undo this."
-            values={{
-              title: <span className="font-medium text-kumo-default">{metadata.title}</span>,
-            }}
-          />
-        )}
+        title="Delete workspace?"
+        description={<>This removes <span className="font-medium text-kumo-default">{metadata.title}</span>. You can&apos;t undo this.</>}
         isDeleting={isDeleting}
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}

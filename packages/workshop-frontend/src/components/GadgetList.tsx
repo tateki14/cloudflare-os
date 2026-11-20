@@ -5,7 +5,6 @@ import { DropdownMenu, Dialog, Button, useKumoToastManager } from '@cloudflare/k
 import { useUnreadState } from '../features/notifications/UnreadStateBridge'
 import { UnreadBadge } from '../features/notifications/UnreadBadge'
 import { RpcStub } from 'capnweb'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { useAuthenticatedApi } from '../AuthContext'
 import { WorkspaceMetadataWithTimestamps, BlueprintPublicInfo, Overseer, AiChatAuthorInfo, NotificationMute } from '@gadgets/workshop-shared/api'
 import { WorkspaceNotificationsMenu } from '../features/notifications/WorkspaceNotificationsMenu'
@@ -25,28 +24,15 @@ function initials(title: string | undefined): string {
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || t.slice(0, 2).toUpperCase()
 }
 
-function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
+function formatRelativeTime(date: Date): string {
   const diff = Date.now() - date.getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return formatMessage({ id: 'gadgetList.relativeTimeJustNow', defaultMessage: 'just now' })
-  if (minutes < 60) {
-    return formatMessage(
-      { id: 'gadgetList.relativeTimeMinutes', defaultMessage: '{minutes}m ago' },
-      { minutes },
-    )
-  }
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return formatMessage(
-      { id: 'gadgetList.relativeTimeHours', defaultMessage: '{hours}h ago' },
-      { hours },
-    )
-  }
+  if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
-  return formatMessage(
-    { id: 'gadgetList.relativeTimeDays', defaultMessage: '{days}d ago' },
-    { days },
-  )
+  return `${days}d ago`
 }
 
 function formatCost(cost: number): string {
@@ -70,7 +56,6 @@ function AppRow({
   onRename: (gadget: WorkspaceMetadataWithTimestamps, newTitle: string) => void
   onNotificationMuteChange: (gadget: WorkspaceMetadataWithTimestamps, mute: NotificationMute | undefined) => void
 }) {
-  const { formatMessage } = useIntl()
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(gadget.title || '')
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -131,7 +116,7 @@ function AppRow({
             />
           ) : (
             <h3 className="text-sm font-medium text-kumo-default truncate">
-              {gadget.title || <FormattedMessage id="gadgetList.untitledWorkspace" defaultMessage="Untitled Workspace" />}
+              {gadget.title || 'Untitled Workspace'}
             </h3>
           )}
           {muteDescription && (
@@ -140,11 +125,7 @@ function AppRow({
         </div>
         {gadget.owner && (
           <p className="text-xs text-kumo-subtle truncate mt-0.5">
-            <FormattedMessage
-              id="gadgetList.sharedByName"
-              defaultMessage="Shared by {name}"
-              values={{ name: gadget.owner.name }}
-            />
+            Shared by {gadget.owner.name}
           </p>
         )}
       </div>
@@ -152,7 +133,7 @@ function AppRow({
       {/* Time */}
       <span className="hidden lg:flex items-center gap-1 text-xs text-kumo-inactive flex-shrink-0">
         <Clock size={10} />
-        {formatRelativeTime(gadget.lastActive, formatMessage)}
+        {formatRelativeTime(gadget.lastActive)}
       </span>
       <UnreadBadge count={unreadMessages} />
 
@@ -291,12 +272,12 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
         } finally {
           overseer[Symbol.dispose]()
         }
-        toasts.add({ title: formatMessage({ id: 'gadgetList.toastWorkspaceDeleted', defaultMessage: 'Workspace deleted' }), variant: 'success' })
+        toasts.add({ title: 'Workspace deleted', variant: 'success' })
       }
       setGadgets(prev => prev.filter(g => g.id !== deleteTarget.id))
     } catch (err) {
       console.error('Failed to delete workspace:', err)
-      toasts.add({ title: formatMessage({ id: 'gadgetList.toastDeleteFailed', defaultMessage: 'Failed to delete workspace' }), variant: 'error' })
+      toasts.add({ title: 'Failed to delete workspace', variant: 'error' })
     } finally {
       setIsDeleting(false)
       setDeleteTarget(null)
@@ -314,7 +295,7 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
     } catch (err) {
       overseer?.[Symbol.dispose]()
       console.error('Failed to open workspace for sharing:', err)
-      toasts.add({ title: formatMessage({ id: 'gadgetList.toastShareSettingsFailed', defaultMessage: 'Failed to open share settings' }), variant: 'error' })
+      toasts.add({ title: 'Failed to open share settings', variant: 'error' })
     }
   }
 
@@ -355,7 +336,7 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
     } catch (err) {
       console.error('Failed to rename workspace:', err)
       setGadgets(prev => prev.map(g => g.id === gadget.id ? { ...g, title: gadget.title } : g))
-      toasts.add({ title: formatMessage({ id: 'gadgetList.toastRenameFailed', defaultMessage: 'Failed to rename workspace' }), variant: 'error' })
+      toasts.add({ title: 'Failed to rename workspace', variant: 'error' })
     } finally {
       (await overseer)[Symbol.dispose]()
     }
@@ -379,11 +360,11 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
       {showHeader && (
         <div className="px-6 sm:px-10 lg:px-10 pt-10 lg:pt-10 mb-4">
           <h2 className="text-lg font-semibold text-kumo-default">
-            <FormattedMessage id="gadgetList.yourWorkspaces" defaultMessage="Your workspaces" />
+            Your workspaces
           </h2>
           {!loading && gadgets.length === 0 && !loadError && (
             <p className="mt-1 text-sm text-kumo-inactive">
-              <FormattedMessage id="gadgetList.noWorkspacesYet" defaultMessage="You haven't created any workspaces yet" />
+              You haven&apos;t created any workspaces yet
             </p>
           )}
         </div>
@@ -401,7 +382,7 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={formatMessage({ id: 'gadgetList.searchPlaceholder', defaultMessage: 'Search workspaces…' })}
+              placeholder="Search workspaces…"
               className="h-9 w-full rounded-lg border border-kumo-line bg-kumo-base pl-9 pr-4 text-[13px] tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive transition-[border-color,box-shadow] duration-150 ease-out focus:border-kumo-ring focus:outline-none focus:ring-[3px] focus:ring-kumo-ring/15"
             />
           </div>
@@ -420,17 +401,13 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
           </>
         ) : loadError ? (
           <div className="text-center py-12 text-sm">
-            <p className="text-kumo-danger">
-              <FormattedMessage id="gadgetList.loadErrorBody" defaultMessage="Something went wrong loading your workspaces." />
-            </p>
-            <button onClick={loadGadgets} className="text-kumo-brand mt-1 underline">
-              <FormattedMessage id="gadgetList.tryAgain" defaultMessage="Try again" />
-            </button>
+            <p className="text-kumo-danger">Something went wrong loading your workspaces.</p>
+            <button onClick={loadGadgets} className="text-kumo-brand mt-1 underline">Try again</button>
           </div>
         ) : filtered.length === 0 ? (
           search ? (
             <div className="text-center py-12 text-kumo-inactive text-sm">
-              <FormattedMessage id="gadgetList.noWorkspacesFound" defaultMessage="No workspaces found" />
+              No workspaces found
             </div>
           ) : (
             <FeaturedBlueprintsGallery />
@@ -456,32 +433,14 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
         isDeleting={isDeleting}
-        title={deleteTarget?.owner
-          ? formatMessage({ id: 'gadgetList.removeWorkspaceTitle', defaultMessage: 'Remove workspace' })
-          : formatMessage({ id: 'gadgetList.deleteWorkspaceTitle', defaultMessage: 'Delete workspace' })}
+        title={deleteTarget?.owner ? 'Remove workspace' : 'Delete workspace'}
         description={
           deleteTarget?.owner
-            ? formatMessage(
-                {
-                  id: 'gadgetList.removeWorkspaceDescription',
-                  defaultMessage: 'Remove "{title}" from your list? You can still access it via its link.',
-                },
-                { title: deleteTarget?.title || formatMessage({ id: 'gadgetList.untitledWorkspace', defaultMessage: 'Untitled Workspace' }) },
-              )
-            : formatMessage(
-                {
-                  id: 'gadgetList.deleteWorkspaceDescription',
-                  defaultMessage: 'Delete "{title}"? This cannot be undone.',
-                },
-                { title: deleteTarget?.title || formatMessage({ id: 'gadgetList.untitledWorkspace', defaultMessage: 'Untitled Workspace' }) },
-              )
+            ? `Remove "${deleteTarget?.title || 'Untitled Workspace'}" from your list? You can still access it via its link.`
+            : `Delete "${deleteTarget?.title || 'Untitled Workspace'}"? This cannot be undone.`
         }
-        confirmLabel={deleteTarget?.owner
-          ? formatMessage({ id: 'gadgetList.remove', defaultMessage: 'Remove' })
-          : formatMessage({ id: 'gadgetList.delete', defaultMessage: 'Delete' })}
-        confirmingLabel={deleteTarget?.owner
-          ? formatMessage({ id: 'gadgetList.removing', defaultMessage: 'Removing...' })
-          : formatMessage({ id: 'gadgetList.deleting', defaultMessage: 'Deleting...' })}
+        confirmLabel={deleteTarget?.owner ? 'Remove' : 'Delete'}
+        confirmingLabel={deleteTarget?.owner ? 'Removing...' : 'Deleting...'}
         onConfirm={handleDeleteConfirm}
       />
 
@@ -492,39 +451,27 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
       >
         <Dialog className="p-8" size="sm">
           <Dialog.Title className="text-lg font-semibold">
-            {infoTarget?.title || <FormattedMessage id="gadgetList.untitledWorkspace" defaultMessage="Untitled Workspace" />}
+            {infoTarget?.title || 'Untitled Workspace'}
           </Dialog.Title>
           <div className="mt-4 flex flex-col gap-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-kumo-subtle">
-                <FormattedMessage id="gadgetList.author" defaultMessage="Author" />
-              </span>
-              <span className="text-kumo-default">
-                {infoTarget?.owner
-                  ? infoTarget.owner.name
-                  : <FormattedMessage id="gadgetList.you" defaultMessage="You" />}
-              </span>
+              <span className="text-kumo-subtle">Author</span>
+              <span className="text-kumo-default">{infoTarget?.owner ? infoTarget.owner.name : 'You'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-kumo-subtle">
-                <FormattedMessage id="gadgetList.totalCost" defaultMessage="Total cost" />
-              </span>
+              <span className="text-kumo-subtle">Total cost</span>
               <span className="text-kumo-default">
                 {formatCost(infoTarget?.totalCost ?? 0)}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-kumo-subtle">
-                <FormattedMessage id="gadgetList.created" defaultMessage="Created" />
-              </span>
+              <span className="text-kumo-subtle">Created</span>
               <span className="text-kumo-default">
                 {infoTarget?.created?.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-kumo-subtle">
-                <FormattedMessage id="gadgetList.lastActive" defaultMessage="Last active" />
-              </span>
+              <span className="text-kumo-subtle">Last active</span>
               <span className="text-kumo-default">
                 {infoTarget?.lastActive?.toLocaleString()}
               </span>
@@ -534,7 +481,7 @@ export default function GadgetList({ showHeader = true }: { showHeader?: boolean
             <Dialog.Close
               render={(props) => (
                 <Button variant="secondary" {...props}>
-                  <FormattedMessage id="gadgetList.close" defaultMessage="Close" />
+                  Close
                 </Button>
               )}
             />
@@ -567,7 +514,6 @@ function HomeFeaturedBlueprintCard({
 }: {
   blueprint: BlueprintPublicInfo
 }) {
-  const { formatMessage } = useIntl()
   const badges = uniqueBindingBadges(blueprint.metadata.bindings).slice(0, 1)
 
   return (
@@ -575,10 +521,7 @@ function HomeFeaturedBlueprintCard({
       <Link
         to="/blueprint/$id"
         params={{ id: blueprint.id }}
-        aria-label={formatMessage(
-          { id: 'gadgetList.openBlueprint', defaultMessage: 'Open blueprint {title}' },
-          { title: blueprint.metadata.title },
-        )}
+        aria-label={`Open blueprint ${blueprint.metadata.title}`}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kumo-brand"
       />
       <div className="pointer-events-none relative z-20 flex flex-1 flex-col p-2.5">
@@ -597,8 +540,7 @@ function HomeFeaturedBlueprintCard({
               {blueprint.metadata.title}
             </p>
             <p className={`mt-0.5 line-clamp-2 min-h-8 text-[12px] leading-4 tracking-[-0.2px] ${blueprint.metadata.description ? 'text-kumo-subtle' : 'text-kumo-inactive italic'}`}>
-              {blueprint.metadata.description ||
-                formatMessage({ id: 'gadgetList.noDescription', defaultMessage: 'No description' })}
+              {blueprint.metadata.description || 'No description'}
             </p>
             {badges.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
@@ -658,7 +600,7 @@ function FeaturedBlueprintsGallery() {
     <div className="py-4 pr-4 sm:pr-6">
       <div className="mb-5">
         <h3 className="text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-default">
-          <FormattedMessage id="gadgetList.startFromFeaturedBlueprint" defaultMessage="Start from a featured blueprint." />
+          Start from a featured blueprint.
         </h3>
       </div>
 
@@ -677,7 +619,7 @@ function FeaturedBlueprintsGallery() {
             to="/explore"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-kumo-brand hover:text-kumo-brand-hover transition-colors"
           >
-            <FormattedMessage id="gadgetList.browseAllBlueprints" defaultMessage="Browse all blueprints" />
+            Browse all blueprints
             <ArrowRight size={12} weight="bold" />
           </Link>
         </div>

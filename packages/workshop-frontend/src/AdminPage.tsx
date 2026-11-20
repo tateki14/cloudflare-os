@@ -21,13 +21,13 @@ import { isAdminTab, resolveAdminTab } from './adminTab'
 import { logRpcFailure } from './rpcErrors'
 
 // Preset accent colors offered in the Theme section ('' = default brand).
-const ACCENT_PRESETS: { id: string; defaultMessage: string; value: string }[] = [
-  { id: 'adminPage.accentDefault', defaultMessage: 'Default', value: '' },
-  { id: 'adminPage.accentBlue', defaultMessage: 'Blue', value: '#3b82f6' },
-  { id: 'adminPage.accentGreen', defaultMessage: 'Green', value: '#16a34a' },
-  { id: 'adminPage.accentPurple', defaultMessage: 'Purple', value: '#7c3aed' },
-  { id: 'adminPage.accentPink', defaultMessage: 'Pink', value: '#db2777' },
-  { id: 'adminPage.accentTeal', defaultMessage: 'Teal', value: '#0d9488' },
+const ACCENT_PRESETS: { label: string; value: string }[] = [
+  { label: 'Default', value: '' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Green', value: '#16a34a' },
+  { label: 'Purple', value: '#7c3aed' },
+  { label: 'Pink', value: '#db2777' },
+  { label: 'Teal', value: '#0d9488' },
 ]
 
 // Swatch background per banner color, matching AnnouncementBanner's accent styles.
@@ -40,20 +40,10 @@ const BANNER_SWATCH: Record<BannerColor, string> = {
   brand: 'var(--color-accent-100)',
 }
 
-const BANNER_COLOR_LABELS: Record<BannerColor, { id: string; defaultMessage: string }> = {
-  neutral: { id: 'adminPage.bannerColorNeutral', defaultMessage: 'Neutral' },
-  info: { id: 'adminPage.bannerColorInfo', defaultMessage: 'Info' },
-  success: { id: 'adminPage.bannerColorSuccess', defaultMessage: 'Success' },
-  warning: { id: 'adminPage.bannerColorWarning', defaultMessage: 'Warning' },
-  danger: { id: 'adminPage.bannerColorDanger', defaultMessage: 'Danger' },
-  brand: { id: 'adminPage.bannerColorBrand', defaultMessage: 'Brand' },
-}
-
 export default function AdminPage() {
   const { authenticatedApi, isAdmin } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
-  useDocumentTitle(formatMessage({ id: 'adminPage.documentTitle', defaultMessage: 'Admin' }))
+  useDocumentTitle('Admin')
 
   // The admin capability (minted once via getAdminApi; null until loaded / for non-admins). Wrapped
   // in an object so useState doesn't treat the (callable) RPC stub as a state updater function.
@@ -259,9 +249,7 @@ export default function AdminPage() {
         })
       })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
+      const message = err instanceof Error ? err.message : 'Update failed'
       toasts.add({ title: message, variant: 'error' })
       await reloadResources().catch(() => {})
     } finally {
@@ -283,9 +271,7 @@ export default function AdminPage() {
     try {
       await admin.api.setGatekeeperMode(vendorId, enabled ? 'enabled' : 'disabled')
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
+      const message = err instanceof Error ? err.message : 'Update failed'
       toasts.add({ title: message, variant: 'error' })
       await reloadResources().catch(() => {})
     } finally {
@@ -307,9 +293,7 @@ export default function AdminPage() {
     try {
       await admin.api.setGatekeeperMode(vendorId, mode)
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
+      const message = err instanceof Error ? err.message : 'Update failed'
       toasts.add({ title: message, variant: 'error' })
       await reloadResources().catch(() => {})
     } finally {
@@ -327,16 +311,9 @@ export default function AdminPage() {
     try {
       await admin.api.setAnnouncement(announcementDraft)
       setSavedAnnouncement(announcementDraft)
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastAnnouncementSaved', defaultMessage: 'Announcement saved' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Announcement saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({
-            id: 'adminPage.failedToSaveAnnouncement', defaultMessage: 'Failed to save announcement',
-          })
+      const message = err instanceof Error ? err.message : 'Failed to save announcement'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingAnnouncement(false)
@@ -352,14 +329,9 @@ export default function AdminPage() {
     try {
       await admin.api.setBanner(bannerTextDraft, bannerColorDraft)
       setSavedBanner({ text: bannerTextDraft, color: bannerColorDraft })
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastBannerSaved', defaultMessage: 'Banner saved' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Banner saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToSaveBanner', defaultMessage: 'Failed to save banner' })
+      const message = err instanceof Error ? err.message : 'Failed to save banner'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingBanner(false)
@@ -374,14 +346,9 @@ export default function AdminPage() {
     try {
       await admin.api.setAccentColor(accentDraft)
       setSavedAccent(accentDraft)
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastAccentSaved', defaultMessage: 'Accent color saved' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Accent color saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToSaveAccent', defaultMessage: 'Failed to save accent color' })
+      const message = err instanceof Error ? err.message : 'Failed to save accent color'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingAccent(false)
@@ -396,9 +363,7 @@ export default function AdminPage() {
       await admin.api.setSignupsEnabled(enabled)
     } catch (err) {
       setSignupsEnabled(!enabled) // revert
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
+      const message = err instanceof Error ? err.message : 'Update failed'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingSignups(false)
@@ -441,14 +406,9 @@ export default function AdminPage() {
     try {
       await admin.api.setSiteName(siteNameDraft)
       setSavedSiteName(siteNameDraft)
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastSiteNameSaved', defaultMessage: 'Site name saved' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Site name saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToSaveSiteName', defaultMessage: 'Failed to save site name' })
+      const message = err instanceof Error ? err.message : 'Failed to save site name'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingSiteName(false)
@@ -465,14 +425,9 @@ export default function AdminPage() {
       const data = await prepareSiteLogo(file)
       const logo = await admin.api.setSiteLogo(data)
       setSiteLogoUrl(logo ? cacheBustSiteLogoUrl(logo.url) : null)
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastLogoSaved', defaultMessage: 'Logo saved' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Logo saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToSaveLogo', defaultMessage: 'Failed to save logo' })
+      const message = err instanceof Error ? err.message : 'Failed to save logo'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingSiteLogo(false)
@@ -485,14 +440,9 @@ export default function AdminPage() {
     try {
       await admin.api.setSiteLogo(null)
       setSiteLogoUrl(null)
-      toasts.add({
-        title: formatMessage({ id: 'adminPage.toastDefaultLogoRestored', defaultMessage: 'Default logo restored' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Default logo restored', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToRemoveLogo', defaultMessage: 'Failed to remove logo' })
+      const message = err instanceof Error ? err.message : 'Failed to remove logo'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingSiteLogo(false)
@@ -505,16 +455,9 @@ export default function AdminPage() {
     try {
       await admin.api.setInstanceInstructions(instructionsDraft)
       setSavedInstructions(instructionsDraft)
-      toasts.add({
-        title: formatMessage({
-          id: 'adminPage.toastInstructionsSaved', defaultMessage: 'System prompt instructions saved',
-        }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'System prompt instructions saved', variant: 'success' })
     } catch (err) {
-      const message = err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'adminPage.failedToSaveInstructions', defaultMessage: 'Failed to save instructions' })
+      const message = err instanceof Error ? err.message : 'Failed to save instructions'
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingInstructions(false)
@@ -525,9 +468,7 @@ export default function AdminPage() {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center">
         <ShieldWarning size={32} className="mx-auto text-kumo-subtle mb-3" />
-        <p className="text-sm text-kumo-default">
-          <FormattedMessage id="adminPage.noAccess" defaultMessage="You don't have access to this page." />
-        </p>
+        <p className="text-sm text-kumo-default">You don't have access to this page.</p>
       </div>
     )
   }
@@ -535,9 +476,7 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-[60vh]">
-        <p className="text-kumo-subtle">
-          <FormattedMessage id="adminPage.loadingSettings" defaultMessage="Loading admin settings..." />
-        </p>
+        <p className="text-kumo-subtle">Loading admin settings...</p>
       </div>
     )
   }
@@ -545,14 +484,9 @@ export default function AdminPage() {
   if (loadError || !admin) {
     return (
       <div className="mx-auto w-full max-w-[1040px] px-4 sm:px-8 py-16 text-center">
-        <p className="text-sm text-kumo-danger">
-          <FormattedMessage
-            id="adminPage.loadError"
-            defaultMessage="Something went wrong loading admin settings."
-          />
-        </p>
+        <p className="text-sm text-kumo-danger">Something went wrong loading admin settings.</p>
         <button onClick={() => window.location.reload()} className="text-kumo-brand mt-2 text-sm underline">
-          <FormattedMessage id="adminPage.tryAgain" defaultMessage="Try again" />
+          Try again
         </button>
       </div>
     )
@@ -561,14 +495,9 @@ export default function AdminPage() {
   return (
     <div className="mx-auto w-full max-w-[1040px] px-4 sm:px-8 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-kumo-default">
-          <FormattedMessage id="adminPage.heading" defaultMessage="Admin" />
-        </h1>
+        <h1 className="text-2xl font-semibold text-kumo-default">Admin</h1>
         <p className="text-sm text-kumo-subtle mt-1">
-          <FormattedMessage
-            id="adminPage.headingDescription"
-            defaultMessage="Deployment-wide settings. Changes apply to all users on their next connection."
-          />
+          Deployment-wide settings. Changes apply to all users on their next connection.
         </p>
       </div>
 
@@ -649,18 +578,13 @@ export default function AdminPage() {
                 <UserPlus size={18} className="text-kumo-subtle" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-semibold text-kumo-strong">
-                  <FormattedMessage id="adminPage.allowSignupsHeading" defaultMessage="Allow new sign-ups" />
-                </h2>
+                <h2 className="text-lg font-semibold text-kumo-strong">Allow new sign-ups</h2>
                 <p className="text-sm text-kumo-subtle mt-0.5">
-                  <FormattedMessage
-                    id="adminPage.allowSignupsDescription"
-                    defaultMessage="When off, existing users can still log in but no new accounts can be created."
-                  />
+                  When off, existing users can still log in but no new accounts can be created.
                 </p>
               </div>
               <Switch
-                aria-label={formatMessage({ id: 'adminPage.allowSignupsHeading', defaultMessage: 'Allow new sign-ups' })}
+                aria-label="Allow new sign-ups"
                 checked={signupsEnabled}
                 disabled={savingSignups}
                 onCheckedChange={handleSignupsToggle}
@@ -674,18 +598,15 @@ export default function AdminPage() {
                 <MagnifyingGlass size={18} className="text-kumo-subtle" />
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-semibold text-kumo-strong">
-                  <FormattedMessage id="adminPage.allowUserSearchHeading" defaultMessage="Allow user search" />
-                </h2>
+                <h2 className="text-lg font-semibold text-kumo-strong">Allow user search</h2>
                 <p className="text-sm text-kumo-subtle mt-0.5">
-                  <FormattedMessage
-                    id="adminPage.allowUserSearchDescription"
-                    defaultMessage="Let users find other accounts by name or email when sharing a workspace. When off, people can only be invited by their exact username or email. Applies on each user’s next connection."
-                  />
+                  Let users find other accounts by name or email when sharing a workspace. When off,
+                  people can only be invited by their exact username or email. Applies on each
+                  user&rsquo;s next connection.
                 </p>
               </div>
               <Switch
-                aria-label={formatMessage({ id: 'adminPage.allowUserSearchHeading', defaultMessage: 'Allow user search' })}
+                aria-label="Allow user search"
                 checked={userSearchEnabled}
                 disabled={savingUserSearch}
                 onCheckedChange={handleUserSearchToggle}
@@ -721,15 +642,10 @@ export default function AdminPage() {
       {/* Site name */}
       {activeTab === 'general' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.siteNameHeading" defaultMessage="Site name" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Site name</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.siteNameDescription"
-              defaultMessage='Shown next to the logo in the top bar. Leave empty to use the default ("{defaultSiteName}"). Applies on each user’s next connection.'
-              values={{ defaultSiteName: DEFAULT_SITE_NAME }}
-            />
+            Shown next to the logo in the top bar. Leave empty to use the default
+            (&ldquo;{DEFAULT_SITE_NAME}&rdquo;). Applies on each user&rsquo;s next connection.
           </p>
 
           <Input
@@ -747,7 +663,7 @@ export default function AdminPage() {
                 onClick={() => setSiteNameDraft(savedSiteName)}
                 disabled={savingSiteName}
               >
-                <FormattedMessage id="adminPage.reset" defaultMessage="Reset" />
+                Reset
               </Button>
             )}
             <Button
@@ -757,7 +673,7 @@ export default function AdminPage() {
               loading={savingSiteName}
               disabled={siteNameDraft === savedSiteName}
             >
-              <FormattedMessage id="adminPage.save" defaultMessage="Save" />
+              Save
             </Button>
           </div>
         </div>
@@ -766,14 +682,11 @@ export default function AdminPage() {
       {/* Site logo */}
       {activeTab === 'general' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.logoHeading" defaultMessage="Logo" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Logo</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.logoDescription"
-              defaultMessage="Shown in the app chrome, sign-in screens, and browser tab. Images are scaled without cropping and converted to a static PNG. Square images work best. Applies on each user’s next connection."
-            />
+            Shown in the app chrome, sign-in screens, and browser tab. Images are scaled without
+            cropping and converted to a static PNG. Square images work best. Applies on each
+            user&rsquo;s next connection.
           </p>
 
           <div className="flex flex-wrap items-center gap-4">
@@ -798,9 +711,7 @@ export default function AdminPage() {
                 loading={savingSiteLogo}
                 disabled={savingSiteLogo}
               >
-                {siteLogoUrl
-                  ? <FormattedMessage id="adminPage.changeLogo" defaultMessage="Change logo" />
-                  : <FormattedMessage id="adminPage.uploadLogo" defaultMessage="Upload logo" />}
+                {siteLogoUrl ? 'Change logo' : 'Upload logo'}
               </Button>
               {siteLogoUrl && (
                 <Button
@@ -809,7 +720,7 @@ export default function AdminPage() {
                   onClick={handleRemoveSiteLogo}
                   disabled={savingSiteLogo}
                 >
-                  <FormattedMessage id="adminPage.restoreDefault" defaultMessage="Restore default" />
+                  Restore default
                 </Button>
               )}
             </div>
@@ -820,14 +731,11 @@ export default function AdminPage() {
       {/* Theme / accent color */}
       {activeTab === 'general' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.themeHeading" defaultMessage="Theme" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Theme</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.themeDescription"
-              defaultMessage="Accent color used for buttons, links, and highlights. Changes preview live here; click Save to apply for everyone (on their next connection). Backgrounds keep the default warm theme."
-            />
+            Accent color used for buttons, links, and highlights. Changes preview live here; click
+            Save to apply for everyone (on their next connection). Backgrounds keep the default
+            warm theme.
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -836,7 +744,7 @@ export default function AdminPage() {
               const swatch = preset.value || DEFAULT_ACCENT_COLOR
               return (
                 <button
-                  key={preset.id}
+                  key={preset.label}
                   type="button"
                   onClick={() => setAccentDraft(preset.value)}
                   className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
@@ -849,7 +757,7 @@ export default function AdminPage() {
                     className="w-4 h-4 rounded-full border border-kumo-line"
                     style={{ background: swatch }}
                   />
-                  <FormattedMessage id={preset.id} defaultMessage={preset.defaultMessage} />
+                  {preset.label}
                 </button>
               )
             })}
@@ -863,13 +771,10 @@ export default function AdminPage() {
                 onChange={(e) => setAccentDraft(e.target.value)}
                 className="w-9 h-9 rounded-md border border-kumo-line bg-transparent cursor-pointer p-0.5"
               />
-              <FormattedMessage id="adminPage.customAccent" defaultMessage="Custom" />
+              Custom
             </label>
             <span className="text-xs font-mono text-kumo-subtle">
-              {accentDraft || formatMessage(
-                { id: 'adminPage.accentDefaultValue', defaultMessage: '{color} (default)' },
-                { color: DEFAULT_ACCENT_COLOR },
-              )}
+              {accentDraft || `${DEFAULT_ACCENT_COLOR} (default)`}
             </span>
             <div className="flex-1" />
             {accentDirty && (
@@ -879,7 +784,7 @@ export default function AdminPage() {
                 onClick={() => setAccentDraft(savedAccent)}
                 disabled={savingAccent}
               >
-                <FormattedMessage id="adminPage.reset" defaultMessage="Reset" />
+                Reset
               </Button>
             )}
             <Button
@@ -889,7 +794,7 @@ export default function AdminPage() {
               loading={savingAccent}
               disabled={!accentDirty}
             >
-              <FormattedMessage id="adminPage.save" defaultMessage="Save" />
+              Save
             </Button>
           </div>
         </div>
@@ -898,14 +803,11 @@ export default function AdminPage() {
       {/* Full-width banner */}
       {activeTab === 'general' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.bannerHeading" defaultMessage="Banner" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Banner</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.bannerDescription"
-              defaultMessage="A dismissible bar across the very top of the app (logged in or not). Markdown is supported, so you can include links. Leave empty to hide it. Applies on each user\u2019s next connection."
-            />
+            A dismissible bar across the very top of the app (logged in or not). Markdown is
+            supported, so you can include links. Leave empty to hide it. Applies on each
+            user&rsquo;s next connection.
           </p>
 
           <Textarea
@@ -913,26 +815,18 @@ export default function AdminPage() {
             value={bannerTextDraft}
             onValueChange={setBannerTextDraft}
             rows={1}
-            placeholder={formatMessage({
-              id: 'adminPage.bannerPlaceholder',
-              defaultMessage: 'e.g. \uD83C\uDF89 New: blueprints now support imports \u2014 [learn more](https://example.com).',
-            })}
+            placeholder={'e.g. \uD83C\uDF89 New: blueprints now support imports \u2014 [learn more](https://example.com).'}
             maxLength={MAX_ANNOUNCEMENT_LENGTH}
             error={
               bannerTextDraft.length > MAX_ANNOUNCEMENT_LENGTH
-                ? formatMessage(
-                    { id: 'adminPage.tooLongByCharacters', defaultMessage: 'Too long by {count} characters' },
-                    { count: bannerTextDraft.length - MAX_ANNOUNCEMENT_LENGTH },
-                  )
+                ? `Too long by ${bannerTextDraft.length - MAX_ANNOUNCEMENT_LENGTH} characters`
                 : undefined
             }
           />
 
           <div className="mt-4 flex items-end justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-kumo-subtle mb-2">
-                <FormattedMessage id="adminPage.typeLabel" defaultMessage="Type" />
-              </p>
+              <p className="text-xs font-medium text-kumo-subtle mb-2">Type</p>
               <div className="flex flex-wrap items-center gap-2">
                 {BANNER_COLORS.map((c) => {
                   const selected = bannerColorDraft === c
@@ -951,10 +845,7 @@ export default function AdminPage() {
                         className="w-4 h-4 rounded-full border border-kumo-line"
                         style={{ background: BANNER_SWATCH[c] }}
                       />
-                      <FormattedMessage
-                        id={BANNER_COLOR_LABELS[c].id}
-                        defaultMessage={BANNER_COLOR_LABELS[c].defaultMessage}
-                      />
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
                     </button>
                   )
                 })}
@@ -972,7 +863,7 @@ export default function AdminPage() {
                   }}
                   disabled={savingBanner}
                 >
-                  <FormattedMessage id="adminPage.reset" defaultMessage="Reset" />
+                  Reset
                 </Button>
               )}
               <Button
@@ -982,7 +873,7 @@ export default function AdminPage() {
                 loading={savingBanner}
                 disabled={!bannerDirty || bannerTextDraft.length > MAX_ANNOUNCEMENT_LENGTH}
               >
-                <FormattedMessage id="adminPage.save" defaultMessage="Save" />
+                Save
               </Button>
             </div>
           </div>
@@ -992,14 +883,11 @@ export default function AdminPage() {
       {/* Top-bar notice */}
       {activeTab === 'general' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.topBarNoticeHeading" defaultMessage="Top-bar notice" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Top-bar notice</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.topBarNoticeDescription"
-              defaultMessage="Shown centered in the top navigation bar. Markdown is supported, so you can include links. Keep it short — it renders on a single line. Leave empty to show nothing. Applies on each user’s next connection."
-            />
+            Shown centered in the top navigation bar. Markdown is supported, so you can include
+            links. Keep it short — it renders on a single line. Leave empty to show nothing. Applies
+            on each user&rsquo;s next connection.
           </p>
 
           <Textarea
@@ -1007,31 +895,18 @@ export default function AdminPage() {
             value={announcementDraft}
             onValueChange={setAnnouncementDraft}
             rows={1}
-            placeholder={formatMessage({
-              id: 'adminPage.topBarNoticePlaceholder',
-              defaultMessage: 'e.g. Heads up: scheduled maintenance Saturday \u2014 see [status](https://status.example.com).',
-            })}
+            placeholder={'e.g. Heads up: scheduled maintenance Saturday \u2014 see [status](https://status.example.com).'}
             maxLength={MAX_ANNOUNCEMENT_LENGTH}
             error={
               announcementDraft.length > MAX_ANNOUNCEMENT_LENGTH
-                ? formatMessage(
-                    { id: 'adminPage.tooLongByCharacters', defaultMessage: 'Too long by {count} characters' },
-                    { count: announcementDraft.length - MAX_ANNOUNCEMENT_LENGTH },
-                  )
+                ? `Too long by ${announcementDraft.length - MAX_ANNOUNCEMENT_LENGTH} characters`
                 : undefined
             }
           />
 
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs text-kumo-subtle">
-              <FormattedMessage
-                id="adminPage.characterCount"
-                defaultMessage="{count} / {max} characters"
-                values={{
-                  count: announcementDraft.length.toLocaleString(),
-                  max: MAX_ANNOUNCEMENT_LENGTH.toLocaleString(),
-                }}
-              />
+              {announcementDraft.length.toLocaleString()} / {MAX_ANNOUNCEMENT_LENGTH.toLocaleString()} characters
             </span>
             <div className="flex items-center gap-2">
               {announcementDraft !== savedAnnouncement && (
@@ -1041,7 +916,7 @@ export default function AdminPage() {
                   onClick={() => setAnnouncementDraft(savedAnnouncement)}
                   disabled={savingAnnouncement}
                 >
-                  <FormattedMessage id="adminPage.reset" defaultMessage="Reset" />
+                  Reset
                 </Button>
               )}
               <Button
@@ -1054,7 +929,7 @@ export default function AdminPage() {
                   announcementDraft.length > MAX_ANNOUNCEMENT_LENGTH
                 }
               >
-                <FormattedMessage id="adminPage.save" defaultMessage="Save" />
+                Save
               </Button>
             </div>
           </div>
@@ -1064,14 +939,10 @@ export default function AdminPage() {
       {/* Agent system prompt additions */}
       {activeTab === 'general' && (
       <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-          <FormattedMessage id="adminPage.agentInstructionsHeading" defaultMessage="Agent instructions" />
-        </h2>
+        <h2 className="text-lg font-semibold text-kumo-strong mb-1">Agent instructions</h2>
         <p className="text-sm text-kumo-subtle mb-5">
-          <FormattedMessage
-            id="adminPage.agentInstructionsDescription"
-            defaultMessage="Extra instructions added to every agent’s system prompt on this deployment. Use this for instance-specific context, conventions, or guardrails."
-          />
+          Extra instructions added to every agent&rsquo;s system prompt on this deployment. Use this
+          for instance-specific context, conventions, or guardrails.
         </p>
 
         <Textarea
@@ -1079,31 +950,18 @@ export default function AdminPage() {
           value={instructionsDraft}
           onValueChange={setInstructionsDraft}
           rows={6}
-          placeholder={formatMessage({
-            id: 'adminPage.agentInstructionsPlaceholder',
-            defaultMessage: 'e.g. ACME Corp is a logistics company that helps small businesses ship\ninternationally. Our team builds internal tools and dashboards to track shipments.',
-          })}
+          placeholder={'e.g. ACME Corp is a logistics company that helps small businesses ship\ninternationally. Our team builds internal tools and dashboards to track shipments.'}
           maxLength={MAX_INSTANCE_INSTRUCTIONS_LENGTH}
           error={
             instructionsDraft.length > MAX_INSTANCE_INSTRUCTIONS_LENGTH
-              ? formatMessage(
-                  { id: 'adminPage.tooLongByCharacters', defaultMessage: 'Too long by {count} characters' },
-                  { count: instructionsDraft.length - MAX_INSTANCE_INSTRUCTIONS_LENGTH },
-                )
+              ? `Too long by ${instructionsDraft.length - MAX_INSTANCE_INSTRUCTIONS_LENGTH} characters`
               : undefined
           }
         />
 
         <div className="flex items-center justify-between mt-3">
           <span className="text-xs text-kumo-subtle">
-            <FormattedMessage
-              id="adminPage.characterCount"
-              defaultMessage="{count} / {max} characters"
-              values={{
-                count: instructionsDraft.length.toLocaleString(),
-                max: MAX_INSTANCE_INSTRUCTIONS_LENGTH.toLocaleString(),
-              }}
-            />
+            {instructionsDraft.length.toLocaleString()} / {MAX_INSTANCE_INSTRUCTIONS_LENGTH.toLocaleString()} characters
           </span>
           <div className="flex items-center gap-2">
             {instructionsDraft !== savedInstructions && (
@@ -1113,7 +971,7 @@ export default function AdminPage() {
                 onClick={() => setInstructionsDraft(savedInstructions)}
                 disabled={savingInstructions}
               >
-                <FormattedMessage id="adminPage.reset" defaultMessage="Reset" />
+                Reset
               </Button>
             )}
             <Button
@@ -1126,7 +984,7 @@ export default function AdminPage() {
                 instructionsDraft.length > MAX_INSTANCE_INSTRUCTIONS_LENGTH
               }
             >
-              <FormattedMessage id="adminPage.save" defaultMessage="Save" />
+              Save
             </Button>
           </div>
         </div>
@@ -1146,22 +1004,17 @@ export default function AdminPage() {
       {/* Gatekeeper resources */}
       {activeTab === 'gatekeepers' && (
         <div className="bg-kumo-elevated border border-kumo-line rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-kumo-strong mb-1">
-            <FormattedMessage id="adminPage.gatekeepersHeading" defaultMessage="Gatekeepers" />
-          </h2>
+          <h2 className="text-lg font-semibold text-kumo-strong mb-1">Gatekeepers</h2>
           <p className="text-sm text-kumo-subtle mb-5">
-            <FormattedMessage
-              id="adminPage.gatekeepersDescription"
-              defaultMessage="Turn connectors and resource types on or off for each service. Auto-provisioned gatekeepers (like the Context Library) have three modes — disabled, optional, or enabled for everyone. Changes are soft: they don’t revoke access a gadget already holds."
-            />
+            Turn connectors and resource types on or off for each service. Auto-provisioned
+            gatekeepers (like the Context Library) have three modes &mdash; disabled, optional, or
+            enabled for everyone. Changes are soft: they don&rsquo;t revoke access a gadget already
+            holds.
           </p>
 
           {resourceVendors.length === 0 && (
             <p className="text-sm text-kumo-subtle">
-              <FormattedMessage
-                id="adminPage.noGatekeepersInstalled"
-                defaultMessage="No configurable gatekeepers are installed on this deployment."
-              />
+              No configurable gatekeepers are installed on this deployment.
             </p>
           )}
 
@@ -1172,22 +1025,10 @@ export default function AdminPage() {
               // Auto-provisioned ("ambient") gatekeepers use a three-state mode and have no resources.
               if (vendor.autoProvisions) {
                 const mode = vendor.ambientMode ?? 'optional'
-                const options: { value: AmbientGatekeeperMode; labelId: string; label: string; hintId: string; hint: string }[] = [
-                  {
-                    value: 'disabled',
-                    labelId: 'adminPage.ambientModeDisabled', label: 'Disabled',
-                    hintId: 'adminPage.ambientModeDisabledHint', hint: 'Off for everyone',
-                  },
-                  {
-                    value: 'optional',
-                    labelId: 'adminPage.ambientModeOptional', label: 'Optional',
-                    hintId: 'adminPage.ambientModeOptionalHint', hint: 'Users can add it themselves',
-                  },
-                  {
-                    value: 'enabled',
-                    labelId: 'adminPage.ambientModeEnabled', label: 'Enabled',
-                    hintId: 'adminPage.ambientModeEnabledHint', hint: 'On for everyone automatically',
-                  },
+                const options: { value: AmbientGatekeeperMode; label: string; hint: string }[] = [
+                  { value: 'disabled', label: 'Disabled', hint: 'Off for everyone' },
+                  { value: 'optional', label: 'Optional', hint: 'Users can add it themselves' },
+                  { value: 'enabled', label: 'Enabled', hint: 'On for everyone automatically' },
                 ]
                 return (
                   <div key={vendor.vendorId}>
@@ -1203,7 +1044,7 @@ export default function AdminPage() {
                         {vendor.displayName}
                       </h3>
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-kumo-tint text-kumo-subtle border border-kumo-line">
-                        <FormattedMessage id="adminPage.autoProvisioned" defaultMessage="auto-provisioned" />
+                        auto-provisioned
                       </span>
                     </div>
                     <div className="flex gap-2 px-3 py-1">
@@ -1219,12 +1060,8 @@ export default function AdminPage() {
                               : 'border-kumo-line hover:bg-kumo-tint'
                           }`}
                         >
-                          <span className="block text-sm font-medium text-kumo-default">
-                            <FormattedMessage id={opt.labelId} defaultMessage={opt.label} />
-                          </span>
-                          <span className="block text-xs text-kumo-subtle mt-0.5">
-                            <FormattedMessage id={opt.hintId} defaultMessage={opt.hint} />
-                          </span>
+                          <span className="block text-sm font-medium text-kumo-default">{opt.label}</span>
+                          <span className="block text-xs text-kumo-subtle mt-0.5">{opt.hint}</span>
                         </button>
                       ))}
                     </div>
@@ -1260,14 +1097,12 @@ export default function AdminPage() {
                     {vendor.displayName}
                     {!vendor.enabled && (
                       <span className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-kumo-tint text-kumo-subtle border border-kumo-line">
-                        <FormattedMessage id="adminPage.disabledBadge" defaultMessage="disabled" />
+                        disabled
                       </span>
                     )}
                   </h3>
                   <span className="text-xs text-kumo-subtle">
-                    {vendor.enabled
-                      ? <FormattedMessage id="adminPage.enabledStatus" defaultMessage="Enabled" />
-                      : <FormattedMessage id="adminPage.offStatus" defaultMessage="Off" />}
+                    {vendor.enabled ? 'Enabled' : 'Off'}
                   </span>
                   <span onClick={(e) => e.stopPropagation()}>
                     <Switch
@@ -1319,11 +1154,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <p className="text-xs text-kumo-subtle px-3 py-1">
-                    <FormattedMessage
-                      id="adminPage.resourcesHiddenWhileDisabled"
-                      defaultMessage="{count, plural, one {# resource} other {# resources}} hidden while disabled."
-                      values={{ count: vendor.resources.length }}
-                    />
+                    {vendor.resources.length} resource{vendor.resources.length === 1 ? '' : 's'} hidden while disabled.
                   </p>
                 )}
               </div>

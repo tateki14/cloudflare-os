@@ -46,7 +46,6 @@ vi.mock('./components/WorkshopControls', () => ({
 vi.mock('./components/Avatar', () => ({ default: () => <span data-testid="avatar" /> }))
 
 import ObserverConfigModal from './ObserverConfigModal'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 const VENDOR = {
   displayName: 'Google',

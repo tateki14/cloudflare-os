@@ -7,7 +7,6 @@ import {
   SquaresFour,
 } from '@phosphor-icons/react'
 import { useKumoToastManager } from '@cloudflare/kumo'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { useAuthenticatedApi } from '../../AuthContext'
 import type { WorkspaceMetadataWithTimestamps, OutputFormatOffer } from '@gadgets/workshop-shared/api'
 import { FormatGlyph } from '../format/FormatVisuals'
@@ -45,14 +44,12 @@ let paletteCache: { data: PaletteData; fetchedAt: number } | null = null
 function mergeBlueprints(
   own: { id: string; title: string; lastUpdated: Date }[],
   library: { id: string; metadata: { title: string }; addedAt: Date }[],
-  formatMessage: IntlShape['formatMessage'],
 ): BlueprintEntry[] {
-  const untitledBlueprint = formatMessage({ id: 'commandPalette.untitledBlueprint', defaultMessage: 'Untitled blueprint' })
   const map = new Map<string, BlueprintEntry>()
   for (const b of library) {
     map.set(b.id, {
       id: b.id,
-      title: b.metadata.title || untitledBlueprint,
+      title: b.metadata.title || 'Untitled blueprint',
       recency: b.addedAt.getTime(),
     })
   }
@@ -60,7 +57,7 @@ function mergeBlueprints(
     const prev = map.get(b.id)
     map.set(b.id, {
       id: b.id,
-      title: b.title || prev?.title || untitledBlueprint,
+      title: b.title || prev?.title || 'Untitled blueprint',
       recency: Math.max(prev?.recency ?? 0, b.lastUpdated.getTime()),
     })
   }
@@ -147,7 +144,6 @@ export default function CommandPalette({
   const { authenticatedApi } = useAuthenticatedApi()
   const navigate = useNavigate()
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
 
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -192,7 +188,7 @@ export default function CommandPalette({
         .then(([gadgetList, own, library, formatList]) => {
           const data: PaletteData = {
             gadgets: gadgetList,
-            blueprints: mergeBlueprints(own, library, formatMessage),
+            blueprints: mergeBlueprints(own, library),
             formats: formatList,
           }
           paletteCache = { data, fetchedAt: Date.now() }
@@ -207,7 +203,7 @@ export default function CommandPalette({
       cancelled = true
       cancelAnimationFrame(id)
     }
-  }, [open, authenticatedApi, formatMessage])
+  }, [open, authenticatedApi])
 
   const go = useCallback(
     (run: () => void) => {
@@ -230,14 +226,10 @@ export default function CommandPalette({
 
     // One entry per standard format. "New workspace" remains the first action because it is the
     // general starting point; the format shortcuts follow it in the admin's configured order.
-    const formatHint = formatMessage({ id: 'commandPalette.formatHint', defaultMessage: 'Format' })
     const formatCommands: Command[] = formats.map((format) => ({
       id: `format-${format.blueprintId}`,
-      label: formatMessage(
-        { id: 'commandPalette.newFormatNoun', defaultMessage: 'New {noun}' },
-        { noun: format.output.noun },
-      ),
-      hint: formatHint,
+      label: `New ${format.output.noun}`,
+      hint: 'Format',
       icon: <FormatGlyph output={format.output} size="md" />,
       run: () => { void createFormat(format) },
     }))
@@ -245,35 +237,31 @@ export default function CommandPalette({
     const nav: Command[] = [
       {
         id: 'nav-new',
-        label: formatMessage({ id: 'commandPalette.newWorkspace', defaultMessage: 'New workspace' }),
+        label: 'New workspace',
         icon: <Plus size={15} weight="bold" />,
         run: () => navigate({ to: '/' }),
       },
       ...formatCommands,
       {
         id: 'nav-workspaces',
-        label: formatMessage({ id: 'commandPalette.workspacesNav', defaultMessage: 'Workspaces' }),
+        label: 'Workspaces',
         icon: <SquaresFour size={15} />,
         run: () => navigate({ to: '/workspaces' }),
       },
       {
         id: 'nav-blueprints',
-        label: formatMessage({ id: 'commandPalette.blueprintsNav', defaultMessage: 'Blueprints' }),
+        label: 'Blueprints',
         icon: <Blueprint size={15} />,
         run: () => navigate({ to: '/explore' }),
       },
     ]
 
-    const untitledWorkspace = formatMessage({ id: 'commandPalette.untitledWorkspace', defaultMessage: 'Untitled workspace' })
-    const workspaceHint = formatMessage({ id: 'commandPalette.workspaceHint', defaultMessage: 'Workspace' })
-    const blueprintHint = formatMessage({ id: 'commandPalette.blueprintHint', defaultMessage: 'Blueprint' })
-
     const wsBase: Command[] = gadgets
       .toSorted((a, b) => b.lastActive.getTime() - a.lastActive.getTime())
       .map((g) => ({
         id: `ws-${g.id}`,
-        label: g.title || untitledWorkspace,
-        hint: workspaceHint,
+        label: g.title || 'Untitled workspace',
+        hint: 'Workspace',
         icon: <SquaresFour size={15} className="text-kumo-inactive" />,
         run: () => navigate({ to: '/workspace/$id', params: { id: g.id } }),
       }))
@@ -283,7 +271,7 @@ export default function CommandPalette({
       .map((b) => ({
         id: `bp-${b.id}`,
         label: b.title,
-        hint: blueprintHint,
+        hint: 'Blueprint',
         icon: <Blueprint size={15} className="text-kumo-inactive" />,
         run: () => navigate({ to: '/blueprint/$id', params: { id: b.id } }),
       }))
@@ -301,22 +289,21 @@ export default function CommandPalette({
       return scored.slice(0, limit)
     }
 
-    const actionsHeading = formatMessage({ id: 'commandPalette.actionsHeading', defaultMessage: 'Actions' })
     const built: Group[] = searching
       ? [
-          { heading: actionsHeading, items: refine(nav, nav.length) },
-          { heading: formatMessage({ id: 'commandPalette.workspacesNav', defaultMessage: 'Workspaces' }), items: refine(wsBase, 8) },
-          { heading: formatMessage({ id: 'commandPalette.blueprintsNav', defaultMessage: 'Blueprints' }), items: refine(bpBase, 8) },
+          { heading: 'Actions', items: refine(nav, nav.length) },
+          { heading: 'Workspaces', items: refine(wsBase, 8) },
+          { heading: 'Blueprints', items: refine(bpBase, 8) },
         ]
       : [
-          { heading: actionsHeading, items: refine(nav, nav.length) },
-          { heading: formatMessage({ id: 'commandPalette.recentWorkspacesHeading', defaultMessage: 'Recent workspaces' }), items: refine(wsBase, 4) },
+          { heading: 'Actions', items: refine(nav, nav.length) },
+          { heading: 'Recent workspaces', items: refine(wsBase, 4) },
         ]
 
     const groups = built.filter((g) => g.items.length > 0)
     const flat = groups.flatMap((g) => g.items)
     return { groups, flat }
-  }, [query, gadgets, blueprints, formats, navigate, createFormat, formatMessage])
+  }, [query, gadgets, blueprints, formats, navigate, createFormat])
 
   // Keep the active index in range as the result set changes.
   useEffect(() => {
@@ -357,7 +344,7 @@ export default function CommandPalette({
       className="fixed inset-0 z-[1500] flex items-start justify-center px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
-      aria-label={formatMessage({ id: 'commandPalette.dialogAriaLabel', defaultMessage: 'Command palette' })}
+      aria-label="Command palette"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -371,7 +358,7 @@ export default function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={formatMessage({ id: 'commandPalette.searchPlaceholder', defaultMessage: 'Search workspaces and actions…' })}
+            placeholder="Search workspaces and actions…"
             className="h-12 w-full bg-transparent text-[14px] leading-5 tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive focus:outline-none"
           />
           <kbd className="shrink-0 rounded border border-kumo-line px-1.5 py-0.5 font-sans text-[10px] leading-none text-kumo-inactive">
@@ -381,9 +368,7 @@ export default function CommandPalette({
 
         <div ref={listRef} className="sidebar-scroll max-h-[min(60vh,420px)] overflow-y-auto p-1.5">
           {flat.length === 0 ? (
-            <p className="px-3 py-6 text-center text-[13px] text-kumo-inactive">
-              <FormattedMessage id="commandPalette.noResults" defaultMessage="No results." />
-            </p>
+            <p className="px-3 py-6 text-center text-[13px] text-kumo-inactive">No results.</p>
           ) : (
             groups.map((group, gi) => {
               // Compute the flat index offset for this group so keyboard nav stays in sync.
@@ -428,15 +413,15 @@ export default function CommandPalette({
           <span className="flex items-center gap-1">
             <kbd className="rounded border border-kumo-line px-1 py-0.5 font-sans leading-none">↑</kbd>
             <kbd className="rounded border border-kumo-line px-1 py-0.5 font-sans leading-none">↓</kbd>
-            <FormattedMessage id="commandPalette.navigateHint" defaultMessage="navigate" />
+            navigate
           </span>
           <span className="flex items-center gap-1">
             <kbd className="rounded border border-kumo-line px-1 py-0.5 font-sans leading-none">↵</kbd>
-            <FormattedMessage id="commandPalette.openHint" defaultMessage="open" />
+            open
           </span>
           <span className="flex items-center gap-1">
             <kbd className="rounded border border-kumo-line px-1 py-0.5 font-sans leading-none">esc</kbd>
-            <FormattedMessage id="commandPalette.closeHint" defaultMessage="close" />
+            close
           </span>
         </div>
       </div>

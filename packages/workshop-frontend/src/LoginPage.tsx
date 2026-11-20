@@ -4,7 +4,6 @@ import { RpcStub } from 'capnweb'
 import { PublicApi } from '@gadgets/workshop-shared/api'
 import { Hexagon } from '@phosphor-icons/react'
 import { Input, Button, Banner, Loader } from '@cloudflare/kumo'
-import { FormattedMessage, useIntl } from 'react-intl'
 import { hashPassword } from './passwordHash'
 import { useServerConfig, useServerConfigError, useSiteName } from './ServerConfigContext'
 import { useDocumentTitle } from './useDocumentTitle'
@@ -28,8 +27,7 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
   const serverConfigError = useServerConfigError()
   const siteName = useSiteName()
   const connectionLost = useConnectionLost()
-  const { formatMessage } = useIntl()
-  useDocumentTitle(formatMessage({ id: 'loginPage.documentTitle', defaultMessage: 'Sign in' }))
+  useDocumentTitle('Sign in')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -48,12 +46,10 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
           window.location.reload()
         }
       } else {
-        setError(formatMessage({ id: 'loginPage.invalidCredentials', defaultMessage: 'Invalid username or password' }))
+        setError('Invalid username or password')
       }
     } catch (err) {
-      setError(err instanceof Error
-        ? err.message
-        : formatMessage({ id: 'loginPage.loginFailed', defaultMessage: 'Login failed' }))
+      setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
       setLoading(false)
     }
@@ -71,11 +67,9 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
           className="flex h-full min-h-0 flex-col items-center justify-center gap-4 overflow-y-auto bg-kumo-base px-4 py-8"
         >
           <p className="text-sm text-kumo-danger text-center">
-            <FormattedMessage id="loginPage.deploymentSettingsLoadFailed" defaultMessage="Couldn’t load deployment settings." />
+            Couldn&apos;t load deployment settings.
           </p>
-          <Button variant="secondary" onClick={() => window.location.reload()}>
-            <FormattedMessage id="loginPage.reload" defaultMessage="Reload" />
-          </Button>
+          <Button variant="secondary" onClick={() => window.location.reload()}>Reload</Button>
         </div>
       )
     }
@@ -83,9 +77,7 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 overflow-y-auto bg-kumo-base px-4 py-8">
         <Loader size="lg" />
         <p className="text-sm text-kumo-subtle text-center">
-          {connectionLost
-            ? <FormattedMessage id="loginPage.retryingConnection" defaultMessage="Can't reach the server. Retrying…" />
-            : <FormattedMessage id="loginPage.loading" defaultMessage="Loading…" />}
+          {connectionLost ? "Can't reach the server. Retrying…" : 'Loading…'}
         </p>
       </div>
     )
@@ -116,9 +108,7 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             </div>
           </SiteLogo>
           <h1 className="text-xl font-semibold text-kumo-default">{siteName}</h1>
-          <p className="text-sm text-kumo-subtle mt-1">
-            <FormattedMessage id="loginPage.signInToYourAccount" defaultMessage="Sign in to your account" />
-          </p>
+          <p className="text-sm text-kumo-subtle mt-1">Sign in to your account</p>
         </div>
 
         {passwordAuthEnabled && (
@@ -127,19 +117,19 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
                 className="w-full"
-                label={formatMessage({ id: 'loginPage.usernameLabel', defaultMessage: 'Username' })}
+                label="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
                 autoComplete="username"
                 disabled={loading}
-                placeholder={formatMessage({ id: 'loginPage.usernamePlaceholder', defaultMessage: 'your-username' })}
+                placeholder="your-username"
               />
 
               <Input
                 className="w-full"
                 type="password"
-                label={formatMessage({ id: 'loginPage.passwordLabel', defaultMessage: 'Password' })}
+                label="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -158,7 +148,7 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
                 loading={loading}
                 className="w-full justify-center"
               >
-                <FormattedMessage id="loginPage.signIn" defaultMessage="Sign in" />
+                Sign in
               </Button>
             </form>
 
@@ -181,9 +171,7 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             {passwordAuthEnabled && (
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-px flex-1 bg-kumo-line" />
-                <span className="text-xs text-kumo-subtle">
-                  <FormattedMessage id="loginPage.or" defaultMessage="or" />
-                </span>
+                <span className="text-xs text-kumo-subtle">or</span>
                 <div className="h-px flex-1 bg-kumo-line" />
               </div>
             )}

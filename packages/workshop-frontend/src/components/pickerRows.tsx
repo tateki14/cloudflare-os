@@ -1,5 +1,3 @@
-import { FormattedMessage } from 'react-intl'
-
 // Shared look for the pickers that float over the chat composer: one surface, rows that carry their
 // own padding, and a selection that reads as the thing Tab will act on.
 

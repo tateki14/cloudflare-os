@@ -22,7 +22,6 @@ vi.mock("../../../components/format/formatIconImage", () => ({
 import { writeComposerDraft } from "./draft/composerDraft";
 import { useComposerDraft } from "./draft/useComposerDraft";
 import { useComposerResources } from "./useComposerResources";
-import { TestIntlProvider } from "../../../i18n/testIntlProvider";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -126,7 +125,7 @@ describe("useComposerResources", () => {
     };
     container = document.createElement("div");
     root = createRoot(container);
-    await act(async () => root!.render(<TestIntlProvider><Harness /></TestIntlProvider>));
+    await act(async () => root!.render(<Harness />));
     return {
       get controls() { return controls; },
       onConnectionCreated,

@@ -4,7 +4,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { Checkbox, Dialog, DropdownMenu, Tooltip, useKumoToastManager } from '@cloudflare/kumo'
 import { CaretDown, CaretLeft, CaretRight, Check, Copy, Eye, Link, LockSimple, PencilSimple, ShieldWarning, Trash, UserPlus, UsersThree, X } from '@phosphor-icons/react'
 import { RpcStub } from 'capnweb'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import {
   Overseer,
   AuthenticatedApi,
@@ -112,7 +111,7 @@ type Props = {
   authenticatedApi: RpcStub<AuthenticatedApi>
 }
 
-function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
+function formatRelativeTime(date: Date): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffSeconds = Math.floor(diffMs / 1000)
@@ -120,27 +119,10 @@ function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage'
   const diffHours = Math.floor(diffMinutes / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffSeconds < 60) {
-    return formatMessage({ id: 'shareModal.relativeTimeJustNow', defaultMessage: 'just now' })
-  }
-  if (diffMinutes < 60) {
-    return formatMessage(
-      { id: 'shareModal.relativeTimeMinutes', defaultMessage: '{minutes}m ago' },
-      { minutes: diffMinutes },
-    )
-  }
-  if (diffHours < 24) {
-    return formatMessage(
-      { id: 'shareModal.relativeTimeHours', defaultMessage: '{hours}h ago' },
-      { hours: diffHours },
-    )
-  }
-  if (diffDays < 7) {
-    return formatMessage(
-      { id: 'shareModal.relativeTimeDays', defaultMessage: '{days}d ago' },
-      { days: diffDays },
-    )
-  }
+  if (diffSeconds < 60) return 'just now'
+  if (diffMinutes < 60) return `${diffMinutes}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
   return date.toLocaleDateString()
 }
 
@@ -159,7 +141,6 @@ function InlineConfirm({
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const { formatMessage } = useIntl()
   return (
     <div className="flex items-center gap-1 share-confirm-in">
       <button
@@ -178,7 +159,7 @@ function InlineConfirm({
         type="button"
         onClick={onCancel}
         disabled={busy}
-        aria-label={formatMessage({ id: 'shareModal.cancel', defaultMessage: 'Cancel' })}
+        aria-label="Cancel"
         className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-kumo-inactive transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-tint hover:text-kumo-default active:scale-[0.96] disabled:opacity-60"
       >
         <X size={14} />
@@ -318,7 +299,6 @@ function ProtectedResourceList({
 
 export default function ShareModal({ open, onClose, overseer, metadata, target, currentUser, authenticatedApi }: Props) {
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([])
   const [membershipStatus, setMembershipStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [shareLinks, setShareLinks] = useState<ShareLinkInfo[]>([])
@@ -562,14 +542,11 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
       return { collaborators: collabs, shareLinks: keys }
     } catch (err) {
       console.error('Failed to load share data:', err)
-      toasts.add({
-        title: formatMessage({ id: 'shareModal.toastLoadFailed', defaultMessage: 'Failed to load sharing info' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to load sharing info', variant: 'error' })
       setMembershipStatus(current => current === 'ready' ? current : 'failed')
       return null
     }
-  }, [overseer, formatMessage])
+  }, [overseer])
 
   // Refresh on focus as well as open: bindings cannot change in this modal, but they can change in
   // another tab while it remains open. A failed refresh is informational and never blocks sharing.
@@ -750,12 +727,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
     } else if (await copyToClipboard(accessUrl)) {
       toasts.add({ title: 'Link copied to clipboard.', variant: 'success' })
     } else {
-      toasts.add({
-        title: formatMessage({
-          id: 'shareModal.toastCopyWorkspaceLinkFailed', defaultMessage: 'Could not copy the workspace link.',
-        }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Could not copy the workspace link.', variant: 'error' })
     }
   }
 
@@ -906,11 +878,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
       showLandedRow('shareLink', [linkId])
     } catch (err: any) {
       // Keep the composer and its values open so the user can retry without re-entering them.
-      toasts.add({
-        title: err.message
-          || formatMessage({ id: 'shareModal.toastCreateLinkFailed', defaultMessage: 'Failed to create share link.' }),
-        variant: 'error',
-      })
+      toasts.add({ title: err.message || 'Failed to create share link.', variant: 'error' })
     } finally {
       creatingLinkRef.current = false
       setCreatingLink(false)
@@ -959,10 +927,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
       }
       const copied = await copyToClipboard(url)
       if (!copied) {
-        toasts.add({
-          title: formatMessage({ id: 'shareModal.toastCopyLinkFailed', defaultMessage: 'Could not copy share link.' }),
-          variant: 'error',
-        })
+        toasts.add({ title: 'Could not copy share link.', variant: 'error' })
         return
       }
       setCopiedLinkId(linkId)
@@ -972,16 +937,9 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
         setCopiedLinkId(current => (current === linkId ? null : current))
         copiedTimerRef.current = null
       }, 2000)
-      toasts.add({
-        title: formatMessage({ id: 'shareModal.toastLinkCopied', defaultMessage: 'Link copied to clipboard.' }),
-        variant: 'success',
-      })
+      toasts.add({ title: 'Link copied to clipboard.', variant: 'success' })
     } catch (err: any) {
-      toasts.add({
-        title: err.message
-          || formatMessage({ id: 'shareModal.toastCopyLinkFailedGeneric', defaultMessage: 'Failed to copy share link.' }),
-        variant: 'error',
-      })
+      toasts.add({ title: err.message || 'Failed to copy share link.', variant: 'error' })
     } finally {
       copyingLinkRef.current = false
       setCopyingLinkId(null)
@@ -997,13 +955,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
         : current)
     } catch (err: any) {
       setConfirmationTarget(current => current?.kind === 'remove' && current.profileId === profileId ? null : current)
-      toasts.add({
-        title: err.message
-          || formatMessage({
-            id: 'shareModal.toastPreviewRemoveFailed', defaultMessage: 'Failed to preview collaborator removal.',
-          }),
-        variant: 'error',
-      })
+      toasts.add({ title: err.message || 'Failed to preview collaborator removal.', variant: 'error' })
     }
   }
 
@@ -1022,11 +974,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
       })
       await loadData()
     } catch (err: any) {
-      toasts.add({
-        title: err.message
-          || formatMessage({ id: 'shareModal.toastRemoveCollaboratorFailed', defaultMessage: 'Failed to remove collaborator.' }),
-        variant: 'error',
-      })
+      toasts.add({ title: err.message || 'Failed to remove collaborator.', variant: 'error' })
     } finally {
       setConfirmationBusy(false)
     }
@@ -1093,11 +1041,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
       showLandedRow('shareLink', [linkId])
       toasts.add({ title: 'Share link renamed.', variant: 'success' })
     } catch (err: any) {
-      toasts.add({
-        title: err.message
-          || formatMessage({ id: 'shareModal.toastRenameLinkFailed', defaultMessage: 'Failed to rename share link.' }),
-        variant: 'error',
-      })
+      toasts.add({ title: err.message || 'Failed to rename share link.', variant: 'error' })
     } finally {
       savingShareLinkNoteRef.current = false
       setSavingShareLinkNote(false)
@@ -1311,7 +1255,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
           )}
           <Dialog.Close
             render={(props) => (
-              <WorkshopIconButton {...props} aria-label={formatMessage({ id: 'shareModal.close', defaultMessage: 'Close' })}>
+              <WorkshopIconButton {...props} aria-label="Close">
                 <X size={18} />
               </WorkshopIconButton>
             )}
@@ -1478,7 +1422,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                 ref={directoryListboxRef}
                 id={directoryListboxId}
                 role="listbox"
-                aria-label={formatMessage({ id: 'shareModal.matchingPeopleAriaLabel', defaultMessage: 'Matching people' })}
+                aria-label="Matching people"
                 aria-busy={directory.status === 'loading'}
                 // Pressing anywhere in the popover (an option, its padding, the scrollbar) must not
                 // blur the combobox, which would dismiss the popover before the click lands.
@@ -1486,17 +1430,13 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                 className="chat-panel themed-floating-shadow-lg pointer-events-auto absolute overscroll-contain overflow-y-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-2"
               >
                 {directory.status === 'loading' ? (
-                  <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">
-                    <FormattedMessage id="shareModal.searchingEllipsis" defaultMessage="Searching…" />
-                  </p>
+                  <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">Searching…</p>
                 ) : directory.status === 'failed' ? (
                   <p role="status" className="px-3 py-2 text-[12px] text-kumo-danger">
-                    <FormattedMessage id="shareModal.userSearchUnavailable" defaultMessage="User search is temporarily unavailable." />
+                    User search is temporarily unavailable.
                   </p>
                 ) : directory.results.length === 0 ? (
-                  <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">
-                    <FormattedMessage id="shareModal.noUsersFound" defaultMessage="No users found." />
-                  </p>
+                  <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">No users found.</p>
                 ) : (
                   <>
                     {directory.results.map((user, index) => (
@@ -1546,7 +1486,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                           Add &ldquo;{directoryQuery}&rdquo; exactly
                         </span>
                         <span className="block text-[11px] text-kumo-subtle">
-                          <FormattedMessage id="shareModal.inviteExactlyHint" defaultMessage="Use the text as a username or email" />
+                          Use the text as a username or email
                         </span>
                       </span>
                     </button>
@@ -1731,8 +1671,8 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                       value={newLinkNote}
                       onChange={(e) => setNewLinkNote(e.target.value)}
                       onKeyDown={(e) => { if (!isImeComposing(e) && e.key === 'Enter') handleCreateShareLink() }}
-                      placeholder={formatMessage({ id: 'shareModal.linkNamePlaceholder', defaultMessage: 'Name this link (optional)…' })}
-                      aria-label={formatMessage({ id: 'shareModal.linkNameAriaLabel', defaultMessage: 'Share link name (optional)' })}
+                      placeholder="Name this link (optional)…"
+                      aria-label="Share link name (optional)"
                       className="h-9 min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] leading-5 tracking-[-0.25px] text-kumo-default outline-none placeholder:text-kumo-inactive"
                       disabled={creatingLink}
                     />
@@ -1760,10 +1700,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                     <WorkshopButton tone="primary" className="shrink-0 !rounded-xl" onClick={handleCreateShareLink} disabled={creatingLink || newLinkAccessForbidden}>
                       {creatingLink ? 'Creating…' : 'Create link'}
                     </WorkshopButton>
-                    <WorkshopIconButton
-                      aria-label={formatMessage({ id: 'shareModal.cancelCreatingLink', defaultMessage: 'Cancel creating link' })}
-                      onClick={() => setShowLinkComposer(false)}
-                    >
+                    <WorkshopIconButton aria-label="Cancel creating link" onClick={() => setShowLinkComposer(false)}>
                       <X size={14} />
                     </WorkshopIconButton>
                 </div>
@@ -1816,8 +1753,8 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                                 if (e.key === 'Enter') handleSaveShareLinkNote()
                                 if (e.key === 'Escape') cancelRenameShareLink()
                               }}
-                              placeholder={formatMessage({ id: 'shareModal.editLinkNamePlaceholder', defaultMessage: 'Name this link…' })}
-                              aria-label={formatMessage({ id: 'shareModal.editLinkNameAriaLabel', defaultMessage: 'Share link name' })}
+                              placeholder="Name this link…"
+                              aria-label="Share link name"
                               className="block w-full border-0 bg-transparent p-0 text-[13px] leading-[17px] font-medium tracking-[-0.25px] text-kumo-default outline-none shadow-[inset_0_-1px_0_0_var(--color-kumo-line)] transition-shadow placeholder:font-normal placeholder:text-kumo-inactive focus:shadow-[inset_0_-1px_0_0_var(--color-kumo-fill)]"
                               disabled={savingShareLinkNote}
                             />
@@ -1828,7 +1765,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                         </div>
                         {isRenaming ? (
                           <InlineConfirm
-                            label={formatMessage({ id: 'shareModal.save', defaultMessage: 'Save' })}
+                            label="Save"
                             tone="brand"
                             busy={savingShareLinkNote}
                             onConfirm={handleSaveShareLinkNote}
@@ -1836,11 +1773,9 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                           />
                         ) : isRevoking ? (
                           <InlineConfirm
-                            label={formatMessage({ id: 'shareModal.revoke', defaultMessage: 'Revoke' })}
+                            label="Revoke"
                             busy={revokeTarget.previewing || confirmationBusy}
-                            busyLabel={revokeTarget.previewing
-                              ? formatMessage({ id: 'shareModal.checking', defaultMessage: 'Checking…' })
-                              : undefined}
+                            busyLabel={revokeTarget.previewing ? 'Checking…' : undefined}
                             onConfirm={handleConfirmRevokeShareLink}
                             onCancel={() => setConfirmationTarget(null)}
                           />
@@ -1915,11 +1850,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                       {isRevoking && revokeTarget.dependents.length > 0 && (
                         <div className="mt-2.5 share-expand-in">
                           <p className="mb-1.5 text-[12px] leading-4 text-kumo-subtle">
-                            <FormattedMessage
-                              id="shareModal.dependentsLoseAccessThroughLink"
-                              defaultMessage="{count, plural, one {# person loses} other {# people lose}} access through this link. Keep anyone?"
-                              values={{ count: revokeTarget.dependents.length }}
-                            />
+                            {revokeTarget.dependents.length} {revokeTarget.dependents.length === 1 ? 'person loses' : 'people lose'} access through this link. Keep anyone?
                           </p>
                           <DependentKeepList
                             dependents={revokeTarget.dependents}

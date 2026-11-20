@@ -8,7 +8,6 @@ import type { RpcStub } from 'capnweb'
 import type { AuthenticatedApi, ConnectedAccountsSubscriber, GatekeeperVendorInfo } from '@gadgets/workshop-shared/api'
 import type { AccountDescription, SupportedResource } from '@gadgets/workshop-shared/gatekeeper'
 import ResourcePicker from './ResourcePicker'
-import { TestIntlProvider } from './i18n/testIntlProvider'
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -46,13 +45,11 @@ describe('ResourcePicker', () => {
     document.body.append(container)
     root = createRoot(container)
     await act(async () => root!.render(
-      <TestIntlProvider>
-        <ResourcePicker
-          authenticatedApi={authenticatedApi}
-          searchText="https://example.com"
-          onSelectAccount={() => {}}
-        />
-      </TestIntlProvider>,
+      <ResourcePicker
+        authenticatedApi={authenticatedApi}
+        searchText="https://example.com"
+        onSelectAccount={() => {}}
+      />,
     ))
 
     act(() => root!.unmount())

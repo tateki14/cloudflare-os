@@ -270,7 +270,6 @@ export default function SandboxedGatekeeperApp({ frame, gatekeeperVendorId }: {
 }) {
   const navigate = useNavigate()
   const { authenticatedApi } = useAuthenticatedApi()
-  const { formatMessage } = useIntl()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const sessionRef = useRef<{ [Symbol.dispose]?(): void } | null>(null)
   const hostRef = useRef<GatekeeperAppHostImpl | null>(null)

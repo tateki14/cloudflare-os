@@ -2,7 +2,6 @@ import { logRpcFailure } from '../rpcErrors'
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useKumoToastManager } from '@cloudflare/kumo'
-import { FormattedMessage, useIntl } from 'react-intl'
 import {
   MagnifyingGlass,
   ArrowsClockwise,
@@ -152,9 +151,7 @@ function ConnectorCard({
         className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-kumo-line bg-kumo-base px-3 text-[12px] leading-4 font-medium tracking-[-0.2px] text-kumo-default transition-[background-color,border-color,opacity,transform] duration-150 ease-out hover:border-kumo-fill hover:bg-kumo-tint active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
       >
         <ArrowsClockwise size={12} weight="bold" />
-        {reconnectBusy
-          ? <FormattedMessage id="gatekeepersPage.openingEllipsis" defaultMessage="Opening..." />
-          : <FormattedMessage id="gatekeepersPage.reconnect" defaultMessage="Reconnect" />}
+        {reconnectBusy ? 'Opening...' : 'Reconnect'}
       </button>
     ) : (
       <div className="grid h-7 w-7 place-items-center text-kumo-inactive transition-colors group-hover:text-kumo-default">
@@ -267,7 +264,6 @@ function ConnectorsHeroDiagram({
   vendors: VendorEntry[]
   siteName: string
 }) {
-  const { formatMessage } = useIntl()
   const [hoveredSource, setHoveredSource] = useState<number | null>(null)
   const seen = new Set<string>()
   const nodes = [
@@ -409,10 +405,7 @@ function ConnectorsHeroDiagram({
         <button
           type="button"
           className="themed-card-hover-shadow grid h-[52px] w-[52px] place-items-center rounded-2xl border border-kumo-line bg-kumo-base text-kumo-brand transition-[border-color,box-shadow] hover:border-kumo-fill focus:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-base"
-          aria-label={formatMessage({
-            id: 'gatekeepersPage.heroTooltipAriaLabel',
-            defaultMessage: 'Gatekeeper keeps Gadget access limited to connected resources',
-          })}
+          aria-label="Gatekeeper keeps Gadget access limited to connected resources"
         >
           <ShieldCheck size={21} weight="duotone" />
         </button>
@@ -423,13 +416,10 @@ function ConnectorsHeroDiagram({
             </div>
             <div className="min-w-0">
               <p className="m-0 text-[12px] leading-4 font-semibold tracking-[-0.2px] text-kumo-default">
-                <FormattedMessage id="gatekeepersPage.heroTooltipTitle" defaultMessage="Gatekeeper" />
+                Gatekeeper
               </p>
               <p className="mt-1 text-[11px] leading-4 font-normal tracking-[-0.1px] text-kumo-subtle">
-                <FormattedMessage
-                  id="gatekeepersPage.heroTooltipBody"
-                  defaultMessage="Keeps each workspace limited to the resources you connect and ensures every user has the required permissions before accessing them."
-                />
+                Keeps each workspace limited to the resources you connect and ensures every user has the required permissions before accessing them.
               </p>
             </div>
           </div>
@@ -455,8 +445,7 @@ type ModalTarget =
   | null
 
 function ConnectorsPage() {
-  const { formatMessage } = useIntl()
-  useDocumentTitle(formatMessage({ id: 'gatekeepersPage.documentTitle', defaultMessage: 'Gatekeepers' }))
+  useDocumentTitle('Gatekeepers')
   const siteName = useSiteName()
 
   const { authenticatedApi } = useAuthenticatedApi()
@@ -513,10 +502,7 @@ function ConnectorsPage() {
         const unavailable = vendorList.filter((v) => v.unavailable)
         if (unavailable.length > 0) {
           toasts.add({
-            title: formatMessage(
-              { id: 'gatekeepersPage.toastSomeUnavailable', defaultMessage: 'Some services are temporarily unavailable: {services}' },
-              { services: unavailable.map((v) => v.id).join(', ') },
-            ),
+            title: `Some services are temporarily unavailable: ${unavailable.map((v) => v.id).join(', ')}`,
             variant: 'warning',
           })
         }
@@ -569,7 +555,7 @@ function ConnectorsPage() {
       cancelled = true
       subscription[Symbol.dispose]()
     }
-  }, [authenticatedApi, formatMessage])
+  }, [authenticatedApi])
 
   const handleOpenConnect = (vendorId: string) => {
     setModalTarget({ kind: 'connect', vendorId })
@@ -650,10 +636,7 @@ function ConnectorsPage() {
       handleCloseModal()
     } catch (err) {
       console.error('Failed to disconnect account:', err)
-      toasts.add({
-        title: formatMessage({ id: 'gatekeepersPage.toastDisconnectFailed', defaultMessage: 'Failed to disconnect account' }),
-        variant: 'error',
-      })
+      toasts.add({ title: 'Failed to disconnect account', variant: 'error' })
     } finally {
       setDisconnecting(false)
     }
@@ -749,13 +732,11 @@ function ConnectorsPage() {
         <header className="mb-8 grid gap-8 lg:grid-cols-[minmax(0,540px)_444px] lg:items-center lg:justify-between">
           <div>
             <h1 className="m-0 text-3xl font-semibold leading-tight tracking-tight text-kumo-default sm:text-[34px]">
-              <FormattedMessage id="gatekeepersPage.heading" defaultMessage="Gatekeepers" />
+              Gatekeepers
             </h1>
             <p className="mt-2 text-[14px] leading-[20px] font-normal tracking-[-0.25px] text-kumo-subtle">
-              <FormattedMessage
-                id="gatekeepersPage.description"
-                defaultMessage="Add the apps and accounts your workspaces can use. Connect once, then wire them into anything you build."
-              />
+              Add the apps and accounts your workspaces can use. Connect once, then wire
+              them into anything you build.
             </p>
           </div>
           <ConnectorsHeroDiagram accounts={accounts} vendors={vendors} siteName={siteName} />
@@ -771,7 +752,7 @@ function ConnectorsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={formatMessage({ id: 'gatekeepersPage.searchPlaceholder', defaultMessage: 'Search gatekeepers…' })}
+              placeholder="Search gatekeepers…"
               className="h-10 w-full rounded-lg border border-kumo-line bg-kumo-base pl-9 pr-4 text-[14px] leading-5 tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive transition-[border-color,box-shadow] focus:border-kumo-ring focus:outline-none focus:ring-[3px] focus:ring-kumo-ring/15"
             />
           </div>
@@ -781,32 +762,29 @@ function ConnectorsPage() {
         {loadError && (
           <div className="rounded-2xl border border-kumo-line bg-kumo-base px-4 py-6 text-center">
             <p className="m-0 text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-danger">
-              <FormattedMessage id="gatekeepersPage.loadError" defaultMessage="Something went wrong loading your gatekeepers." />
+              Something went wrong loading your gatekeepers.
             </p>
             <p className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-              <FormattedMessage id="gatekeepersPage.loadErrorHint" defaultMessage="Check your connection and try refreshing the page." />
+              Check your connection and try refreshing the page.
             </p>
           </div>
         )}
 
         {initialLoading && (
           <div className="rounded-2xl border border-kumo-line bg-kumo-base px-4 py-8 text-center text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-            <FormattedMessage id="gatekeepersPage.loading" defaultMessage="Loading gatekeepers..." />
+            Loading gatekeepers...
           </div>
         )}
 
         {filteredAccounts.length > 0 && (
           <section className="mb-10">
-            <SectionEyebrow
-              label={formatMessage({ id: 'gatekeepersPage.connectedSectionLabel', defaultMessage: 'Connected' })}
-              count={filteredAccounts.length}
-            />
+            <SectionEyebrow label="Connected" count={filteredAccounts.length} />
             <div className={sectionGridClass}>
               {filteredAccounts.map((account) => {
                 const displayName =
                   account.accountDescription.displayName ??
                   account.accountDescription.uniqueName ??
-                  formatMessage({ id: 'gatekeepersPage.connectedFallback', defaultMessage: 'Connected' })
+                  'Connected'
                 const tagline = account.vendorDescription.tagline
                 return (
                   <ConnectorCard
@@ -823,7 +801,7 @@ function ConnectorsPage() {
                       >
                         {account.credentialsValid
                           ? displayName
-                          : <FormattedMessage id="gatekeepersPage.credentialsExpired" defaultMessage="Credentials expired" />}
+                          : 'Credentials expired'}
                       </span>
                     }
                     tagline={tagline}
@@ -841,7 +819,7 @@ function ConnectorsPage() {
 
         {filteredAvailable.length > 0 && (
           <section className="mb-10">
-            <SectionEyebrow label={formatMessage({ id: 'gatekeepersPage.availableSectionLabel', defaultMessage: 'Available' })} />
+            <SectionEyebrow label="Available" />
             <div className={sectionGridClass}>
 
               {filteredAvailable.map((vendor) => (
@@ -868,18 +846,13 @@ function ConnectorsPage() {
             <EmptyState
               title={
                 search
-                  ? formatMessage({ id: 'gatekeepersPage.noMatchTitle', defaultMessage: 'No gatekeepers match' })
-                  : formatMessage({ id: 'gatekeepersPage.noneYetTitle', defaultMessage: 'No gatekeepers yet' })
+                  ? 'No gatekeepers match'
+                  : 'No gatekeepers yet'
               }
               description={
                 search
-                  ? formatMessage({
-                      id: 'gatekeepersPage.noMatchDescription', defaultMessage: "We couldn't find anything matching your search.",
-                    })
-                  : formatMessage({
-                      id: 'gatekeepersPage.noneYetDescription',
-                      defaultMessage: 'Gatekeepers will appear here as they become available in your workspace.',
-                    })
+                  ? "We couldn't find anything matching your search."
+                  : 'Gatekeepers will appear here as they become available in your workspace.'
               }
               icon={Plugs}
             />

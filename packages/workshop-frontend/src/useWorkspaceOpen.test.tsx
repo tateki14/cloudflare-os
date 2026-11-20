@@ -80,13 +80,11 @@ function WorkspaceProbe({ authenticatedApi }: { authenticatedApi: RpcStub<Authen
   })
   if (state.error?.kind === 'open') {
     return (
-      <TestIntlProvider>
-        <WorkspaceOpenErrorPage
-          kind={state.error.failure}
-          onGoToWorkspaces={() => {}}
-          onRetry={state.retry}
-        />
-      </TestIntlProvider>
+      <WorkspaceOpenErrorPage
+        kind={state.error.failure}
+        onGoToWorkspaces={() => {}}
+        onRetry={state.retry}
+      />
     )
   }
   if (state.error?.kind === 'message') return <p>{state.error.message}</p>

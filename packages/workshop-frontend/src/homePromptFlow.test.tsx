@@ -54,7 +54,6 @@ vi.mock("./features/deployment-updates/UpdateAvailableNotice", () => ({ UpdateAv
 vi.mock("./useDocumentTitle", () => ({ useDocumentTitle: () => {} }));
 
 import { HomePageContent } from "./routes/index";
-import { TestIntlProvider } from "./i18n/testIntlProvider";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -75,11 +74,7 @@ describe("Home prompt route flow", () => {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
-    await act(async () => root!.render(
-      <TestIntlProvider>
-        <HomePageContent prompt="Create a daily brief." />
-      </TestIntlProvider>,
-    ));
+    await act(async () => root!.render(<HomePageContent prompt="Create a daily brief." />));
 
     expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Prompt"]')?.value).toBe(
       "Create a daily brief.",

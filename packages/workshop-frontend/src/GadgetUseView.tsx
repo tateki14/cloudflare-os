@@ -71,7 +71,6 @@ export default function GadgetUseView({
   authenticatedApi,
   currentUserId,
 }: Props) {
-  const { formatMessage } = useIntl()
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-kumo-base">
       {/* ═══ TOP BAR ════════════════════════════════════════════════════════════ */}

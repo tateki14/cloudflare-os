@@ -4,7 +4,6 @@ import {
   useCallback, useEffect, useId, useLayoutEffect, useRef, useState,
   type RefObject, type SetStateAction,
 } from "react";
-import { useIntl } from "react-intl";
 import type { Overseer, SlashCommandChoice } from "@gadgets/workshop-shared/api";
 import { ArrowsInIcon, CaretRightIcon, ScrollIcon } from "@phosphor-icons/react";
 import { KeyHint, PICKER_EMPTY } from "../../../../components/pickerRows";
@@ -73,7 +72,6 @@ export function useSlashCommandPicker({
    */
   chatExists: boolean;
 }) {
-  const { formatMessage } = useIntl();
   const [choices, setChoices] = useState<SlashCommandChoice[]>([]);
   const [choicesQuery, setChoicesQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -230,18 +228,14 @@ export function useSlashCommandPicker({
         ref={listRef}
         id={listboxId}
         role="listbox"
-        aria-label={formatMessage({ id: "slashCommandPicker.slashCommandsAriaLabel", defaultMessage: "Slash commands" })}
+        aria-label="Slash commands"
         aria-busy={loading}
         className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2"
       >
         {error ? (
-          <p className={PICKER_EMPTY}>
-            {formatMessage({ id: "slashCommandPicker.couldNotLoadCommands", defaultMessage: "Couldn’t load commands. {error}" }, { error })}
-          </p>
+          <p className={PICKER_EMPTY}>{`Couldn’t load commands. ${error}`}</p>
         ) : loading && choices.length === 0 ? (
-          <p className={PICKER_EMPTY}>
-            {formatMessage({ id: "slashCommandPicker.loadingCommands", defaultMessage: "Loading commands…" })}
-          </p>
+          <p className={PICKER_EMPTY}>Loading commands…</p>
         ) : choices.length > 0 ? (
           choices.map((choice, optionIndex) => (
             <button
@@ -279,9 +273,7 @@ export function useSlashCommandPicker({
           ))
         ) : (
           <p className={PICKER_EMPTY}>
-            {query
-              ? formatMessage({ id: "slashCommandPicker.noCommandsMatchSearch", defaultMessage: "No commands match your search." })
-              : formatMessage({ id: "slashCommandPicker.noCommandsAvailable", defaultMessage: "No commands are available." })}
+            {query ? "No commands match your search." : "No commands are available."}
           </p>
         )}
       </div>
@@ -306,13 +298,10 @@ export function useSlashCommandPicker({
     setIndex: selectIndex,
     status: open
       ? loading
-        ? formatMessage({ id: "slashCommandPicker.loadingSlashCommands", defaultMessage: "Loading slash commands" })
+        ? "Loading slash commands"
         : error
-          ? formatMessage({ id: "slashCommandPicker.slashCommandsUnavailable", defaultMessage: "Slash commands unavailable: {error}" }, { error })
-          : formatMessage(
-              { id: "slashCommandPicker.slashCommandsFound", defaultMessage: "{count, plural, one {# slash command found} other {# slash commands found}}" },
-              { count: choices.length },
-            )
+          ? `Slash commands unavailable: ${error}`
+          : `${choices.length} slash command${choices.length === 1 ? "" : "s"} found`
       : "",
   };
 }
