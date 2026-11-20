@@ -161,6 +161,7 @@ git push origin work
 
 - `src/i18n/messages/ja.json` — フラットな`{ "id": "訳文" }`マップ。全メッセージIDをここに集約
 - `src/i18n/testIntlProvider.tsx` — テスト用`<TestIntlProvider>`（`locale="en"`, `messages={{}}`, `MISSING_TRANSLATION`のみ無視するonError）。`messages`が空だと`defaultMessage`（＝元の英語）がそのまま描画されるため、既存テストの英語文字列アサーションを無改修で通せる
+- `src/i18n/testSetup.tsx` — vitestの`setupFiles`（`vite.config.ts`）。`react-dom/client`の`createRoot`をモックし、すべての`root.render()`を`<TestIntlProvider>`で包む。upstreamのテストはIntlProviderなしで`createRoot`するため、テストファイルを改修せずに通す（マージのたびに競合しないようにするため）
 - `main.tsx`で`<IntlProvider locale="ja" messages={jaMessages}>`をルートに1回だけ適用（`<ThemeProvider>`と同じ階層）
 
 ### 変換ルール
@@ -180,6 +181,8 @@ git push origin work
 ### 今後upstreamの新規UI文言を取り込む際の注意
 
 `work`へ`merge main`した際、upstream側で追加された新しいJSXテキストはそのままでは英語表示になる（`ja.json`に対応IDがないだけでビルド・テスト自体は通ってしまう）。取り込み後は上記の変換ルールに従って新規文字列をラップし、`ja.json`に翻訳を追加すること。カバレッジは「全`.tsx`から`id: '...'`/`id="..."`パターンを正規表現で抽出し`ja.json`のキー集合との差分を取る」小さなNodeスクリプトで機械的にチェックできる（差分ゼロを確認してからコミットする）。
+
+2026-11-21のupstream取り込み（371コミット）では、upstreamと日本語化の両方が変更したファイル（74ファイル）で大量に競合したため、それらはupstream版を丸ごと採用した。該当ファイルは英語表示に戻っているため、上記ルールで再翻訳が必要。また`package.json`の競合で`react-intl`依存が消えるので、取り込み後は残っているか確認すること。
 
 ### 検証結果（2026-08-12）
 
