@@ -2,9 +2,11 @@ import type { WorkpieceSummary } from "@gadgets/workshop-shared/api";
 import { describe, expect, it } from "vitest";
 import { EvalVerifier, resolveGadget, type VerifierSession } from "./verifier.js";
 import type { EvalCheck } from "./task.js";
+import { ViewHostError } from "./view-host.js";
 
 const unusedSession: VerifierSession = {
   openGadget: async () => { throw new Error("openGadget is not used by this test"); },
+  connectionDrops: 0,
 };
 
 function gadget(id: number, title: string): WorkpieceSummary {
@@ -105,5 +107,47 @@ describe("EvalVerifier", () => {
     });
     expect(checks.at(0)).toEqual({ id: "same", pass: true });
     expect(checks.at(1)?.evidence).toContain("Duplicate eval check ID");
+  });
+
+  it("fails verification when a check fails as the Workshop connection drops", async () => {
+    const session = { ...unusedSession, connectionDrops: 0 };
+    await expect(new EvalVerifier(session, []).collect(async verifier => {
+      await verifier.check("reads", async () => {
+        session.connectionDrops++;
+        throw new Error("Network connection lost.");
+      });
+    })).rejects.toThrow("The Workshop connection dropped during verification");
+  });
+
+  it("keeps a verification whose checks passed while the connection dropped", async () => {
+    const session = { ...unusedSession, connectionDrops: 0 };
+    expect(await new EvalVerifier(session, []).collect(async verifier => {
+      await verifier.check("reads", async () => {
+        session.connectionDrops++;
+        return { pass: true };
+      });
+    })).toEqual([{ id: "reads", pass: true }]);
+  });
+
+  it("fails verification when the browser running a view fails in a check", async () => {
+    const failure = new ViewHostError("Chromium closed");
+    await expect(collect(async verifier => {
+      await verifier.check("renders", async () => { throw failure; });
+      await verifier.check("still-runs", async () => ({ pass: true }));
+    })).rejects.toBe(failure);
+  });
+
+  it("fails verification when the browser running a view fails outside a check", async () => {
+    const failure = new ViewHostError("Chromium did not start");
+    await expect(collect(async verifier => {
+      await verifier.check("before", async () => ({ pass: true }));
+      throw failure;
+    })).rejects.toBe(failure);
+  });
+
+  it("records a view's own error as a failed check, not a failed verification", async () => {
+    expect(await collect(async verifier => {
+      await verifier.check("renders", async () => { throw new Error("The view never loaded"); });
+    })).toEqual([{ id: "renders", pass: false, evidence: "Error: The view never loaded" }]);
   });
 });

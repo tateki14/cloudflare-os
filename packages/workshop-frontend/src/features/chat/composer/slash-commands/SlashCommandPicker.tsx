@@ -7,7 +7,7 @@ import {
 import { useIntl } from "react-intl";
 import type { Overseer, SlashCommandChoice } from "@gadgets/workshop-shared/api";
 import { ArrowsInIcon, CaretRightIcon, ScrollIcon } from "@phosphor-icons/react";
-import { PICKER_EMPTY, TabHint } from "../../../../components/pickerRows";
+import { KeyHint, PICKER_EMPTY } from "../../../../components/pickerRows";
 import {
   exactSlashCommandMatches, filterSlashCommandCatalog, parseSlashCommandInput,
   slashCommandTokenKey, type ParsedSlashCommandInput,
@@ -272,7 +272,7 @@ export function useSlashCommandPicker({
               </span>
               {optionIndex === index && selectable && (
                 <span className="ml-1">
-                  <TabHint />
+                  <KeyHint keyName="Tab" />
                 </span>
               )}
             </button>

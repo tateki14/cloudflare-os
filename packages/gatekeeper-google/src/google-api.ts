@@ -4,11 +4,13 @@
 
 import { AccountDescription } from "@gadgets/workshop-shared/gatekeeper";
 import {
-  EmailAddress, GmailAttachmentInfo, GmailComposeOptions, GmailHeader, GmailReplyOptions,
+  EmailAddress, GmailAttachmentInfo, GmailAttachmentInput, GmailComposeOptions, GmailHeader, GmailReplyOptions,
 } from "./types";
 import { createMimeMessage } from "mimetext/browser";
 import PostalMime, { addressParser } from "postal-mime";
+import type {Attachment as PostalAttachment} from "postal-mime";
 import { AccessTokenProvider, fetchWithAuthRetry } from "./auth-retry";
+import { reportGoogleRequestFailure, safeProviderCode } from "./google-response";
 
 /**
  * Internal type for parsed message info with raw label IDs (not yet resolved
@@ -31,10 +33,18 @@ export type GmailThreadInfoRaw = {
   snippet?: string;
   subject: string;
   messageCount: number;
+  latestMessageId: string;
   timestamp: Date;
   participants: EmailAddress[];
   unread: boolean;
   labelIds: string[];
+};
+
+/** A thread's snippet and per-message metadata, from which its summary is computed. */
+export type GmailThreadMetadataRaw = {
+  id: string;
+  snippet?: string;
+  messages: GmailMessageInfoRaw[];
 };
 
 export type GmailNormalizedRecipients = {
@@ -50,6 +60,8 @@ export type GmailOutboundAttachment = {
   disposition?: "attachment" | "inline";
   contentId?: string;
   description: string;
+  /** `"agent"` on a file the agent uploaded; omitted on bytes copied from this mailbox. */
+  origin?: "agent";
 };
 
 export type GmailOutboundSpec = GmailNormalizedRecipients & {
@@ -140,7 +152,8 @@ export async function exchangeAuthCode(
 }
 
 export type RefreshFailure =
-  | { ok: false; reason: "revoked" }
+  /** Google's `invalid_grant`. `subtype` is its `error_subtype`, such as `invalid_rapt`, when it sends one. */
+  | { ok: false; reason: "revoked"; subtype?: string }
   | { ok: false; reason: "policyBlocked"; detail: string };
 
 export type AccessTokenResult = { ok: true; token: GoogleAccessToken } | RefreshFailure;
@@ -168,9 +181,12 @@ export async function getAccessToken(
     let isJson = contentType && contentType.startsWith("application/json");
 
     if (isJson) {
-      let body = await response.json<{error?: string, error_description?: string}>();
+      let body = await response.json<{
+        error?: string, error_description?: string, error_subtype?: unknown,
+      }>();
       if (body.error === "invalid_grant") {
-        return { ok: false, reason: "revoked" };
+        let subtype = safeProviderCode(body.error_subtype);
+        return { ok: false, reason: "revoked", ...(subtype !== undefined ? { subtype } : {}) };
       }
       if (body.error === "admin_policy_enforced") {
         return { ok: false, reason: "policyBlocked",
@@ -198,24 +214,22 @@ export async function getAccessToken(
   };
 }
 
-type GoogleAccountProfile = {
+export type GoogleAccountProfile = {
+  /** The stable Google account ID; also the `{user}` in Chat's `users/{user}` names. */
   sub: string;
   email?: string;
   name?: string;
   picture?: string;
 };
 
-async function getGoogleAccountProfile(accessToken: string): Promise<GoogleAccountProfile> {
-  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+export async function getGoogleAccountProfile(accessToken: string | AccessTokenProvider): Promise<GoogleAccountProfile> {
+  const response = await fetchWithAuthRetry('https://www.googleapis.com/oauth2/v3/userinfo', {
     method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Accept': 'application/json',
-    },
-  });
+    headers: { 'Accept': 'application/json' },
+  }, typeof accessToken === "string" ? async () => accessToken : accessToken);
 
   if (!response.ok) {
-    response.body?.cancel();
+    await response.body?.cancel();
     throw new Error(`Failed to fetch user info: ${response.status} ${response.statusText}`);
   }
 
@@ -246,6 +260,13 @@ export async function getGoogleAccountDescription(accessToken: string)
  * verified (`email_verified`). Returns null otherwise, so the Workshop never keys an account by an
  * unverified address.
  */
+/** Google's userinfo endpoint refused the token. */
+export class GoogleUserInfoError extends Error {
+  constructor(readonly status: number, statusText: string) {
+    super(`Failed to fetch user info: ${status} ${statusText}`);
+  }
+}
+
 export async function getGoogleVerifiedEmail(accessToken: string): Promise<string | null> {
   const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     method: 'GET',
@@ -257,7 +278,7 @@ export async function getGoogleVerifiedEmail(accessToken: string): Promise<strin
 
   if (!response.ok) {
     response.body?.cancel();
-    throw new Error(`Failed to fetch user info: ${response.status} ${response.statusText}`);
+    throw new GoogleUserInfoError(response.status, response.statusText);
   }
 
   let data: any = await response.json();
@@ -379,7 +400,7 @@ export type GmailLabelRaw = {
   type: "system" | "user";
 };
 
-// Metadata-only thread response (format=metadata). Used by getThreadInfo()
+// Metadata-only thread response (format=metadata). Used by getThreadMetadata()
 // to avoid downloading full message payloads.
 type GmailThreadMetadata = {
   id: string;
@@ -393,6 +414,12 @@ type GmailThreadMetadata = {
 export const MAX_GMAIL_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 /** Conservative raw-message ceiling aligned with Gmail's documented 25 MB personal limit. */
 export const MAX_GMAIL_FORWARD_SOURCE_BYTES = 25 * 1024 * 1024;
+/** Gmail's per-call limit on message IDs for `users.messages.batchModify`. */
+export const GMAIL_BATCH_MODIFY_MAX_IDS = 1000;
+// How long Gmail is given to begin its answer to a streamed attachment read.
+const GMAIL_ATTACHMENT_OPEN_TIMEOUT_MS = 60_000;
+// The base64 characters of 64 KiB of an inline attachment, less a byte so that they are whole quartets.
+const GMAIL_INLINE_ATTACHMENT_STEP_CHARS = Math.floor(64 * 1024 / 3) * 4;
 const MAX_GMAIL_MESSAGE_HEADERS = 256;
 const MAX_GMAIL_MESSAGE_HEADER_BYTES = 128 * 1024;
 
@@ -455,6 +482,184 @@ function base64UrlToBase64(data: string): string {
 export function decodeBase64UrlToBytes(data: string): Uint8Array {
   const binary = atob(base64UrlToBase64(data));
   return Uint8Array.from(binary, c => c.charCodeAt(0));
+}
+
+// The value of each base64 character, in the URL-safe alphabet and the standard one; -1 for the rest.
+const BASE64_SEXTETS = new Int8Array(256).fill(-1);
+for (const last of ["-_", "+/"]) {
+  const alphabet = `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789${last}`;
+  for (let i = 0; i < 64; i++) BASE64_SEXTETS[alphabet.charCodeAt(i)] = i;
+}
+// What a JSON number, `true`, `false` or `null` is written with.
+const JSON_SCALAR_RE = /[-+.0-9A-Za-z]/;
+
+/**
+ * Decodes the `data` string of a Gmail `attachments.get` JSON answer as it arrives: the
+ * attachment's bytes, of which there must be exactly `size`. Nothing of `json` is read before the
+ * result is, each of its chunks is decoded as it comes and kept no longer, and cancelling the
+ * result cancels `json`.
+ *
+ * The answer is one object whose members are strings, numbers, `true`, `false` or `null`, around
+ * `data` in any order. `data` is base64 in either alphabet, padded or not, and any of its characters may be written
+ * as a JSON escape, as `=` is by some serializers. Any other answer errors the stream, with no
+ * text of the answer in the error. So does a count of bytes that is not `size`: as soon as there
+ * are more, and at the string's end when there are fewer.
+ */
+export function gmailAttachmentBytes(
+    json: ReadableStream<Uint8Array>, size: number): ReadableStream<Uint8Array> {
+  const reader = json.getReader();
+  const invalid = () => new Error("Gmail returned an invalid attachment response.");
+  const mismatch = () => new Error("Attachment content no longer matches the authorized snapshot.");
+  let state: "open" | "member" | "key" | "colon" | "value" | "string" | "scalar" | "data" |
+    "after" | "end" = "open";
+  let escaped = false;
+  // How much of `data` the member's key has matched so far; -1 once it is some other key.
+  let matched = 0;
+  let found = false;
+  // Where in an escape `data` stands: 0 outside one, 1 after its `\`, 2 to 5 at the hex digits
+  // of `\uXXXX`, whose value so far is `unit`.
+  let escapeAt = 0;
+  let unit = 0;
+  // The bits of the string not yet written out as a byte, and how many of them there are.
+  let pending = 0;
+  let bits = 0;
+  let padding = 0;
+  let total = 0;
+  const decode = (chunk: Uint8Array): Uint8Array => {
+    const bytes = new Uint8Array(Math.ceil(chunk.byteLength * 3 / 4) + 1);
+    let length = 0;
+    for (let i = 0; i < chunk.byteLength; i++) {
+      const byte = chunk[i];
+      if (state === "data") {
+        // The character this byte is, or the one that the escape it ends stands for.
+        let char = byte;
+        if (escapeAt === 1) {
+          // `\/` and `\uXXXX` are the escapes that can stand for a base64 character.
+          if (byte === 0x75) {
+            escapeAt = 2;
+            unit = 0;
+            continue;
+          }
+          if (byte !== 0x2f) throw invalid();
+          escapeAt = 0;
+        } else if (escapeAt > 1) {
+          const digit = parseInt(String.fromCharCode(byte), 16);
+          if (Number.isNaN(digit)) throw invalid();
+          unit = unit << 4 | digit;
+          if (escapeAt++ < 5) continue;
+          escapeAt = 0;
+          char = unit;
+        } else if (byte === 0x5c) {
+          escapeAt = 1;
+          continue;
+        } else if (byte === 0x22) {
+          if (bits === 6) throw invalid();
+          if (total + length !== size) throw mismatch();
+          state = "after";
+          continue;
+        }
+        // A character past the table has no sextet, and is refused as the rest are.
+        const sextet = BASE64_SEXTETS[char];
+        if (sextet >= 0 && padding === 0) {
+          pending = (pending << 6 | sextet) & 0xfff;
+          bits += 6;
+          if (bits >= 8) {
+            bits -= 8;
+            bytes[length++] = pending >> bits;
+          }
+        } else if (char === 0x3d && bits !== 6 && padding < bits / 2) {
+          // `=`, as many as the last quartet is short of: 4 bits are left after two characters.
+          padding++;
+        } else {
+          throw invalid();
+        }
+        continue;
+      }
+      const blank = byte === 0x20 || byte === 0x0a || byte === 0x0d || byte === 0x09;
+      switch (state) {
+        case "open":
+          if (byte === 0x7b) state = "member";
+          else if (!blank) throw invalid();
+          break;
+        case "member":
+          if (byte === 0x22) {
+            state = "key";
+            matched = 0;
+          } else if (byte === 0x7d) state = "end";
+          else if (!blank) throw invalid();
+          break;
+        case "key":
+        case "string":
+          if (escaped) escaped = false;
+          else if (byte === 0x5c) {
+            escaped = true;
+            matched = -1;
+          } else if (byte === 0x22) state = state === "key" ? "colon" : "after";
+          else if (state === "key") {
+            matched = matched >= 0 && byte === "data".charCodeAt(matched) ? matched + 1 : -1;
+          }
+          break;
+        case "colon":
+          if (byte === 0x3a) state = "value";
+          else if (!blank) throw invalid();
+          break;
+        case "value":
+          if (blank) break;
+          if (matched === 4) {
+            if (byte !== 0x22 || found) throw invalid();
+            found = true;
+            state = "data";
+          } else if (byte === 0x22) state = "string";
+          else if (JSON_SCALAR_RE.test(String.fromCharCode(byte))) state = "scalar";
+          else throw invalid();
+          break;
+        case "scalar":
+        case "after":
+          if (state === "scalar" && JSON_SCALAR_RE.test(String.fromCharCode(byte))) break;
+          if (byte === 0x2c) state = "member";
+          else if (byte === 0x7d) state = "end";
+          else if (blank) state = "after";
+          else throw invalid();
+          break;
+        case "end":
+          if (!blank) throw invalid();
+      }
+    }
+    total += length;
+    if (total > size) throw mismatch();
+    return bytes.subarray(0, length);
+  };
+  let cancelled = false;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          // Cancelling ends a read in progress the way the answer's own end does.
+          if (cancelled) return;
+          if (chunk.done) {
+            if (state !== "end") throw invalid();
+            if (!found) throw new Error("Attachment content is no longer available.");
+            controller.close();
+            return;
+          }
+          const bytes = decode(chunk.value);
+          if (bytes.byteLength > 0) {
+            controller.enqueue(bytes);
+            return;
+          }
+        }
+      } catch (error) {
+        // An answer that broke or was refused is let go, and the stream errors with the same.
+        reader.cancel(error).catch(() => {});
+        throw error;
+      }
+    },
+    cancel: reason => {
+      cancelled = true;
+      return reader.cancel(reason);
+    },
+  }, {highWaterMark: 0});
 }
 
 class UnsafeMimeReconstructionError extends Error {}
@@ -664,6 +869,23 @@ function normalizeReferences(references: string): string {
   return foldReferenceTokens(parseReferenceTokens(references));
 }
 
+/**
+ * The Message-ID `buildEncodedEmail` writes for `value` in a Message-ID or In-Reply-To header.
+ * @throws When the builder would refuse the value.
+ */
+export function normalizeMessageIdHeader(value: string): string {
+  return validateMessageId(value, "Message-ID");
+}
+
+/**
+ * The message IDs `buildEncodedEmail` writes, in order, for `references` in the References
+ * header. The header joins them with spaces, folded across lines.
+ * @throws When the builder would refuse the value.
+ */
+export function normalizeReferencesHeader(references: string): string[] {
+  return parseReferenceTokens(references);
+}
+
 function foldReferences(references: string | undefined, parentId: string): string {
   let valid: string[] = [];
   if (references) {
@@ -686,7 +908,12 @@ function foldReferences(references: string | undefined, parentId: string): strin
   return foldReferenceTokens(tokens);
 }
 
-function normalizeTextBody(body: string): string {
+/**
+ * The text `buildEncodedEmail` encodes for a plain-text or HTML body: every line break (CR, LF or
+ * CRLF) becomes CRLF, as RFC 5322 requires.
+ * @throws When the body contains a NUL character.
+ */
+export function normalizeTextBody(body: string): string {
   if (body.includes('\0')) throw new Error("Email body must not contain NUL bytes.");
   return body.replace(/\r\n|\r|\n/g, '\r\n');
 }
@@ -763,6 +990,52 @@ function validateDateHeader(value: string): string {
 
 function validateAttachmentContentType(value: string): string {
   return serializeParameterizedMimeHeader(parseParameterizedMimeHeader(value, true));
+}
+
+function normalizeAttachmentContentType(value: string): string {
+  const contentType = parseParameterizedMimeHeader(value, true);
+  // Filename is modeled separately. Normalize uploads and provider parts the same way so
+  // MIMEText's filename-derived name parameter cannot change their identity or fingerprint.
+  contentType.parameters = contentType.parameters.filter(parameter =>
+    parameter.name !== "name" && !parameter.name.startsWith("name*"));
+  return serializeParameterizedMimeHeader(contentType);
+}
+
+/**
+ * Validate a regular file upload of at most 10 MiB, returning its normalized filename and media
+ * type. Inline parts, path-like filenames, and multipart container types are not supported.
+ */
+export function normalizeGmailAttachmentInput(input: GmailAttachmentInput): GmailAttachmentInput {
+  const filename = validateAttachmentHeaderValue(input.filename, "filename");
+  if (!filename.trim() || filename === "." || filename === ".." || /[/\\]/.test(filename)) {
+    throw new Error("Invalid attachment filename.");
+  }
+  // A MIME parser decodes an RFC 2047 encoded word even inside an RFC 2231 parameter, so such a
+  // name would not read back as written, and the part could no longer be identified.
+  if (/=\?[^?]*\?[bq]\?[^?]*\?=/i.test(filename)) {
+    throw new Error("Attachment filename must not contain an RFC 2047 encoded word (=?charset?B?...?=).");
+  }
+  const mimeType = normalizeAttachmentContentType(input.mimeType);
+  if (baseMimeType(mimeType).startsWith("multipart/")) {
+    throw new Error("Multipart attachment uploads are not supported.");
+  }
+  if (input.content.byteLength > MAX_GMAIL_ATTACHMENT_BYTES) {
+    throw new Error(`Attachment exceeds the ${MAX_GMAIL_ATTACHMENT_BYTES}-byte limit.`);
+  }
+  return {filename, mimeType, content: input.content};
+}
+
+/** Validate a regular file upload and encode its exact bytes as an agent-supplied MIME part. */
+export function gmailAttachmentInputToOutbound(input: GmailAttachmentInput): GmailOutboundAttachment {
+  const {filename, mimeType, content} = normalizeGmailAttachmentInput(input);
+  return {
+    filename,
+    contentType: mimeType,
+    data: foldBase64(bytesToBase64(new Uint8Array(content))),
+    disposition: "attachment",
+    description: filename,
+    origin: "agent",
+  };
 }
 
 function baseMimeType(value: string): string {
@@ -905,7 +1178,12 @@ function encodeMimeParameter(value: string): string {
     `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
-function normalizeContentId(value: string): string {
+/**
+ * The Content-ID header value `buildEncodedEmail` writes for an attachment's `contentId`,
+ * bracketed.
+ * @throws When the builder would refuse the value.
+ */
+export function normalizeContentId(value: string): string {
   const trimmed = value.trim();
   const id = trimmed.startsWith("<") && trimmed.endsWith(">")
     ? trimmed.slice(1, -1)
@@ -1078,7 +1356,8 @@ type MimeAttachmentMetadata = {
   contentType: string;
   disposition: string | null;
   contentId: string | null;
-  exactBytes?: Uint8Array;
+  exactBytes: Uint8Array;
+  transferEncoded: boolean;
 };
 
 type MimeMetadataBudget = {remainingWork: number; entities: number};
@@ -1203,16 +1482,16 @@ function decodeMimeBase64Bytes(bytes: Uint8Array, budget: MimeMetadataBudget): U
   let sawPadding = false;
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   for (const byte of bytes) {
-    if (byte === 9 || byte === 10 || byte === 13 || byte === 32) continue;
+    // RFC 2045 §6.8: base64 decoders ignore characters outside the alphabet, as PostalMime does.
     if (byte === 61) {
       sawPadding = true;
       padding++;
       if (padding > 2) throw new Error("Invalid attachment base64 data.");
       continue;
     }
-    if (sawPadding) throw new Error("Invalid attachment base64 data.");
     const value = alphabet.indexOf(String.fromCharCode(byte));
-    if (value < 0) throw new Error("Invalid attachment base64 data.");
+    if (value < 0) continue;
+    if (sawPadding) throw new Error("Invalid attachment base64 data.");
     buffer = buffer << 6 | value;
     bits += 6;
     sextets++;
@@ -1339,8 +1618,12 @@ function extractMimeAttachmentMetadata(bytes: Uint8Array): MimeAttachmentMetadat
     contentType,
     disposition,
     contentId,
-    ...(!transferEncoding || transferEncoding === "7bit" || transferEncoding === "8bit" ||
-        transferEncoding === "binary" ? {exactBytes: body} : {}),
+    transferEncoded: transferEncoding === "base64" || transferEncoding === "quoted-printable",
+    exactBytes: transferEncoding === "base64"
+      ? decodeMimeBase64Bytes(body, budget)
+      : transferEncoding === "quoted-printable"
+        ? decodeQuotedPrintableBytes(body, budget)
+        : body,
   }));
 }
 
@@ -1354,91 +1637,14 @@ function requireAttachmentMetadata(
   return metadata;
 }
 
-/** One exact, unencoded top-level message/rfc822 MIME attachment. */
-export type ExtractedRfc822Attachment = {
-  bytes: Uint8Array;
-  filename?: string;
-  disposition?: string;
-  contentId?: string;
-};
-
-/** Extract unencoded top-level message/rfc822 attachment bodies without normalizing their bytes. */
-export function extractRfc822Attachments(raw: string): ExtractedRfc822Attachment[] {
-  const bytes = decodeBase64UrlToBytes(raw);
-  const encoder = new TextEncoder();
-  const headerSeparator = encoder.encode("\r\n\r\n");
-  const topHeaderEnd = byteSequenceIndex(bytes, headerSeparator);
-  if (topHeaderEnd < 0) throw new Error("Unable to parse Gmail draft MIME headers.");
-  const contentType = mimeHeaderValue(bytes.subarray(0, topHeaderEnd), "Content-Type");
-  if (!contentType) return [];
-  const parsedContentType = parseParameterizedMimeHeader(contentType, true);
-  if (!parsedContentType.value.startsWith("multipart/")) return [];
-  const boundary = validateMimeBoundary(parameterValue(parsedContentType, "boundary"));
-
-  const delimiter = encoder.encode(`--${boundary}`);
-  const nextDelimiter = encoder.encode(`\r\n--${boundary}`);
-  let cursor = byteSequenceIndex(bytes, delimiter, topHeaderEnd + headerSeparator.length);
-  if (cursor < 0) throw new Error("Unable to find Gmail draft MIME boundary.");
-  const attachments: ExtractedRfc822Attachment[] = [];
-  for (;;) {
-    cursor += delimiter.length;
-    const closing = bytes[cursor] === 45 && bytes[cursor + 1] === 45;
-    if (closing) cursor += 2;
-    while (bytes[cursor] === 32 || bytes[cursor] === 9) cursor++;
-    if (closing) {
-      if (cursor !== bytes.length && (bytes[cursor] !== 13 || bytes[cursor + 1] !== 10)) {
-        throw new Error("Invalid Gmail draft MIME boundary line.");
-      }
-      break;
-    }
-    if (bytes[cursor] !== 13 || bytes[cursor + 1] !== 10) {
-      throw new Error("Invalid Gmail draft MIME boundary line.");
-    }
-    const partStart = cursor + 2;
-    const partEnd = byteSequenceIndex(bytes, nextDelimiter, partStart);
-    if (partEnd < 0) throw new Error("Unterminated Gmail draft MIME part.");
-    const partHeaderEnd = byteSequenceIndex(bytes, headerSeparator, partStart);
-    if (partHeaderEnd < 0 || partHeaderEnd > partEnd) {
-      throw new Error("Invalid Gmail draft MIME part headers.");
-    }
-    const partHeaders = bytes.subarray(partStart, partHeaderEnd);
-    const rawContentType = mimeHeaderValue(partHeaders, "Content-Type");
-    const partContentType = rawContentType?.toLowerCase();
-    if (partContentType?.startsWith("message/rfc822")) {
-      const transferEncoding = mimeTransferEncoding(
-        mimeHeaderValue(partHeaders, "Content-Transfer-Encoding")) ?? "7bit";
-      if (transferEncoding === "base64" || transferEncoding === "quoted-printable") {
-        cursor = partEnd + 2;
-        continue;
-      }
-      if (transferEncoding !== "7bit" && transferEncoding !== "8bit" &&
-          transferEncoding !== "binary") {
-        throw new Error("A message/rfc822 draft attachment uses an unsupported transfer encoding.");
-      }
-      const rawDisposition = mimeHeaderValue(partHeaders, "Content-Disposition");
-      const contentId = mimeHeaderValue(partHeaders, "Content-ID")?.replace(/^<|>$/g, "");
-      const filename = mimeParameter(rawDisposition, "filename", "content-disposition") ??
-        mimeParameter(rawContentType, "name", "content-type");
-      const disposition = rawDisposition
-        ? parseParameterizedMimeHeader(rawDisposition).value
-        : undefined;
-      attachments.push({
-        bytes: bytes.slice(partHeaderEnd + headerSeparator.length, partEnd),
-        ...(filename ? {filename} : {}),
-        ...(disposition ? {disposition} : {}),
-        ...(contentId ? {contentId} : {}),
-      });
-    }
-    cursor = partEnd + 2;
-  }
-  return attachments;
-}
-
 /**
  * Build a Gmail API base64url RFC 5322 payload. The subject is replaced after MIMEText
  * serialization because its single encoded-word form can exceed the header-line limit.
+ * `historical` reproduces the pre-upgrade builder, for historical verification only: its
+ * placeholder filename made MIMEText treat every part as a regular attachment, and it left
+ * MIMEText's extra CRLF inside each non-final unencoded nested message.
  */
-export function buildEncodedEmail(options: GmailOutboundSpec): string {
+export function buildEncodedEmail(options: GmailOutboundSpec, historical = false): string {
   const msg = createMimeMessage();
 
   // oxlint-disable-next-line no-control-regex -- intentionally rejecting control chars (header-injection guard)
@@ -1504,7 +1710,8 @@ export function buildEncodedEmail(options: GmailOutboundSpec): string {
     const attachment = options.attachments[index];
     validateAttachmentHeaderValue(attachment.filename, "filename");
     const contentType = validateAttachmentContentType(attachment.contentType);
-    const token = `gadgets-attachment-${index}`;
+    // MIMEText classifies dispositions by substring, including the placeholder filename.
+    const token = historical ? `gadgets-attachment-${index}` : `gadgets-file-${index}`;
     attachmentFilenames.push({token, encoded: encodeMimeParameter(attachment.filename)});
     const nestedMessage = nestedMessageBytes.get(index);
     const placeholder = nestedMessage
@@ -1586,7 +1793,12 @@ export function buildEncodedEmail(options: GmailOutboundSpec): string {
             end - index !== encoder.encode(replacement.placeholder).length) {
           throw new Error("Unable to assemble nested message attachment.");
         }
-        replacements.push({index, length: end - index, replacement: replacement.bytes});
+        // MIMEText adds an extra CRLF after non-final parts. Base64 ignores it, but it
+        // would become part of an unencoded nested message; consume it with the placeholder.
+        const extraLineBreak = !historical &&
+          rawBytes[end] === 13 && rawBytes[end + 1] === 10 &&
+          rawBytes[end + 2] === 13 && rawBytes[end + 3] === 10 ? 2 : 0;
+        replacements.push({index, length: end - index + extraLineBreak, replacement: replacement.bytes});
       }
       searchFrom = Math.max(end, index + prefix.length);
     }
@@ -1664,7 +1876,8 @@ async function readGmailDraftWriteResult(
   return parseGmailDraftWriteResult(value, operation);
 }
 
-function shouldIncludeSpamTrash(query?: string, labelIds?: string[]): boolean {
+/** Whether a list request must ask Gmail for spam and trash, which it leaves out by default. */
+export function shouldIncludeSpamTrash(query?: string, labelIds?: string[]): boolean {
   if (labelIds?.some(id => id === "SPAM" || id === "TRASH")) return true;
   const operators = new Set(["in:anywhere", "in:spam", "in:trash", "label:spam", "label:trash"]);
   let token = "";
@@ -1728,29 +1941,64 @@ async function readErrorText(response: Response, maxBytes = 4096): Promise<strin
   return new TextDecoder().decode(bytes);
 }
 
-/** A status-only provider error that is safe to use for retry decisions and server logs. */
+// Google's reasons for a request it limited rather than refused, on a 403 or a 429. The limit is
+// the user's, or for `dailyLimitExceeded` the Google Cloud project's.
+const GMAIL_RATE_LIMIT_REASONS: ReadonlySet<string> = new Set([
+  "rateLimitExceeded", "userRateLimitExceeded", "dailyLimitExceeded", "RATE_LIMIT_EXCEEDED",
+]);
+
+// Google's reasons for a token that lacks the scope a request needs.
+const GMAIL_SCOPE_REASONS: ReadonlySet<string> = new Set([
+  "insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+]);
+
+/** What the caller can do about a failure Google gave one of these reasons for, if anything. */
+function gmailFailureRemedy(status: number, reasons: readonly string[]): string {
+  if (status === 429 || reasons.some(reason => GMAIL_RATE_LIMIT_REASONS.has(reason))) {
+    // A 429 and `rateLimitExceeded` are a per-minute quota or a daily limit alike, so no wait is
+    // promised, and the limit can be the project's, so it is not said to be this account's.
+    return " Gmail is limiting requests. Try again later, with fewer or smaller requests: " +
+      "a short-term limit lifts within a minute or so, but a daily limit, such as the one on sending mail, can take hours.";
+  }
+  if (reasons.some(reason => GMAIL_SCOPE_REASONS.has(reason))) {
+    return " The Google connection lacks a permission this needs: reconnect the Google account and allow the access it asks for.";
+  }
+  return "";
+}
+
+/**
+ * A provider error carrying Google's status and reason codes, never its prose, so it is safe to
+ * use for retry decisions and server logs.
+ */
 export class GmailApiError extends Error {
-  constructor(public readonly status: number, operation: string) {
-    super(`Gmail API ${operation} failed [http=${status}]`);
+  constructor(
+    public readonly status: number,
+    operation: string,
+    /** Google's reason codes for the failure, such as `rateLimitExceeded`; empty when it gave none. */
+    public readonly reasons: readonly string[] = [],
+  ) {
+    super(
+      `Gmail API ${operation} failed [http=${status}${reasons.length > 0 ? ` reason=${reasons.join(",")}` : ""}]` +
+      gmailFailureRemedy(status, reasons));
   }
 }
 
 async function gmailApiFailure(operation: string, response: Response): Promise<never> {
-  // Gmail error prose can reflect query and header values. Keep thrown errors safe to log.
-  try {
-    await response.body?.cancel();
-  } catch {
-    // Cancellation is best-effort; the HTTP status remains authoritative.
-  }
-  throw new GmailApiError(response.status, operation);
+  // Gmail error prose can reflect query and header values, so only Google's reason codes are kept:
+  // they tell a rate limit from a missing permission, which the status alone does not.
+  // A 404 is an answer callers expect and handle (a message, draft or label that is gone), so it
+  // is logged as information, not as a warning.
+  let { providerReasons } = await reportGoogleRequestFailure(
+      response, "Gmail", operation, response.status === 404 ? "info" : "warn");
+  throw new GmailApiError(response.status, operation, providerReasons);
 }
 
-function headerValue(
+export function headerValue(
     headers: Array<{name: string; value: string}> | undefined, name: string): string | undefined {
   return headers?.find(header => header.name.toLowerCase() === name.toLowerCase())?.value;
 }
 
-function parseAddressHeader(value: string | undefined): EmailAddress[] {
+export function parseAddressHeader(value: string | undefined): EmailAddress[] {
   return value ? postalAddressListToEmailAddresses(parseAddressList(value)) : [];
 }
 
@@ -1781,9 +2029,14 @@ export function summarizeGmailThread(
   const labelIds: string[] = [];
   const seenLabels = new Set<string>();
   let timestamp = 0;
+  let latestMessageId = "";
   let unread = false;
   for (const message of messages) {
-    timestamp = Math.max(timestamp, message.timestamp.getTime());
+    // Callers may pass messages in search order, so pick the newest by date; ties keep the later.
+    if (!latestMessageId || message.timestamp.getTime() >= timestamp) {
+      latestMessageId = message.id;
+      timestamp = message.timestamp.getTime();
+    }
     unread ||= message.labelIds.includes("UNREAD");
     for (const labelId of message.labelIds) {
       if (!seenLabels.has(labelId)) {
@@ -1804,6 +2057,7 @@ export function summarizeGmailThread(
     ...(snippet !== undefined ? {snippet} : {}),
     subject: messages[0]?.subject ?? "",
     messageCount: messages.length,
+    latestMessageId,
     timestamp: new Date(timestamp),
     participants,
     unread,
@@ -1850,7 +2104,8 @@ function classifyGmailPart(part: GmailPayloadPart, isRelatedRepresentation = fal
       ? "inline" as const
       : null;
   const contentId = cleanContentId(headerValue(part.headers, "Content-ID"));
-  const filename = part.filename?.trim() || null;
+  // A blank filename is none, but a named part keeps its exact name, as the raw MIME parser does.
+  const filename = part.filename?.trim() ? part.filename : null;
   const mimeType = part.mimeType?.toLowerCase();
   const isText = mimeType === "text/plain" || mimeType === "text/html";
   const isBody = isText && !filename && disposition !== "attachment" &&
@@ -1944,42 +2199,6 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function postalAttachmentBytes(
-    content: ArrayBuffer | Uint8Array | string, contentType: string,
-    exactBytes?: Uint8Array): Uint8Array {
-  const bytes = exactBytes ?? (typeof content === "string"
-    ? new TextEncoder().encode(content)
-    : content instanceof Uint8Array ? content : new Uint8Array(content));
-  const mediaType = baseMimeType(contentType);
-  if (mediaType !== "text/calendar" && mediaType !== "application/ics") return bytes;
-  if (exactBytes) return normalizeMimeLineEndings(bytes);
-  const text = new TextDecoder().decode(bytes).replace(/\r\n|\r|\n/g, "\r\n");
-  return new TextEncoder().encode(text);
-}
-
-function normalizeMimeLineEndings(bytes: Uint8Array): Uint8Array {
-  let size = bytes.length;
-  for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] === 13 && bytes[i + 1] === 10) i++;
-    else if (bytes[i] === 13 || bytes[i] === 10) size++;
-  }
-  const result = new Uint8Array(size);
-  let offset = 0;
-  for (let i = 0; i < bytes.length; i++) {
-    if (bytes[i] === 13 && bytes[i + 1] === 10) {
-      result[offset++] = 13;
-      result[offset++] = 10;
-      i++;
-    } else if (bytes[i] === 13 || bytes[i] === 10) {
-      result[offset++] = 13;
-      result[offset++] = 10;
-    } else {
-      result[offset++] = bytes[i];
-    }
-  }
-  return result;
-}
-
 function htmlEscape(value: string): string {
   return value.replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -2022,12 +2241,70 @@ function htmlForwardedHeaderBlock(original: import("postal-mime").Email): string
   return lines.join("<br>");
 }
 
+function normalizeLegacyCalendarLineEndings(bytes: Uint8Array): Uint8Array {
+  let size = bytes.length;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 13 && bytes[i + 1] === 10) i++;
+    else if (bytes[i] === 13 || bytes[i] === 10) size++;
+  }
+  if (size === bytes.length) return bytes;
+  const result = new Uint8Array(size);
+  let offset = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] !== 13 && bytes[i] !== 10) {
+      result[offset++] = bytes[i];
+      continue;
+    }
+    result[offset++] = 13;
+    result[offset++] = 10;
+    if (bytes[i] === 13 && bytes[i + 1] === 10) i++;
+  }
+  return result;
+}
+
+// The pre-byte-exact parser's view of a part, used only to verify unprefixed fingerprints.
+function legacyPostalAttachment(
+    attachment: PostalAttachment, metadata: MimeAttachmentMetadata,
+    contentType: string): {contentType: string; bytes: Uint8Array} {
+  const content = attachment.content;
+  // Before byte-exact attachments, only unencoded parts used the raw MIME body.
+  const bytes = !metadata.transferEncoded ? metadata.exactBytes
+    : typeof content === "string" ? new TextEncoder().encode(content)
+    : content instanceof Uint8Array ? content : new Uint8Array(content);
+  const mediaType = baseMimeType(contentType);
+  if (mediaType !== "text/calendar" && mediaType !== "application/ics") return {contentType, bytes};
+  return {
+    contentType: legacyCalendarContentType(attachment, contentType, metadata.transferEncoded),
+    bytes: metadata.transferEncoded
+      // PostalMime already decodes calendar charsets and normalizes their final newline.
+      ? new TextEncoder().encode(new TextDecoder().decode(bytes).replace(/\r\n|\r|\n/g, "\r\n"))
+      : normalizeLegacyCalendarLineEndings(bytes),
+  };
+}
+
+// The legacy parser kept unencoded calendars' charset but modeled encoded ones as UTF-8.
+function legacyCalendarContentType(
+    attachment: PostalAttachment, contentType: string, transferEncoded: boolean): string {
+  const parsedContentType = parseParameterizedMimeHeader(contentType, true);
+  if (transferEncoded) {
+    parsedContentType.parameters = parsedContentType.parameters.filter(parameter =>
+      parameter.name !== "charset" && !parameter.name.startsWith("charset*"));
+    parsedContentType.parameters.push({name: "charset", value: "utf-8"});
+  }
+  if (attachment.method !== undefined &&
+      !parsedContentType.parameters.some(parameter => parameter.name === "method")) {
+    parsedContentType.parameters.push({name: "method", value: attachment.method});
+  }
+  return validateAttachmentContentType(serializeParameterizedMimeHeader(parsedContentType));
+}
+
 function attachmentFromPostal(
-    attachment: import("postal-mime").Attachment,
-    metadata: MimeAttachmentMetadata): GmailOutboundAttachment {
-  const contentType = postalAttachmentContentType(
-    attachment, metadata.contentType, metadata.exactBytes !== undefined);
-  const bytes = postalAttachmentBytes(attachment.content, contentType, metadata.exactBytes);
+    attachment: PostalAttachment,
+    metadata: MimeAttachmentMetadata, legacy = false): GmailOutboundAttachment {
+  let contentType = postalAttachmentContentType(attachment, metadata.contentType);
+  let bytes = metadata.exactBytes;
+  if (legacy) ({contentType, bytes} = legacyPostalAttachment(attachment, metadata, contentType));
+  // MIMEText requires a string; an empty filename round-trips as unnamed.
   const filename = attachment.filename ?? "";
   const disposition = postalAttachmentDisposition(attachment);
   return {
@@ -2041,34 +2318,17 @@ function attachmentFromPostal(
 }
 
 function postalAttachmentDisposition(
-    attachment: import("postal-mime").Attachment): "inline" | "attachment" | undefined {
+    attachment: PostalAttachment): "inline" | "attachment" | undefined {
   if (attachment.related === true || attachment.disposition === "inline") return "inline";
   return attachment.disposition ? "attachment" : undefined;
 }
 
-function postalAttachmentContentType(
-    attachment: import("postal-mime").Attachment, original: string,
-    preserveCharset = false): string {
-  const contentType = parseParameterizedMimeHeader(original, true);
-  if (contentType.value !== baseMimeType(attachment.mimeType || "application/octet-stream")) {
+function postalAttachmentContentType(attachment: PostalAttachment, original: string): string {
+  const contentType = normalizeAttachmentContentType(original);
+  if (baseMimeType(contentType) !== baseMimeType(attachment.mimeType || "application/octet-stream")) {
     throw new Error("Unable to correlate Gmail attachment Content-Type metadata.");
   }
-  // Filename is modeled separately and MIMEText emits an RFC 2231 name matching it. Excluding the
-  // redundant source parameter keeps provider-normalized fingerprints stable across reconstruction.
-  contentType.parameters = contentType.parameters.filter(parameter =>
-    parameter.name !== "name" && !parameter.name.startsWith("name*"));
-  if (contentType.value === "text/calendar" || contentType.value === "application/ics") {
-    if (!preserveCharset) {
-      contentType.parameters = contentType.parameters.filter(parameter =>
-        parameter.name !== "charset" && !parameter.name.startsWith("charset*"));
-      contentType.parameters.push({name: "charset", value: "utf-8"});
-    }
-    if (attachment.method !== undefined &&
-        !contentType.parameters.some(parameter => parameter.name === "method")) {
-      contentType.parameters.push({name: "method", value: attachment.method});
-    }
-  }
-  return validateAttachmentContentType(serializeParameterizedMimeHeader(contentType));
+  return contentType;
 }
 
 export type GmailParsedDraft = GmailNormalizedRecipients & {
@@ -2203,7 +2463,20 @@ export function parseGmailDraftSnapshot(message: GmailMessageFull): GmailParsedD
 }
 
 /** Parse a draft's editable content and attachment bytes for drift checks and lossless updates. */
-export async function parseGmailDraft(message: GmailMessageRaw): Promise<GmailParsedDraft> {
+export function parseGmailDraft(message: GmailMessageRaw): Promise<GmailParsedDraft> {
+  return parseGmailDraftContent(message, false);
+}
+
+/**
+ * Parse a draft using pre-attachment-upgrade canonicalization for historical fingerprint checks.
+ * Calendar and encoded attachment bytes may be normalized; never use this representation to write.
+ */
+export function parseLegacyGmailDraft(message: GmailMessageRaw): Promise<GmailParsedDraft> {
+  return parseGmailDraftContent(message, true);
+}
+
+async function parseGmailDraftContent(
+    message: GmailMessageRaw, legacyAttachments: boolean): Promise<GmailParsedDraft> {
   const parsed = await parseMimeMessage(message.raw);
   assertDraftHeadersAreModeled(parsed.headers.map(header => header.originalKey));
   const reconstructionError = parsedMimeReconstructionErrors.get(parsed);
@@ -2223,22 +2496,8 @@ export async function parseGmailDraft(message: GmailMessageRaw): Promise<GmailPa
     ...(parsed.messageId ? {messageId: parsed.messageId} : {}),
     ...(parsed.inReplyTo ? {inReplyTo: parsed.inReplyTo} : {}),
     ...(parsed.references ? {references: parsed.references} : {}),
-    attachments: parsed.attachments.map((attachment, index) => {
-      const contentType = postalAttachmentContentType(
-        attachment, metadata[index].contentType, metadata[index].exactBytes !== undefined);
-      const bytes = postalAttachmentBytes(
-        attachment.content, contentType, metadata[index].exactBytes);
-      const disposition = postalAttachmentDisposition(attachment);
-      return {
-        // MIMEText requires a string; an empty filename round-trips as unnamed.
-        filename: attachment.filename ?? "",
-        contentType,
-        data: foldBase64(bytesToBase64(bytes)),
-        ...(disposition ? {disposition} : {}),
-        ...(attachment.contentId ? {contentId: attachment.contentId} : {}),
-        description: `${attachment.filename ?? "(unnamed)"} (${contentType}, ${bytes.byteLength} bytes)`,
-      };
-    }),
+    attachments: parsed.attachments.map((attachment, index) =>
+      attachmentFromPostal(attachment, metadata[index], legacyAttachments)),
   };
 }
 
@@ -2260,6 +2519,14 @@ function messageInfoFromParsed(
   };
 }
 
+/** A Gmail history ID, checked to be the decimal integer its readers compare as a `BigInt`. */
+function gmailHistoryId(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{1,20}$/.test(value)) {
+    throw new Error("Gmail returned an invalid history ID.");
+  }
+  return value;
+}
+
 export class GmailApi {
   private selfEmail: string;
 
@@ -2279,7 +2546,7 @@ export class GmailApi {
   // ─────────────────────────────────────────────────────────────────
 
   /**
-   * List threads. Gmail returns only IDs and snippets here; getThreadInfo()
+   * List threads. Gmail returns only IDs and snippets here; getThreadMetadata()
    * fetches the metadata needed for public thread summaries.
    */
   async listThreads(count: number, query?: string, pageToken?: string, labelIds?: string[]):
@@ -2343,10 +2610,10 @@ export class GmailApi {
   }
 
   /**
-   * Get aggregate thread metadata using a metadata-only fetch, without
-   * downloading message bodies or attachments.
+   * Get each message's metadata using a metadata-only fetch, without downloading message bodies
+   * or attachments. The caller summarizes the thread, so it can adjust the messages first.
    */
-  async getThreadInfo(threadId: string): Promise<GmailThreadInfoRaw> {
+  async getThreadMetadata(threadId: string): Promise<GmailThreadMetadataRaw> {
     validateGmailId(threadId, "thread ID");
 
     const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`);
@@ -2361,10 +2628,11 @@ export class GmailApi {
     }
 
     const thread = await response.json() as GmailThreadMetadata;
-    return summarizeGmailThread(
-      threadId, thread.snippet,
-      (thread.messages ?? []).map(parseGmailMessageMetadata),
-    );
+    return {
+      id: threadId,
+      snippet: thread.snippet,
+      messages: (thread.messages ?? []).map(parseGmailMessageMetadata),
+    };
   }
 
   /** Modify thread labels (for archive, trash, read/unread). */
@@ -2525,6 +2793,30 @@ export class GmailApi {
     return await response.json() as GmailMessageFull;
   }
 
+  /** Fetch only the named headers, every instance in message order, and the labels. */
+  async getMessageHeaders(messageId: string, names: readonly string[]): Promise<GmailMessageFull> {
+    validateGmailId(messageId, "message ID");
+    const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`);
+    url.searchParams.set("format", "metadata");
+    for (const name of names) url.searchParams.append("metadataHeaders", name);
+    const response = await this.authedFetch(url.toString());
+    if (!response.ok) await gmailApiFailure("messages.get", response);
+    return await response.json() as GmailMessageFull;
+  }
+
+  /** Every message in a thread with only the named headers, as {@link getMessageHeaders} fetches one. */
+  async getThreadHeaders(threadId: string, names: readonly string[]): Promise<GmailMessageFull[]> {
+    validateGmailId(threadId, "thread ID");
+    const url = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`);
+    url.searchParams.set("format", "metadata");
+    for (const name of names) url.searchParams.append("metadataHeaders", name);
+    const response = await this.authedFetch(url.toString());
+    if (!response.ok) await gmailApiFailure("threads.get", response);
+    const thread = await response.json() as {id?: string; messages?: GmailMessageFull[]};
+    if (thread.id !== threadId) throw new Error("Gmail returned a different thread.");
+    return thread.messages ?? [];
+  }
+
   /** Fetch the MIME tree while leaving detached attachment data lazy. */
   async getMessageFull(messageId: string): Promise<GmailMessageFull> {
     validateGmailId(messageId, "message ID");
@@ -2554,6 +2846,66 @@ export class GmailApi {
       throw new Error("Attachment content no longer matches the authorized snapshot.");
     }
     return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  }
+
+  /**
+   * The attachment's bytes as a stream, read from Gmail as it is read: this resolves once Gmail
+   * has begun its answer, with nothing of the body read, and cancelling the stream stops the
+   * download. Unlike {@link getAttachmentContent} it has no size limit and does not look at
+   * `info.readable`; the bytes must still number `info.size`, or the stream errors.
+   *
+   * Only the wait for the answer to begin is timed, the wait for a token to ask with included.
+   * Its body is read at the caller's pace, for as long as an attachment of any size takes, so
+   * the caller times a body that stalls.
+   */
+  async openAttachmentContent(snapshot: GmailAttachmentSnapshot): Promise<ReadableStream<Uint8Array>> {
+    if (snapshot.attachmentId) {
+      validateGmailId(snapshot.messageId, "message ID");
+      validateGmailId(snapshot.attachmentId, "attachment ID");
+      const begin = new AbortController();
+      const opening = this.authedFetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${snapshot.messageId}/attachments/${snapshot.attachmentId}?fields=data`,
+        {signal: begin.signal});
+      let timer!: ReturnType<typeof setTimeout>;
+      // The signal ends a request that was made. The wait for a token to make it with heeds no
+      // signal, so the open itself is given up when the time is out, and an answer that comes
+      // after all is let go: its body may have failed with the signal already, which nothing
+      // is left to hear of.
+      const late = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          const reason = new DOMException("Gmail did not answer in time.", "TimeoutError");
+          begin.abort(reason);
+          void opening.then(answer => answer.body?.cancel(reason)).catch(() => undefined);
+          reject(reason);
+        }, GMAIL_ATTACHMENT_OPEN_TIMEOUT_MS);
+      });
+      let response: Response;
+      try {
+        response = await Promise.race([opening, late]);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!response.ok) await gmailApiFailure("attachments.get", response);
+      return gmailAttachmentBytes(
+        response.body ?? new ReadableStream({start: controller => controller.close()}),
+        snapshot.info.size);
+    }
+    const encoded = snapshot.inlineData;
+    if (encoded === undefined) throw new Error("Attachment content is no longer available.");
+    if (base64UrlDecodedByteLength(encoded) !== snapshot.info.size) {
+      throw new Error("Attachment content no longer matches the authorized snapshot.");
+    }
+    let offset = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset < encoded.length) {
+          controller.enqueue(decodeBase64UrlToBytes(
+            encoded.slice(offset, offset + GMAIL_INLINE_ATTACHMENT_STEP_CHARS)));
+          offset += GMAIL_INLINE_ATTACHMENT_STEP_CHARS;
+        }
+        if (offset >= encoded.length) controller.close();
+      },
+    }, {highWaterMark: 0});
   }
 
   /** Decode body alternatives, fetching detached text parts within the attachment safety limit. */
@@ -2666,35 +3018,27 @@ export class GmailApi {
     return await response.json() as GmailMessageRaw;
   }
 
-  async modifyMessage(
-      messageId: string, addLabelIds: string[] = [], removeLabelIds: string[] = []): Promise<void> {
-    validateGmailId(messageId, "message ID");
+  /**
+   * Add and remove labels on exactly the listed messages in one call. Gmail accepts at most
+   * {@link GMAIL_BATCH_MODIFY_MAX_IDS} IDs per call. `TRASH` may be added or removed like any
+   * other label, which is how trash and untrash are expressed.
+   */
+  async batchModifyMessages(
+      messageIds: readonly string[], addLabelIds: string[] = [],
+      removeLabelIds: string[] = []): Promise<void> {
+    if (messageIds.length === 0 || messageIds.length > GMAIL_BATCH_MODIFY_MAX_IDS) {
+      throw new Error(
+        `Gmail batchModify requires between 1 and ${GMAIL_BATCH_MODIFY_MAX_IDS} message IDs.`);
+    }
+    for (const id of messageIds) validateGmailId(id, "message ID");
     for (const id of [...addLabelIds, ...removeLabelIds]) validateGmailId(id, "label ID");
     const response = await this.authedFetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({addLabelIds, removeLabelIds}),
+        body: JSON.stringify({ids: messageIds, addLabelIds, removeLabelIds}),
       });
-    if (!response.ok) await gmailApiFailure("messages.modify", response);
-    await response.body?.cancel();
-  }
-
-  async trashMessage(messageId: string): Promise<void> {
-    validateGmailId(messageId, "message ID");
-    const response = await this.authedFetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/trash`, {method: "POST"});
-    if (!response.ok) await gmailApiFailure("messages.trash", response);
-    await response.body?.cancel();
-  }
-
-  /** Restore one message from trash. */
-  async untrashMessage(messageId: string): Promise<void> {
-    validateGmailId(messageId, "message ID");
-    const response = await this.authedFetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/untrash`,
-      {method: "POST"});
-    if (!response.ok) await gmailApiFailure("messages.untrash", response);
+    if (!response.ok) await gmailApiFailure("messages.batchModify", response);
     await response.body?.cancel();
   }
 
@@ -2757,13 +3101,16 @@ export class GmailApi {
       text: body,
       ...(options.html !== undefined ? {html: options.html} : {}),
       messageId,
-      attachments: [],
+      attachments: (options.attachments ?? []).map(gmailAttachmentInputToOutbound),
     });
     return message;
   }
 
-  /** Build exactly the structured message persisted in an approval action. */
-  buildOutbound(spec: GmailOutboundSpec): GmailOutboundMessage {
+  /**
+   * Build exactly the structured message persisted in an approval action. Every outbound message
+   * passes through here, so this is where the MIME size ceiling is enforced.
+   */
+  buildOutbound(spec: GmailOutboundSpec, historical = false): GmailOutboundMessage {
     const recipients = {
       to: normalizeEmailRecipients(spec.to),
       cc: normalizeEmailRecipients(spec.cc),
@@ -2771,8 +3118,14 @@ export class GmailApi {
     };
     const replyTo = normalizeEmailRecipients(spec.replyTo ?? []);
     const normalized: GmailOutboundSpec = {...spec, ...recipients, replyTo};
+    const raw = buildEncodedEmail(normalized, historical);
+    // A historical build only verifies what the old builder wrote, and is never sent.
+    if (!historical && base64UrlDecodedByteLength(raw) > MAX_GMAIL_FORWARD_SOURCE_BYTES) {
+      throw new Error(
+        `The Gmail message exceeds the ${MAX_GMAIL_FORWARD_SOURCE_BYTES}-byte MIME limit.`);
+    }
     return {
-      raw: buildEncodedEmail(normalized),
+      raw,
       from: normalized.from,
       replyTo,
       ...recipients,
@@ -2815,6 +3168,7 @@ export class GmailApi {
       options: GmailReplyOptions = {},
       messageId = newGmailMessageId(),
   ): Promise<GmailOutboundMessage> {
+    const attachments = (options.attachments ?? []).map(gmailAttachmentInputToOutbound);
     const original = await parseMimeMessage(originalMessage.raw);
 
     const originalFrom = original.from ? postalAddressToEmailAddress(original.from) : undefined;
@@ -2891,7 +3245,7 @@ export class GmailApi {
       messageId,
       inReplyTo: parentId,
       references,
-      attachments: [],
+      attachments,
     });
 
     return message;
@@ -2901,6 +3255,7 @@ export class GmailApi {
    * Build a Gmail-style inline forward. The source body is quoted below the
    * standard forwarded-message header block, and source attachments are copied
    * as ordinary attachments so inline Content-IDs continue to work.
+   * `historical` reproduces the pre-upgrade forward, including its normalized source parts.
    */
   async buildForwardRaw(
     originalMessage: GmailMessageRaw,
@@ -2910,7 +3265,9 @@ export class GmailApi {
     messageId = newGmailMessageId(),
     subjectOverride?: string,
     date?: string,
+    historical = false,
   ): Promise<GmailOutboundMessage> {
+    const uploadedAttachments = (options.attachments ?? []).map(gmailAttachmentInputToOutbound);
     const sourceBytes = base64UrlDecodedByteLength(originalMessage.raw);
     if (sourceBytes > MAX_GMAIL_FORWARD_SOURCE_BYTES) {
       throw new Error(
@@ -2944,9 +3301,10 @@ export class GmailApi {
       : original.html !== undefined ? htmlQuote : undefined;
     const metadata = requireAttachmentMetadata(original);
     const attachments = original.attachments.map((attachment, index) =>
-      attachmentFromPostal(attachment, metadata[index]));
+      attachmentFromPostal(attachment, metadata[index], historical));
+    attachments.push(...uploadedAttachments);
 
-    const message = this.buildOutbound({
+    return this.buildOutbound({
       from: this.selfEmail,
       ...recipients,
       subject: subjectOverride ?? subject,
@@ -2955,25 +3313,22 @@ export class GmailApi {
       messageId,
       ...(date !== undefined ? {date} : {}),
       attachments,
-    });
-    if (base64UrlDecodedByteLength(message.raw) > MAX_GMAIL_FORWARD_SOURCE_BYTES) {
-      throw new Error(
-        `Cannot forward this message: the generated message exceeds the ` +
-        `${MAX_GMAIL_FORWARD_SOURCE_BYTES}-byte safe forwarding limit.`);
-    }
-    return message;
+    }, historical);
   }
 
-  /** Build an inline forward from an exact source snapshot held by the gatekeeper. */
+  /**
+   * Build an inline forward from an exact source snapshot held by the gatekeeper.
+   * `historical` is as on `buildForwardRaw`.
+   */
   async buildForwardFromBytes(
       sourceBytes: Uint8Array, to: string[], body?: string,
       options: GmailComposeOptions = {}, messageId = newGmailMessageId(), subjectOverride?: string,
-      date?: string):
+      date?: string, historical = false):
       Promise<GmailOutboundMessage> {
     return this.buildForwardRaw({
       id: "forward-snapshot", threadId: "forward-snapshot", internalDate: "0",
       raw: base64UrlEncodeBytes(sourceBytes),
-    }, to, body, options, messageId, subjectOverride, date);
+    }, to, body, options, messageId, subjectOverride, date, historical);
   }
 
   /**
@@ -3185,5 +3540,68 @@ export class GmailApi {
       `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`, {method: "DELETE"});
     if (!response.ok) await gmailApiFailure("labels.delete", response);
     await response.body?.cancel();
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Push notifications
+  // ─────────────────────────────────────────────────────────────────
+
+  /** The mailbox's primary address and its current history ID. */
+  async getProfile(): Promise<{emailAddress: string; historyId: string}> {
+    const response = await this.authedFetch("https://gmail.googleapis.com/gmail/v1/users/me/profile");
+    if (!response.ok) await gmailApiFailure("users.getProfile", response);
+    const profile = await response.json() as {emailAddress?: unknown; historyId?: unknown};
+    if (typeof profile.emailAddress !== "string") throw new Error("Gmail returned an invalid profile.");
+    return {emailAddress: profile.emailAddress, historyId: gmailHistoryId(profile.historyId)};
+  }
+
+  /**
+   * Have Gmail publish every change to this mailbox to `topicName`, replacing any watch this
+   * Cloud project already has on it. Unfiltered: readers decide which changes matter.
+   */
+  async watch(topicName: string): Promise<{historyId: string; expiration: number}> {
+    const response = await this.authedFetch("https://gmail.googleapis.com/gmail/v1/users/me/watch", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({topicName}),
+    });
+    if (!response.ok) await gmailApiFailure("users.watch", response);
+    const watch = await response.json() as {historyId?: unknown; expiration?: unknown};
+    return {historyId: gmailHistoryId(watch.historyId), expiration: Number(watch.expiration)};
+  }
+
+  /**
+   * One page of the messages added to the mailbox after `startHistoryId`, by history record.
+   * Each message is partial: `labelIds` is what it arrived with, and is not guaranteed present.
+   * A `GmailApiError` with status 404 means `startHistoryId` is too old to read from.
+   */
+  async listMessagesAdded(startHistoryId: string, pageToken?: string): Promise<{
+    records: Array<{id: string; messages: Array<{id: string; threadId: string; labelIds?: string[]}>}>;
+    historyId: string;
+    nextPageToken?: string;
+  }> {
+    const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/history");
+    url.searchParams.set("startHistoryId", startHistoryId);
+    url.searchParams.set("historyTypes", "messageAdded");
+    url.searchParams.set("maxResults", "500");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const response = await this.authedFetch(url.toString());
+    if (!response.ok) await gmailApiFailure("history.list", response);
+    const data = await response.json() as {
+      history?: Array<{
+        id?: unknown;
+        messagesAdded?: Array<{message: {id: string; threadId: string; labelIds?: string[]}}>;
+      }>;
+      historyId?: unknown;
+      nextPageToken?: string;
+    };
+    return {
+      records: (data.history ?? []).map(record => ({
+        id: gmailHistoryId(record.id),
+        messages: (record.messagesAdded ?? []).map(added => added.message),
+      })),
+      historyId: gmailHistoryId(data.historyId),
+      nextPageToken: data.nextPageToken,
+    };
   }
 }

@@ -5,8 +5,8 @@
  * `gatekeeper-configurator-vite-config.ts` takes that shape. The task types below are structural
  * copies of Vite+'s rather than imports of them, which is what keeps that true.
  *
- * TypeScript, unlike the `.mjs` beside it in this directory, because being TS means a malformed task
- * or a mistyped `base` is a compile error rather than a glob that silently never matches.
+ * Being TypeScript means a malformed task or a mistyped `base` is a compile error rather than a glob
+ * that silently never matches.
  *
  * Reached as `@gadgets/scripts/vitest-task`, an `exports` subpath of this directory's package, not
  * as a relative path. A relative specifier only resolves for a consumer at `packages/<name>/` of
@@ -31,9 +31,12 @@ export type GlobWithBase = {
 /** The subset of a Vite+ task this factory produces. */
 export type VitestTask = {
   command: string | string[]
-  input: (GlobWithBase | { auto: boolean })[]
-  output: (GlobWithBase | { auto: boolean })[]
-  env: string[]
+  cache: {
+    input: (GlobWithBase | { auto: boolean })[]
+    output: (GlobWithBase | { auto: boolean })[]
+    env: string[]
+    untrackedEnv: string[]
+  }
 }
 
 /** A Vite+ config carrying a `run.tasks` map. */
@@ -91,7 +94,7 @@ export const WRANGLER_RUNTIME_SCRATCH_EXCLUSIONS: GlobWithBase[] = [
  * The default set: the vitest scratch paths plus the whole of `.wrangler`.
  *
  * `.wrangler/validate/**` is the capnweb-validate build tree, regenerated and then loaded by any
- * suite that starts a worker under `@cloudflare/vitest-pool-workers`. For these packages it is
+ * suite that starts a worker under `@cloudflare/vitest-plugin`. For these packages it is
  * derived from sources the same task already tracks, so dropping it from the fingerprint loses no
  * invalidation -- and it must be dropped, because a task that reads a path it also wrote never
  * caches. `build:app` excludes the same tree, for the same reason.
@@ -119,14 +122,13 @@ export type TestCommand = string | { command: string; idleSeconds: number }
  * line per completed test file, so silence -- not wall clock -- is what distinguishes a hang from a
  * slow suite.
  *
- * That holds only where files complete more often than this. A suite dominated by import rather than
- * execution is quiet for longer, and raises the threshold for itself with the object form of
- * `TestCommand`.
+ * Import-heavy suites can raise their idle allowance with `TestCommand`; slower environments can
+ * override both thresholds through the watchdog's declared environment variables.
  */
 const IDLE_TIMEOUT_SECONDS = 60
 
 /** Wall-clock backstop, for a command that stays chatty while looping forever. */
-const TOTAL_TIMEOUT_SECONDS = 600
+const TOTAL_TIMEOUT_SECONDS = 900
 
 /**
  * Nothing under vitest bounds a wedged run -- its own timeouts are enforced inside the test worker
@@ -142,17 +144,8 @@ const TOTAL_TIMEOUT_SECONDS = 600
  * consuming package's `node_modules/.bin` on the task's PATH, so it resolves wherever the package
  * lives, and a rename fails loudly with "Failed to find executable" rather than silently.
  *
- * The thresholds are baked into the string rather than read from the environment for the same
- * fingerprint reason: a cached `vp` run strips undeclared env vars, so an override would silently
- * not apply (and would owe `scripts/env-passthrough.test.ts` an entry). Here a policy change is a
- * visible, fingerprinted change -- including a per-command `idleSeconds`, which lands in the command
- * string like any other.
- *
- * Only the idle threshold is overridable: `TOTAL_TIMEOUT_SECONDS` is the backstop against a real
- * hang, and a command able to opt out of it would be unbounded again.
- *
- * The off switch, `TESTS_WITH_TIMEOUT_ENV`, is the one variable read, and it is declared in `env` so
- * that it is fingerprinted too.
+ * Defaults are baked into the command; runtime overrides and the off switch are passed and
+ * fingerprinted through `TESTS_WITH_TIMEOUT_ENV`, so cached runs retain the requested policy.
  */
 export const withTestTimeout = (command: TestCommand): string => {
   const { command: argv, idleSeconds } =
@@ -161,16 +154,74 @@ export const withTestTimeout = (command: TestCommand): string => {
 }
 
 /**
- * The `env` every task wrapping `withTestTimeout` must declare, if it is cached.
+ * The `cache.env` every task wrapping `withTestTimeout` must declare, if it is cached.
  *
- * `TESTS_WITH_TIMEOUT_DISABLE`, set to anything non-empty, turns the watchdog off (see the header of
- * `with-timeout.ts`). A cached `vp` task sees none of the ambient environment unless the task
- * declares a variable; `env` both passes it through and fingerprints it, so a supervised run never
- * replays an unsupervised one. The builders below add it to every vitest `test` task; a
- * hand-declared task that wraps `withTestTimeout` spreads it itself, and `scripts/vitest-task.test.ts`
- * checks that each one either does so or is `cache: false`.
+ * The watchdog accepts positive-second idle/total overrides, or a non-empty disable switch.
+ * `cache.env` passes and fingerprints all three, so a run never replays a different timeout policy.
+ * Hand-declared watchdogged tasks must use this list too (or be uncached).
  */
-export const TESTS_WITH_TIMEOUT_ENV: string[] = ['TESTS_WITH_TIMEOUT_DISABLE']
+export const TESTS_WITH_TIMEOUT_ENV: string[] = [
+  'TESTS_WITH_TIMEOUT_DISABLE',
+  'TESTS_WITH_TIMEOUT_IDLE_SECONDS',
+  'TESTS_WITH_TIMEOUT_MAX_SECONDS',
+]
+
+/**
+ * Pins the cases the property suites generate (`property-runs.ts`). Every generated test task
+ * passes and fingerprints it, so a suite that adopts fast-check needs no wiring of its own, and a
+ * different seed is a cache miss rather than a replayed result.
+ */
+const PROPERTY_SEED_ENV = 'FAST_CHECK_SEED'
+
+/**
+ * The worker budget `scripts/vp/run.ts` sets (see `scripts/vp/concurrency.ts`). Defined here
+ * because every package's task graph loads this module, which must not pull in that one.
+ */
+export const VITEST_MAX_WORKERS = 'VITEST_MAX_WORKERS'
+
+/**
+ * Forwards the worker budget to cached runs. Untracked: it changes the schedule, not the result,
+ * and fingerprinting it would stop `pnpm test` and a hand-typed `vp run -F <package> test` from
+ * sharing cache entries.
+ */
+export const VITEST_WORKERS_ENV: string[] = [VITEST_MAX_WORKERS]
+
+/**
+ * Whether a vitest command line sets its own worker count: `--maxWorkers`, or the one worker that
+ * `--no-file-parallelism`, `--fileParallelism false` and `--inspect` imply. vitest applies
+ * `VITEST_MAX_WORKERS` over all of them, so the budget is withheld from such a command.
+ */
+export const pinsVitestWorkerCount = (args: string): boolean =>
+  /(^|\s)--(max-?workers|inspect(-?brk)?|no-file-?parallelism)(=|\s|$)/i.test(args) ||
+  /(^|\s)--file-?parallelism(=|\s+)false(\s|$)/i.test(args)
+
+const pinsWorkerCount = (command: TestCommand): boolean =>
+  pinsVitestWorkerCount(typeof command === 'string' ? command : command.command)
+
+/**
+ * Pins vitest's `default` reporter unless the command names one. Under a coding agent vitest would
+ * pick its `agent` reporter, which prints nothing until the run ends, and the idle watchdog would
+ * kill any suite that outlasts `IDLE_TIMEOUT_SECONDS`.
+ */
+const withProgressReporter = (command: TestCommand): TestCommand =>
+  withVitestFlag(command, '--reporter=default', /(^|\s)--reporters?(=|\s)/)
+
+/**
+ * Turns off Vitest 5's `fsModuleCache` unless the command sets it. vp already caches the whole task,
+ * and every package's vitest shares the one cache under the workspace root's `node_modules`, so
+ * parallel tasks race on it: a run that invalidates the cache deletes the directory while another
+ * is writing into it, and that run fails to start with ENOTEMPTY.
+ */
+const withoutModuleCache = (command: TestCommand): TestCommand =>
+  withVitestFlag(command, '--no-fsModuleCache', /(^|\s)--(no-)?fs-?module-?cache(=|\s|$)/i)
+
+/** Appends `flag` to a vitest command whose arguments don't already match `alreadySet`. */
+const withVitestFlag = (command: TestCommand, flag: string, alreadySet: RegExp): TestCommand => {
+  const argv = typeof command === 'string' ? command : command.command
+  if (!/^vitest(\s|$)/.test(argv) || alreadySet.test(argv)) return command
+  const flagged = `${argv} ${flag}`
+  return typeof command === 'string' ? flagged : { ...command, command: flagged }
+}
 
 /**
  * The `test` task for a package, given the vitest invocation its `test` script used to hold.
@@ -181,7 +232,7 @@ export const TESTS_WITH_TIMEOUT_ENV: string[] = ['TESTS_WITH_TIMEOUT_DISABLE']
  * needs any: nothing else here writes a build artifact into a directory its own tests track.
  *
  * Every command is wrapped in the watchdog above, including the codegen steps some packages bundle
- * into this task (`workshop-backend`'s `node build-browser-runtime.mjs`) -- those are equally
+ * into this task (`workshop-backend`'s `node scripts/build-browser-runtime.ts`) -- those are equally
  * unbounded.
  */
 export function vitestTask(
@@ -203,11 +254,19 @@ export function vitestTaskWithExclusions(
   command: TestCommand | TestCommand[],
   exclusions: GlobWithBase[],
 ): VitestTask {
+  // One `cache` covers every command in the task, so a single pinned command forgoes the budget for
+  // its siblings too.
+  const pinned = [command].flat().some(pinsWorkerCount)
+  const wrap = (one: TestCommand): string =>
+    withTestTimeout(withoutModuleCache(withProgressReporter(one)))
   return {
-    command: Array.isArray(command) ? command.map(withTestTimeout) : withTestTimeout(command),
-    input: [{ auto: true }, ...exclusions],
-    output: [{ auto: true }, ...exclusions],
-    env: TESTS_WITH_TIMEOUT_ENV,
+    command: Array.isArray(command) ? command.map(wrap) : wrap(command),
+    cache: {
+      input: [{ auto: true }, ...exclusions],
+      output: [{ auto: true }, ...exclusions],
+      env: [...TESTS_WITH_TIMEOUT_ENV, PROPERTY_SEED_ENV],
+      untrackedEnv: pinned ? [] : VITEST_WORKERS_ENV,
+    },
   }
 }
 

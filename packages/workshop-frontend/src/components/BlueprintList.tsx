@@ -119,15 +119,13 @@ function BlueprintRow({
           />
           <DropdownMenu.Content className={MENU_CONTENT}>
             <DropdownMenu.Item onClick={() => onTogglePin(item)} className={MENU_ITEM}>
-              <Star size={13} className="mr-2" weight={item.pinned ? 'fill' : 'regular'} />
-              {item.pinned
-                ? <FormattedMessage id="blueprintList.unfavorite" defaultMessage="Unfavorite" />
-                : <FormattedMessage id="blueprintList.favorite" defaultMessage="Favorite" />}
+              <Star size={13} weight={item.pinned ? 'fill' : 'regular'} />
+              {item.pinned ? 'Unfavorite' : 'Favorite'}
             </DropdownMenu.Item>
             {item.inLibrary && (
               <DropdownMenu.Item variant="danger" onClick={() => onRemoveFromLibrary(item)} className={MENU_ITEM_DANGER}>
-                <Trash size={13} className="mr-2" />
-                <FormattedMessage id="blueprintList.removeFromLibrary" defaultMessage="Remove from library" />
+                <Trash size={13} />
+                Remove from library
               </DropdownMenu.Item>
             )}
           </DropdownMenu.Content>

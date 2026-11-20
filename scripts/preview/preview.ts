@@ -9,12 +9,13 @@
 //   node scripts/preview/preview.ts sweep           tear down every abandoned preview
 //   ... --dry-run                                    print the plan, touch no network
 //
-// Deployment runs in three tiers, because each tier's service bindings must name the previews the
+// Deployment runs in four tiers, because each tier's service bindings must name the previews the
 // tier before it produced:
 //
-//   1. the 16 gatekeepers  (concurrently; nothing binds to anything)
-//   2. workshop-backend    (binds every gatekeeper preview via GatekeeperVendor)
-//   3. router              (binds the backend preview and every gatekeeper preview, and owns the
+//   1. pdf-renderer        (binds nothing, and is reached only over a gatekeeper's binding)
+//   2. the gatekeepers     (concurrently; each binds tier 1 previews alone, and most bind nothing)
+//   3. workshop-backend    (binds every gatekeeper preview via GatekeeperVendor)
+//   4. router              (binds the backend preview and every gatekeeper preview, and owns the
 //                           public origin: it serves the frontend and proxies /api and
 //                           /gatekeeper/<short>)
 //
@@ -28,7 +29,7 @@
 //
 // Secrets — the backend's admins and the Cloudflare Access application that authenticates the
 // instance, and each gatekeeper's OAuth app credentials where one is configured for previews — are
-// uploaded to the owning worker's Previews settings just before that worker's own tier, and are
+// uploaded to the owning worker's Preview base config just before that worker's own tier, and are
 // never written into a config, because Wrangler prints config values and this workflow's logs are
 // public. See uploadSecrets, and backendSecrets / resolveGatekeeperSecrets in staging-config.ts.
 
@@ -43,8 +44,11 @@ import {
   ROOT,
   STAGING_CONFIG_NAME,
   backendSecrets,
+  bindInternalPreviews,
   generatePreviewConfigs,
+  previewDeletionOrder,
   previewPullRequestNumber,
+  previewTier,
   previewUrlFor,
   resolveGatekeeperSecrets,
   resolvePreviewName,
@@ -130,21 +134,27 @@ const GATEKEEPER_CONCURRENCY = 8;
 // number — are in flight at once.
 const API_CONCURRENCY = 8;
 
-// Worker Previews are in private beta, and two of the features this script is built on are not in
-// any released Wrangler: per-preview resource auto-provisioning (`previews.kv_namespaces` etc.
-// declared binding-only), and `preview_id` on a `previews.services` entry, which is what points a
-// preview at a *sibling* preview rather than at the baseline worker. Verified 2026-08-16 against
-// the pinned 4.120.0 and the then-latest 4.123.0: both accept a binding-only KV entry in the
-// schema but send `namespace_id: undefined`, and both silently drop `preview_id` from a service
-// binding — which would leave the whole instance wired to the baselines. So the deploy runs on
-// the draft build from https://github.com/cloudflare/workers-sdk/pull/14416 instead, installed
-// into a tmpdir. It pulls matching workers-sdk workspace packages from pkg.pr.new, hence the
-// exotic-subdeps opt-out.
+// Two of the features this script is built on are not in any released Wrangler: per-preview
+// resource auto-provisioning (`previews.kv_namespaces` etc. declared binding-only), and
+// `preview_id` on a `previews.services` entry, which is what points a preview at a *sibling*
+// preview rather than at the baseline worker. Verified 2026-10-02 against the workspace's 4.138.0
+// and the then-latest 4.147.0: both accept a binding-only KV entry in the schema but send
+// `namespace_id: undefined`, and both silently drop `preview_id` from a service binding — which
+// would leave the whole instance wired to the baselines, and which the Previews documentation
+// lists as a limitation. So the deploy runs on the draft build from
+// https://github.com/cloudflare/workers-sdk/pull/14416 instead, installed into a tmpdir. It pulls
+// matching workers-sdk workspace packages from pkg.pr.new, hence the exotic-subdeps opt-out.
 //
 // Drop all of this — and set PREVIEW_WRANGLER=pnpm-exec-wrangler in the meantime to check — once
 // both features ship: `preview_id` appearing in a released `config-schema.json` under
 // `PreviewsConfig.properties.services.items.properties` is the signal.
 const WRANGLER_PACKAGE = "https://pkg.pr.new/wrangler@14416";
+
+// The one command the draft build cannot run. A worker's Preview base config is the
+// `previews_base_config` field of the Workers API, and the draft writes it under a name the API
+// refuses. So the base config is written by the workspace's own Wrangler, which has to stay at
+// 4.135.0 or later for it.
+const RELEASED_WRANGLER = join(ROOT, "node_modules", ".bin", "wrangler");
 
 function parseArgs(argv: string[]): { command: Command; dryRun: boolean } {
   const command = argv[0] as Command;
@@ -214,9 +224,9 @@ function describe(error: unknown): string {
 // per task, so this is cheap on a warm tree.
 //
 // Whether the UI signs in through Cloudflare Access or with a password is a build-time flag
-// (workshop-frontend/src/useAuth.ts), so a preview needs the same one build-release.mjs sets:
+// (workshop-frontend/src/useAuth.ts), so a preview needs the same one build-release.ts sets:
 // otherwise it serves a password form the backend rejects every password from. The frontend's
-// `build` task already declares `env: ['VITE_*']`.
+// `build` task already declares `cache: { env: ['VITE_*'] }`.
 function buildWorkspace(): Promise<void> {
   return runAsync("pnpm", ["run", "build"],
       { cwd: ROOT, env: { ...process.env, VITE_CF_ACCESS_MODE: "true" } });
@@ -329,10 +339,11 @@ async function deployBaselineWorker(
  * workflow's logs are public; `secret bulk` prints only names and `********`, and the values arrive
  * on stdin rather than in argv.
  *
- * `preview secret bulk` writes the *Worker's Previews settings*, which every preview of that worker
- * inherits, so one upload covers every preview and each run refreshes them. The plain `secret bulk`
- * form is for the baseline worker itself, which is a real, publicly reachable instance and needs
- * the same Access application in front of it.
+ * `preview base-config secret bulk` writes the *Worker's Preview base config*, which every preview
+ * of that worker inherits, so one upload covers every preview and each run refreshes them. It runs
+ * on {@link RELEASED_WRANGLER}. The plain `secret bulk` form is for the baseline worker itself,
+ * which is a real, publicly reachable instance and needs the same Access application in front of
+ * it.
  */
 async function uploadSecrets(
   pkg: DeployablePackage,
@@ -340,10 +351,13 @@ async function uploadSecrets(
   secrets: Record<string, string>,
   { previews }: { previews: boolean },
 ): Promise<CommandResult> {
-  const args = [...previews ? ["preview"] : [], "secret", "bulk", "-c", STAGING_CONFIG_NAME];
+  const args = [
+    ...previews ? ["preview", "base-config"] : [], "secret", "bulk", "-c", STAGING_CONFIG_NAME,
+  ];
   console.log(`running in ${pkg.name}: wrangler ${args.join(" ")} ` +
       `(${Object.keys(secrets).join(", ")} on stdin)`);
-  const result = await runWrangler(pkg, wranglerCommand, args, JSON.stringify(secrets));
+  const result = await runWrangler(pkg, previews ? RELEASED_WRANGLER : wranglerCommand, args,
+      JSON.stringify(secrets));
   writeCommandOutput(pkg, result);
   return result;
 }
@@ -352,12 +366,12 @@ async function uploadSecrets(
  * Upload one worker's secrets, creating its baseline worker first if it does not exist yet.
  *
  * This runs before that worker's own preview rather than relying on deployPreview's self-heal,
- * because a worker has no Previews settings to write to until it exists — and a preview created
- * before the settings existed would inherit none of them. For the backend that means no admins and,
- * worse, no Access application, so it would fall back to password signup on a public URL; for a
- * gatekeeper it means a connector that is live but throws on the first click.
+ * because a worker has no Preview base config to write to until it exists — and a preview created
+ * before the secrets were in it would inherit none of them. For the backend that means no admins
+ * and, worse, no Access application, so it would fall back to password signup on a public URL; for
+ * a gatekeeper it means a connector that is live but throws on the first click.
  *
- * The settings belong to the *worker*, so every preview of it shares them and each run overwrites
+ * The base config belongs to the *worker*, so every preview of it shares it and each run overwrites
  * what the last one wrote. That is only sound because these values are the same for every preview —
  * one set of deployment admins, one Access application, one OAuth app per gatekeeper — and a
  * concurrent deploy of another pull request writes the identical bytes.
@@ -371,7 +385,7 @@ async function uploadPreviewSecrets(
   if (result.status !== 0 && isMissingWorkerError(`${result.stdout}\n${result.stderr}`)) {
     await deployBaselineWorker(pkg, wranglerCommand);
     // The baseline is briefly live without these, but it is only reachable through the *baseline*
-    // router — which is deployed after it, in tier 3, on the same first run.
+    // router — which is deployed after it, in tier 4, on the same first run.
     const baseline = await uploadSecrets(pkg, wranglerCommand, secrets, { previews: false });
     if (baseline.status !== 0) {
       throw new Error(`wrangler secret bulk failed for baseline worker ${pkg.name} with exit ` +
@@ -380,8 +394,8 @@ async function uploadPreviewSecrets(
     result = await uploadSecrets(pkg, wranglerCommand, secrets, { previews: true });
   }
   if (result.status !== 0) {
-    throw new Error(`wrangler preview secret bulk failed for ${pkg.name} with exit code ` +
-        `${result.status}`);
+    throw new Error(`wrangler preview base-config secret bulk failed for ${pkg.name} with exit ` +
+        `code ${result.status}`);
   }
 }
 
@@ -451,7 +465,7 @@ async function deletePreview(
 /**
  * Delete one preview from every worker that carries it.
  *
- * Dependents first — the router, then the backend, then the rest concurrently — so nothing is left
+ * Dependents first — the tiers in reverse, each one's workers concurrently — so nothing is left
  * bound to a preview that no longer exists.
  */
 async function deletePreviewFrom(
@@ -468,11 +482,9 @@ async function deletePreviewFrom(
     }
   };
 
-  const named = (name: string) => workers.filter((pkg) => pkg.name === name);
-  for (const pkg of [...named("router"), ...named("workshop-backend")]) await attempt(pkg);
-  await mapWithConcurrency(
-      workers.filter((pkg) => !["router", "workshop-backend"].includes(pkg.name)),
-      GATEKEEPER_CONCURRENCY, attempt);
+  for (const group of previewDeletionOrder(workers)) {
+    await mapWithConcurrency(group, GATEKEEPER_CONCURRENCY, attempt);
+  }
 
   for (const failure of failures.slice(1)) {
     console.error(`Additional failure deleting ${previewName}: ${describe(failure)}`);
@@ -560,6 +572,7 @@ function writePreviewComment(
 }
 
 function tiers(packages: readonly DeployablePackage[]): {
+  internal: DeployablePackage[];
   gatekeepers: DeployablePackage[];
   backend: DeployablePackage;
   router: DeployablePackage;
@@ -570,6 +583,7 @@ function tiers(packages: readonly DeployablePackage[]): {
     return pkg;
   };
   return {
+    internal: packages.filter((pkg) => previewTier(pkg.name) === "internal"),
     gatekeepers: packages.filter((pkg) => isGatekeeperPackage(pkg.name))
         .toSorted((a, b) => a.name.localeCompare(b.name)),
     backend: byName("workshop-backend"),
@@ -585,21 +599,23 @@ async function deploy({ dryRun }: { dryRun: boolean }): Promise<void> {
   const secrets = backendSecrets();
   const oauthApps = resolveGatekeeperSecrets();
   const { previewName, workersDevHost, baseUrl, packages } = generatePreviewConfigs();
-  const { gatekeepers, backend, router } = tiers(packages);
+  const { internal, gatekeepers, backend, router } = tiers(packages);
 
   if (dryRun) {
     console.log(`\ndry-run plan for preview "${previewName}" at ${baseUrl}:`);
-    console.log(`  tier 1 (${gatekeepers.length} gatekeepers, concurrently):`);
+    console.log(`  tier 1: ${internal.map((pkg) => pkg.name).join(", ")} ` +
+        "(no hostname; reached over the bindings of the tiers below)");
+    console.log(`  tier 2 (${gatekeepers.length} gatekeepers, concurrently):`);
     for (const pkg of gatekeepers) {
       const oauth = oauthApps.get(pkg.name);
       console.log(`    ${pkg.name} ` +
           `(no hostname; served at ${baseUrl}/gatekeeper/${gatekeeperShortName(pkg.name)})` +
           (oauth ? `, holding the ${Object.keys(oauth).join(", ")} secrets` : ""));
     }
-    console.log(`  tier 2: ${backend.name} (no hostname; served at ` +
-        `${baseUrl}/api), bound to the tier 1 previews, holding the ` +
+    console.log(`  tier 3: ${backend.name} (no hostname; served at ` +
+        `${baseUrl}/api), bound to the tier 2 previews, holding the ` +
         `${Object.keys(secrets).join(", ")} secrets`);
-    console.log(`  tier 3: ${router.name} -> ${baseUrl}, ` +
+    console.log(`  tier 4: ${router.name} -> ${baseUrl}, ` +
         "bound to every preview above");
     return;
   }
@@ -608,11 +624,24 @@ async function deploy({ dryRun }: { dryRun: boolean }): Promise<void> {
   try {
     await waitForAll([wrangler.ready, buildWorkspace()]);
 
+    const internalIds = Object.fromEntries(await mapWithConcurrency(internal,
+        GATEKEEPER_CONCURRENCY, async (pkg) => {
+          const preview = await deployPreview(pkg, previewName, wrangler.command);
+          assertNoPreviewUrl(pkg, preview.url);
+          return [pkg.name, preview.id];
+        }));
+    for (const pkg of gatekeepers) {
+      // Most gatekeepers bind no worker, and one that does binds internal workers alone, which
+      // buildPreviewConfigs holds it to.
+      writePreviewConfig(pkg.dir, bindInternalPreviews(pkg.name, readConfig(pkg.dir), internalIds));
+    }
+
     // Keyed by worker name, because that is what a service binding names.
     const gatekeeperPreviews = await mapWithConcurrency(gatekeepers, GATEKEEPER_CONCURRENCY,
         async (pkg) => {
           // Before this gatekeeper's preview, not after, and for the same reason the backend's go
-          // before its own: a preview inherits the Previews settings that exist when it is created.
+          // before its own: a preview inherits the Preview base config as it stands when it is
+          // created.
           const oauth = oauthApps.get(pkg.name);
           if (oauth) await uploadPreviewSecrets(pkg, wrangler.command, oauth);
           const preview = await deployPreview(pkg, previewName, wrangler.command);
@@ -623,8 +652,8 @@ async function deploy({ dryRun }: { dryRun: boolean }): Promise<void> {
 
     patchPreviewServiceBindings(backend, gatekeeperIds);
     patchPreviewServiceBindings(router, gatekeeperIds);
-    // Before the backend's preview, not after: a preview inherits the Previews settings that exist
-    // when it is created.
+    // Before the backend's preview, not after: a preview inherits the Preview base config as it
+    // stands when it is created.
     await uploadPreviewSecrets(backend, wrangler.command, secrets);
     const backendPreview = await deployPreview(backend, previewName, wrangler.command);
     assertNoPreviewUrl(backend, backendPreview.url);
@@ -648,11 +677,11 @@ async function remove({ dryRun }: { dryRun: boolean }): Promise<void> {
   // Regenerate rather than assume: `delete` runs in its own CI job with a fresh checkout, and
   // wrangler needs a config to know which worker and account the preview belongs to.
   const { packages } = generatePreviewConfigs({ previewName });
-  const { gatekeepers, backend, router } = tiers(packages);
+  const { internal, gatekeepers, backend, router } = tiers(packages);
 
   if (dryRun) {
     console.log(`\ndry-run: would delete preview "${previewName}" for ` +
-        [router, backend, ...gatekeepers].map((pkg) => pkg.name).join(", "));
+        [router, backend, ...gatekeepers, ...internal].map((pkg) => pkg.name).join(", "));
     return;
   }
 

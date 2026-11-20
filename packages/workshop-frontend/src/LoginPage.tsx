@@ -11,6 +11,7 @@ import { useDocumentTitle } from './useDocumentTitle'
 import { useConnectionLost } from './RpcContext'
 import OAuthButtons from './components/auth/OAuthButtons'
 import SiteLogo from './components/SiteLogo'
+import { deviceSessionSearch } from './features/native-app/DeviceSessionHandoff'
 
 
 interface LoginPageProps {
@@ -162,17 +163,14 @@ export default function LoginPage({ rpcStub, onLoginSuccess }: LoginPageProps) {
             </form>
 
             <p className="text-center text-sm text-kumo-subtle mt-6">
-              <FormattedMessage
-                id="loginPage.noAccountPrompt"
-                defaultMessage="Don't have an account? {link}"
-                values={{
-                  link: (
-                    <Link to="/signup" className="text-kumo-brand hover:underline font-medium">
-                      <FormattedMessage id="loginPage.createOne" defaultMessage="Create one" />
-                    </Link>
-                  ),
-                }}
-              />
+              Don't have an account?{' '}
+              <Link
+                to="/signup"
+                search={deviceSessionSearch(window.location.search)}
+                className="text-kumo-brand hover:underline font-medium"
+              >
+                Create one
+              </Link>
             </p>
           </>
         )}

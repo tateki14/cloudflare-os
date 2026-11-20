@@ -29,6 +29,11 @@ export interface BindingDecl {
   binding: string;
 }
 
+/** A KV namespace binding declaration. `preview_id` names a local-dev Miniflare namespace only. */
+export interface KvNamespaceDecl extends BindingDecl {
+  preview_id?: string;
+}
+
 /** A service binding declaration in a wrangler config. */
 export interface ServiceBinding {
   /** Binding name the calling worker reads. */
@@ -73,6 +78,17 @@ export interface ObservabilityConfig {
 }
 
 /**
+ * What one invocation of a Worker may use, where that is not the platform's default. Closed, as
+ * {@link ObservabilityConfig} is and for its reason.
+ */
+export interface LimitsConfig {
+  /** CPU time, in milliseconds. */
+  cpu_ms?: number;
+  /** Subrequests. */
+  subrequests?: number;
+}
+
+/**
  * One Durable Object migration step, verbatim from wrangler.jsonc. Only the operations the
  * deployable workers actually use are named; the index signature carries anything else through
  * untouched, since the manifest replays the history rather than interpreting it.
@@ -104,8 +120,10 @@ export interface WranglerConfig {
   migrations?: DurableObjectMigration[];
   /** Workers observability settings. */
   observability?: ObservabilityConfig;
+  /** What one invocation may use, where that is not the platform's default. */
+  limits?: LimitsConfig;
   /** KV namespace bindings; ids become `$KV_<BINDING>_ID` placeholders. */
-  kv_namespaces?: BindingDecl[];
+  kv_namespaces?: KvNamespaceDecl[];
   /** R2 bucket bindings; names become `$R2_<BINDING>_NAME` placeholders. */
   r2_buckets?: BindingDecl[];
   /** Worker Loader bindings (the Gadget sandbox). */
@@ -114,6 +132,14 @@ export interface WranglerConfig {
   services?: ServiceBinding[];
   /** Browser Rendering binding (Gadget PDF exports). */
   browser?: BindingDecl;
+  /** This Worker version's metadata (the backend's, so a session can tell it is out of date). */
+  version_metadata?: BindingDecl;
+  /**
+   * Workers AI binding of a worker that declares its own (gatekeeper-websearch, gatekeeper-google).
+   * The backend's `WORKERS_AI` is hardcoded in buildWorkerEntry instead, which refuses one in its
+   * config.
+   */
+  ai?: BindingDecl;
   /** Artifacts binding — closed beta, cut from customer manifests. */
   artifacts?: BindingDecl;
   /** Static-asset serving config (the router). */
@@ -129,8 +155,6 @@ export interface WranglerConfig {
   build?: WranglerBuild;
   /** Module resolution rules for non-JS imports. */
   rules?: unknown[];
-  /** Present in the files but ignored. */
-  $schema?: string;
 }
 
 /** A deployable workspace package and its parsed Wrangler configuration. */
@@ -166,8 +190,12 @@ export type ManifestBinding = { type: string; name: string } & Record<string, un
 
 /** Everything the manifest says about one worker in the release. */
 export interface WorkerEntry {
-  /** Which role this worker plays in a deployment. */
-  kind: "backend" | "router" | "gatekeeper";
+  /**
+   * Which role this worker plays in a deployment. The backend, the router and every `internal`
+   * worker are the core, deployed with every instance. An `internal` worker has no public route:
+   * it is reached only through the service bindings of the workers that name it.
+   */
+  kind: "backend" | "router" | "gatekeeper" | "internal";
   /** Gatekeepers only: the path segment the router routes `/gatekeeper/<shortName>/*` on. */
   shortName?: string;
   /** Whether the deploy wizard offers this worker for installation. */
@@ -192,6 +220,11 @@ export interface WorkerEntry {
   vars: Record<string, unknown>;
   /** Workers observability settings. */
   observability: ObservabilityConfig;
+  /**
+   * What one invocation may use, verbatim from wrangler.jsonc. Absent for a worker that runs
+   * under the platform's defaults.
+   */
+  limits?: LimitsConfig;
   /** How the deploy service expands installed gatekeepers into `GATEKEEPER_*` bindings. */
   gatekeeperBindingExpansion?: {
     entrypoint?: string;
@@ -245,9 +278,17 @@ const HANDLED_CONFIG_KEYS = new Set([
   "$schema", "name", "main", "build", "compatibility_date", "compatibility_flags", "rules",
   "migrations", "observability", "kv_namespaces", "r2_buckets", "worker_loaders", "services",
   "assets", "vars",
+  // What one invocation may use (pdf-renderer's CPU time). Carried verbatim, like observability:
+  // a customer instance's Worker needs what an internal one does.
+  "limits",
   // Browser Rendering (Gadget PDF exports). Unlike artifacts it is generally available, so it
   // passes through to customer instances as a placeholder-free binding, like the AI binding.
   "browser",
+  // Workers AI, for a gatekeeper that calls it itself (gatekeeper-websearch's searches,
+  // gatekeeper-google's Drive PDF reading). Placeholder-free, like browser.
+  "ai",
+  // The Worker version's metadata. Placeholder-free, like browser.
+  "version_metadata",
   // gatekeeper-context's Artifacts binding is closed-beta and cannot be provisioned in arbitrary
   // user accounts; it is dropped from customer manifests (the gatekeeper degrades gracefully).
   "artifacts",
@@ -261,6 +302,7 @@ const NO_DEFAULT_CRED_INPUTS = new Set([
   "gatekeeper-context",       // no third-party service; uses its own storage
   "gatekeeper-homeassistant", // users connect their own Home Assistant URL + token in-app
   "gatekeeper-scheduler",     // auto-provisioned; no third-party OAuth app
+  "gatekeeper-websearch",     // auto-provisioned; searches through the account's own AI Gateway
   "gatekeeper-mcp",           // MCP OAuth uses dynamic client registration, not a static app
   "gatekeeper-mcp-portal",    // same MCP OAuth chain as gatekeeper-mcp
 ]);
@@ -272,15 +314,15 @@ const NOT_INSTALLABLE = new Set(["gatekeeper-email"]);
 // Ambient gatekeepers the deploy service installs on every fresh core deploy, server-side with
 // no user interaction. Members must take no inputs of any kind (enforced below): a preinstall
 // has nobody to ask.
-const PREINSTALL = new Set(["gatekeeper-context", "gatekeeper-scheduler"]);
+const PREINSTALL = new Set(["gatekeeper-context", "gatekeeper-scheduler", "gatekeeper-websearch"]);
 
 // Gatekeepers that may be installed at most once per instance; the deploy service enforces this
 // at install time. Two independent reasons to be here:
 //
 //  1. The account declares an agent singleton (`AccountDescription.singleton` — context's
-//     `ContextLibrary`, scheduler's `ScheduleSession`). The Workshop auto-provisions those
-//     accounts and folds the singleton into every workspace as an ambient gatekeeper, so a second
-//     install would hand every user a duplicate ambient capsule.
+//     `ContextLibrary`, scheduler's `ScheduleSession`, websearch's `WebSearchSession`). The
+//     Workshop auto-provisions those accounts and folds the singleton into every workspace as an
+//     ambient gatekeeper, so a second install would hand every user a duplicate ambient capsule.
 //  2. Nothing could distinguish two installs. A gatekeeper taking no inputs (see
 //     NO_DEFAULT_CRED_INPUTS and the absence of a deploy-inputs.json) is configured identically on
 //     every install, so a second one is a byte-identical worker — it adds no capability, and it
@@ -290,11 +332,12 @@ const PREINSTALL = new Set(["gatekeeper-context", "gatekeeper-scheduler"]);
 //
 // Reason 2 turns on inputs, not on the vendor: google/github/slack take per-install
 // CLIENT_ID/CLIENT_SECRET, so two installs can front two different OAuth apps and must stay
-// multi-install. Independent of PREINSTALL in principle; the ambient two coincide with it today
+// multi-install. Independent of PREINSTALL in principle; the ambient three coincide with it today
 // only because every ambient gatekeeper we ship is also preinstalled.
 const SINGLETON = new Set([
   "gatekeeper-context",       // (1) ambient ContextLibrary
   "gatekeeper-scheduler",     // (1) ambient ScheduleSession
+  "gatekeeper-websearch",     // (1) ambient WebSearchSession
   "gatekeeper-homeassistant", // (2) no inputs; users connect their own URL + token in-app
   "gatekeeper-mcp",           // (2) no inputs; users paste their own endpoints in-app
   "gatekeeper-mcp-portal",    // (2) no inputs; the one portal comes from the deployment's vars
@@ -315,6 +358,15 @@ export const DEFAULT_CRED_INPUTS: DeployInput[] = [
 ];
 
 const GATEKEEPER_PREFIX = "gatekeeper-";
+
+/**
+ * Workers that other workers bind to and nothing routes to. Listed by name, never recognized by a
+ * prefix, so a package becomes one only by a decision made here: an internal worker ships to
+ * every instance with no install step, no URL of its own and nothing for the wizard to collect.
+ */
+export const INTERNAL_WORKERS: ReadonlySet<string> = new Set([
+  "pdf-renderer", // draws PDF pages for gatekeeper-google's Drive PDF reading
+]);
 
 /** Read every deployable package and its Wrangler configuration, sorted by package name. */
 export function readDeployablePackages(packagesDir: string): DeployablePackage[] {
@@ -389,6 +441,7 @@ export function readDeployInputs(pkgDir: string): DeployInput[] | undefined {
 function workerKind(pkgName: string): WorkerEntry["kind"] {
   if (pkgName === "workshop-backend") return "backend";
   if (pkgName === "router") return "router";
+  if (INTERNAL_WORKERS.has(pkgName)) return "internal";
   if (isGatekeeperPackage(pkgName)) return "gatekeeper";
   throw new Error(`cannot classify deployable package: ${pkgName}`);
 }
@@ -432,6 +485,13 @@ export function buildWorkerEntry(
     // `remote` is dev-only wrangler behavior; the deployed binding is just { type, name }.
     bindings.push({ type: "browser", name: config.browser.binding });
   }
+  if (config.ai) {
+    // Like browser: `remote` is dev-only.
+    bindings.push({ type: "ai", name: config.ai.binding });
+  }
+  if (config.version_metadata) {
+    bindings.push({ type: "version_metadata", name: config.version_metadata.binding });
+  }
   for (const loader of config.worker_loaders ?? []) {
     bindings.push({ type: "worker_loader", name: loader.binding });
   }
@@ -465,9 +525,13 @@ export function buildWorkerEntry(
   let gatekeeperBindingExpansion: WorkerEntry["gatekeeperBindingExpansion"];
   if (kind === "backend") {
     // Deliberate contract: the manifest carries only $PUBLIC_BASE_URL. The backend's other
-    // instance-state vars (ADMINS, DEPLOY_URL, CF_ACCESS_*, CF_AI_GATEWAY*) are injected by
-    // the deploy service's backendExtraVars at PUT time, never manifest-templated.
+    // instance-state vars (ADMINS, CLOUDFLARE_OS_DEPLOYMENT, CF_ACCESS_*, CF_AI_GATEWAY*) are
+    // injected by the deploy service's backendExtraVars at PUT time, never manifest-templated.
     vars.PUBLIC_BASE_URL = "$PUBLIC_BASE_URL";
+    if (config.ai) {
+      throw new Error(`${pkgName} declares an ai binding, but the backend's WORKERS_AI is ` +
+          `added below; declaring it too would emit it twice.`);
+    }
     // Every deployed backend gets the Workers AI binding (hardcoded like PUBLIC_BASE_URL, not
     // read from wrangler.jsonc): webFetch's toMarkdown conversion depends on it, and it is also
     // the backend's default AI Gateway transport (the deploy service creates the gateway in the
@@ -490,6 +554,10 @@ export function buildWorkerEntry(
     // The router routes /gatekeeper/<short>/* by scanning its own GATEKEEPER_* bindings
     // (default entrypoint — it forwards whole HTTP requests, not vendor RPC).
     gatekeeperBindingExpansion = { propsByPackage: {} };
+  } else if (kind === "internal") {
+    // Deployed with every instance, so the wizard neither offers it nor collects anything for it,
+    // and it serves no URL to template a BASE_URL from.
+    installable = false;
   } else {
     vars.BASE_URL = `$PUBLIC_BASE_URL/gatekeeper/${releaseShortName(pkgName)}`;
     installable = !NOT_INSTALLABLE.has(pkgName);
@@ -529,6 +597,7 @@ export function buildWorkerEntry(
     bindings,
     vars,
     observability: config.observability ?? { enabled: false },
+    ...(config.limits ? { limits: config.limits } : {}),
     ...(gatekeeperBindingExpansion ? { gatekeeperBindingExpansion } : {}),
     ...(assetsConfig ? { assetsConfig } : {}),
     ...(inputs ? { inputs } : {}),

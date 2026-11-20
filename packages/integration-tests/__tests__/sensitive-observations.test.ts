@@ -4,9 +4,12 @@
 // gatekeeper's `addObserver` at their most recent open and cannot open without passing it, and
 // anything that widens what they must pass restarts the workspace so every live session re-opens
 // against the new scope. So sensitive observations are not blocked by an unverified collaborator,
-// and sharing stays available. The observation also latches the workspace into a restricted mode:
-// once latched, the workspace may not perform actions (nor fetch from the web, which has no
-// client-reachable surface to assert here).
+// and sharing stays available. The observation also sets `containsRestrictedData`, putting the
+// workspace into a restricted mode: once it is set, every action pends for manual approval and is
+// never auto-approved, a git push is refused, and the workspace may fetch only from admin-trusted
+// hosts (covered by workshop-restricted-web-fetch.test.ts). An observation that also carries
+// `ownerInvitesOnly` sets that flag too: from then on only direct grants from the owner count, so
+// share links stop admitting anyone and people who joined through one lose access.
 //
 // The fixture gatekeeper's session drives all of this through the real ApprovalQueue funnel:
 // `readValue(true)` records a `containsRestrictedData` observation, `writeValue()` submits an
@@ -14,12 +17,13 @@
 // the overseer).
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { RpcStub } from "capnweb";
-import type {
-  AuthenticatedApi, Overseer, PublicApi,
+import type { RpcPromise, RpcStub } from "capnweb";
+import {
+  OPEN_WORKSPACE_ERROR_CODES, type AuthenticatedApi, type GatekeeperClient, type Overseer,
+  type PublicApi,
 } from "@gadgets/workshop-shared/api";
 import {
-  startTestGatekeeperHarness, TEST_GATEKEEPER_WORKER, TEST_VENDOR_ID, type Harness,
+  startTestGatekeeperHarness, TEST_VENDOR_ID, testControl, type Harness,
 } from "../src/harness.js";
 import type { TestSession } from "../fixtures/gatekeeper-test/src/test-gatekeeper.js";
 import {
@@ -70,15 +74,10 @@ async function provisionAccount(api: RpcStub<AuthenticatedApi>): Promise<Connect
  * Tell the fixture gatekeeper whether to admit `label` as an observer -- everywhere, or (with
  * `resourceUrl`) at one bound resource only, which wins over the account-wide outcome.
  */
-async function setVerifyOutcome(
+function setVerifyOutcome(
     label: string, outcome: { allow: true } | { allow: false; reason: string },
     resourceUrl?: string): Promise<void> {
-  const res = await harness.fetchWorker(
-    TEST_GATEKEEPER_WORKER, "http://gatekeeper-test.test/control/verify-outcome",
-    { method: "POST", body: JSON.stringify({ label, resourceUrl, ...outcome }) });
-  if (res.status !== 204) {
-    throw new Error(`Setting the verify outcome failed with ${res.status}: ${await res.text()}`);
-  }
+  return testControl(harness, "verify-outcome", { label, resourceUrl, ...outcome });
 }
 
 type Workspace = {
@@ -98,7 +97,7 @@ async function newWorkspace(publicApi: RpcStub<PublicApi>, thingName: string): P
   const aliceApi = await signUp(publicApi, alice);
   const account = await provisionAccount(aliceApi);
 
-  const overseer = await aliceApi.newGadget();
+  const overseer = await aliceApi.newWorkspace();
   const gatekeeper = await overseer.newGatekeeper(account.id, thingUrl(thingName));
   if (!gatekeeper) throw new Error("Failed to create the test connection");
   const gatekeeperId = await gatekeeper.getId();
@@ -120,7 +119,7 @@ async function addBob(publicApi: RpcStub<PublicApi>, ws: Workspace): Promise<Bob
   const [bob] = nextUsernames("bob");
   const bobApi = await signUp(publicApi, bob);
   const bobAccount = await provisionAccount(bobApi);
-  const collaborator = await ws.overseer.addCollaborator(bob, "build");
+  const collaborator = await ws.overseer.addCollaborator(bob, "workspace");
   if (!collaborator) throw new Error(`Failed to share the gadget with ${bob}`);
   return {
     bob, bobProfileId: collaborator.profile.id, bobApi, bobAccount,
@@ -137,7 +136,7 @@ async function bobOpens(gadgetId: string, bobApi: RpcStub<AuthenticatedApi>,
   const callback = stubFor(
       recorder ?? new ObserverConfigRecorder().alwaysChoose(bobAccount.id, MAX_OBSERVER_PROMPTS));
   try {
-    return await bobApi.openGadget(gadgetId, undefined, callback);
+    return await bobApi.openWorkspace(gadgetId, undefined, callback);
   } finally {
     callback[Symbol.dispose]();
   }
@@ -163,7 +162,7 @@ async function reopenAfterRestart(ws: Workspace, gatekeeperId = ws.gatekeeperId)
     const publicApi = connect(harness.url);
     try {
       const aliceApi = await logIn(publicApi, ws.alice);
-      const overseer = await aliceApi.openGadget(ws.gadgetId);
+      const overseer = await aliceApi.openWorkspace(ws.gadgetId);
       const gatekeeper = await overseer.getGatekeeperById(gatekeeperId);
       const session = await gatekeeper.openSession() as RpcStub<TestSession>;
       // Probe with a benign read, so a session felled by the abort retries here rather than
@@ -217,11 +216,12 @@ async function bobHolds(ws: Workspace, bob: Bob): Promise<HeldSession> {
 }
 
 describe("sensitive observations", () => {
-  it.concurrent("latch restricted mode: actions are blocked and metadata reports it", async () => {
+  it.concurrent("containsRestrictedData: actions pend for manual approval and metadata reports it",
+      async () => {
     await withSession(async publicApi => {
-      const ws = await newWorkspace(publicApi, "latch");
+      const ws = await newWorkspace(publicApi, "restricted-mode");
 
-      // Before the latch, actions submit fine -- held for the owner's approval rather than
+      // Before the flag is set, actions submit fine -- held for the owner's approval rather than
       // refused, and applied once approved -- and metadata is clean.
       const write = ws.session.writeValue(7);
       const [held] = await waitFor("the write to be held for approval", async () => {
@@ -235,7 +235,45 @@ describe("sensitive observations", () => {
       await expect(ws.session.readValue(true)).resolves.toBe(42);
 
       expect((await ws.overseer.getMetadata()).containsRestrictedData).toBe(true);
-      await expect(ws.session.writeValue(8)).rejects.toThrow(/prohibited from performing actions/i);
+
+      // A write whose gatekeeper does not vouch for its description is not refused: it pends like
+      // any other, carrying no completeness claim for the approval surfaces to flag.
+      const incompleteWrite = ws.session.writeValue(0, { incomplete: true });
+      const [incomplete] = await waitFor("the incomplete write to be held for approval", async () => {
+        const { entries } = await ws.overseer.listActions({ filter: "pending" });
+        return entries.length > 0 ? entries : null;
+      });
+      expect(incomplete.type === "action" && incomplete.description.descriptionIsComplete)
+          .toBeFalsy();
+      await ws.overseer.rejectAction(incomplete.id);
+      await expect(incompleteWrite).resolves.toEqual(expect.any(Number));
+
+      // A write back to the producing connection is held for approval and goes through once
+      // approved...
+      const latchedWrite = ws.session.writeValue(8);
+      const [pending] = await waitFor("the latched write to be held for approval", async () => {
+        const { entries } = await ws.overseer.listActions({ filter: "pending" });
+        return entries.length > 0 ? entries : null;
+      });
+      await ws.overseer.approveAction(pending.id);
+      await expect(latchedWrite).resolves.toEqual(expect.any(Number));
+
+      // ...and so is a write to any other connection: the latch does not distinguish targets, it
+      // only insists on a human decision.
+      const accounts = await listConnectedAccounts(ws.aliceApi);
+      const account = accounts.find(a => a.vendorId === TEST_VENDOR_ID)!;
+      const other = await ws.overseer.newGatekeeper(account.id, thingUrl("latch-other"));
+      if (!other) throw new Error("Failed to create the second test connection");
+      const otherSession = await other.openSession() as RpcStub<TestSession>;
+      const otherWrite = otherSession.writeValue(9);
+      const [otherPending] = await waitFor("the other connection's write to be held for approval",
+          async () => {
+        const { entries } = await ws.overseer.listActions({ filter: "pending" });
+        return entries.length > 0 ? entries : null;
+      });
+      await ws.overseer.rejectAction(otherPending.id);
+      await expect(otherWrite).resolves.toEqual(expect.any(Number));
+
       // Reads -- sensitive or not -- keep working.
       await expect(ws.session.readValue()).resolves.toBe(42);
       await expect(ws.session.readValue(true)).resolves.toBe(42);
@@ -245,7 +283,7 @@ describe("sensitive observations", () => {
   it.concurrent("an unredeemed share link does not block a sensitive observation", async () => {
     await withSession(async publicApi => {
       const ws = await newWorkspace(publicApi, "unredeemed");
-      await ws.overseer.createShareLink("build", "never redeemed");
+      await ws.overseer.createShareLink("workspace", "never redeemed");
 
       // An outstanding link grants nobody anything until it is redeemed, and redemption happens
       // inside open() -- where verification runs -- so the observation proceeds.
@@ -253,18 +291,94 @@ describe("sensitive observations", () => {
     });
   });
 
-  it.concurrent("sharing stays available after the latch", async () => {
+  it.concurrent("ownerInvitesOnly: link joiners lose access, the owner adds people directly",
+      async () => {
+    await withSession(async publicApi => {
+      const ws = await newWorkspace(publicApi, "owner-invites-only");
+      const { key, linkId } = await ws.overseer.createShareLink("workspace", "before ownerInvitesOnly");
+      const [dave, carol] = nextUsernames("dave", "carol");
+      const opens = async (api: RpcStub<AuthenticatedApi>, account: ConnectedAccount) => {
+        const callback = stubFor(
+            new ObserverConfigRecorder().alwaysChoose(account.id, MAX_OBSERVER_PROMPTS));
+        try {
+          return await api.openWorkspace(ws.gadgetId, key, callback);
+        } finally {
+          callback[Symbol.dispose]();
+        }
+      };
+
+      // Dave joins through the link before ownerInvitesOnly is set.
+      const daveSignedUp = await signUp(publicApi, dave);
+      const daveAccount = await provisionAccount(daveSignedUp);
+      (await opens(daveSignedUp, daveAccount))[Symbol.dispose]();
+      expect(await ws.overseer.listCollaborators()).toHaveLength(1);
+
+      // The read sets ownerInvitesOnly. Only direct grants from the owner count from then on, and
+      // Dave's only grant is the link, so he loses access and the workspace restarts.
+      await expect(ws.session.readValue(true, true)).resolves.toBe(42);
+      const reopened = await reopenAfterRestart(ws);
+      try {
+        const overseer = reopened.overseer;
+        await expect(overseer.getMetadata()).resolves.toMatchObject({
+          containsRestrictedData: true,
+          ownerInvitesOnly: true,
+        });
+        expect(await overseer.listCollaborators()).toEqual([]);
+
+        // No new links, and no new copies of the old one.
+        using gadget = await overseer.createGadget("Shared Gadget", undefined, "SHARED_GADGET");
+        const gadgetId = await gadget.getId();
+        await expect(overseer.createShareLink({ gadgetId }, "after ownerInvitesOnly"))
+            .rejects.toThrow(/Share links are disabled/);
+        await expect(overseer.newShareLinkKey(linkId))
+            .rejects.toThrow(/Share links are disabled/);
+
+        // The old link admits neither Dave, who joined through it, nor Carol, who is new.
+        const daveApi = await logIn(reopened.publicApi, dave);
+        await expect(opens(daveApi, daveAccount)).rejects.toMatchObject({
+          code: OPEN_WORKSPACE_ERROR_CODES.shareLinksDisabled,
+          message: expect.stringMatching(/Share links are disabled/),
+        });
+        const carolApi = await signUp(reopened.publicApi, carol);
+        const carolAccount = await provisionAccount(carolApi);
+        await expect(opens(carolApi, carolAccount)).rejects.toMatchObject({
+          code: OPEN_WORKSPACE_ERROR_CODES.shareLinksDisabled,
+        });
+        expect(await overseer.listCollaborators()).toEqual([]);
+
+        // The owner adds Dave directly. He opens after verifying his own access -- still through
+        // the old link, which lets a direct collaborator through -- but cannot add people himself.
+        await expect(overseer.addCollaborator(dave, "workspace")).resolves.toMatchObject({
+          access: { role: "build" },
+        });
+        using daveOverseer = await opens(daveApi, daveAccount);
+        await expect(daveOverseer.addCollaborator(carol, { gadgetId }))
+            .rejects.toThrow(/Only the workspace owner/);
+
+        // The owner can still see and revoke the old link. It grants nothing now, so revoking it
+        // affects nobody.
+        expect((await overseer.listShareLinks()).map(l => l.linkId)).toEqual([linkId]);
+        await expect(overseer.revokeShareLink(linkId, [])).resolves.toEqual([]);
+      } finally {
+        reopened.publicApi[Symbol.dispose]();
+      }
+    });
+  });
+
+  it.concurrent("sharing stays available after containsRestrictedData is set", async () => {
     await withSession(async publicApi => {
       const ws = await newWorkspace(publicApi, "share-after");
       await expect(ws.session.readValue(true)).resolves.toBe(42);
 
-      // Sharing stays available after the latch, across every sharing RPC.
+      // Sharing stays available after containsRestrictedData is set, across every sharing RPC.
       const [carol] = nextUsernames("carol");
       await signUp(publicApi, carol);
-      await expect(ws.overseer.addCollaborator(carol, "build")).resolves.toMatchObject({
+      await expect(ws.overseer.addCollaborator(carol, "workspace")).resolves.toMatchObject({
         profile: expect.objectContaining({ id: expect.any(String) }),
       });
-      const { linkId } = await ws.overseer.createShareLink("use", "post-latch");
+      using gadget = await ws.overseer.createGadget("Shared Gadget", undefined, "SHARED_GADGET");
+      const { linkId } = await ws.overseer.createShareLink(
+          { gadgetId: await gadget.getId() }, "after containsRestrictedData");
       await expect(ws.overseer.newShareLinkKey(linkId)).resolves.toMatchObject({
         key: expect.any(String),
       });
@@ -317,10 +431,15 @@ describe("sensitive observations", () => {
         // scope the moment it exists -- a "build" session can open a session on it with no
         // observer check -- and his live session was admitted without it, so adding it severs
         // every session.
+        //
+        // Pipeline getId() onto the creation rather than awaiting the stub first: the restart
+        // lands ~100ms after newGatekeeper() returns and kills this connection, so a separate
+        // round trip for the id can lose that race on a loaded runner. (The test vendor always
+        // yields a connection, so the null case is not handled.)
         const accounts = await listConnectedAccounts(ws.aliceApi);
         const account = accounts.find(a => a.vendorId === TEST_VENDOR_ID)!;
-        const late = await ws.overseer.newGatekeeper(account.id, thingUrl("late"));
-        if (!late) throw new Error("Failed to create the second test connection");
+        const late = ws.overseer.newGatekeeper(account.id, thingUrl("late")) as
+            RpcPromise<GatekeeperClient<any>>;
         lateId = await late.getId();
       } finally {
         bobSession.close();
@@ -344,14 +463,14 @@ describe("sensitive observations", () => {
     });
   });
 
-  it.concurrent("a collaborator can open a workspace that latched before they were added",
+  it.concurrent("a collaborator can open a workspace that set containsRestrictedData before they were added",
       async () => {
     await withSession(async publicApi => {
       const ws = await newWorkspace(publicApi, "open-after");
       await expect(ws.session.readValue(true)).resolves.toBe(42);
 
-      // Bob's open runs observer verification, which the fixture admits by default, so the latch
-      // does not shut him out.
+      // Bob's open runs observer verification, which the fixture admits by default, so
+      // containsRestrictedData does not shut him out.
       const bob = await addBob(publicApi, ws);
       using bobOverseer = await bobOpens(ws.gadgetId, bob.bobApi, bob.bobAccount);
       await expect(bobOverseer.getMetadata()).resolves.toMatchObject({
@@ -427,7 +546,7 @@ describe("sensitive observations", () => {
       const ws = await newWorkspace(publicApi, "refused-link");
       await expect(ws.session.readValue(true)).resolves.toBe(42);
 
-      const { key } = await ws.overseer.createShareLink("build", "refused recipient");
+      const { key } = await ws.overseer.createShareLink("workspace", "refused recipient");
 
       const [dave] = nextUsernames("dave");
       const daveApi = await signUp(publicApi, dave);
@@ -442,7 +561,7 @@ describe("sensitive observations", () => {
           new ObserverConfigRecorder().alwaysChoose(daveAccount.id, MAX_OBSERVER_PROMPTS);
       const callback = stubFor(recorder);
       try {
-        await expect(daveApi.openGadget(ws.gadgetId, key, callback))
+        await expect(daveApi.openWorkspace(ws.gadgetId, key, callback))
             .rejects.toThrow(/could not confirm/i);
       } finally {
         callback[Symbol.dispose]();
@@ -460,7 +579,7 @@ describe("sensitive observations", () => {
   it.concurrent("concurrent redemptions of the same key both verify", async () => {
     await withSession(async publicApi => {
       const ws = await newWorkspace(publicApi, "raced");
-      const { key } = await ws.overseer.createShareLink("build", "raced");
+      const { key } = await ws.overseer.createShareLink("workspace", "raced");
 
       const [dave] = nextUsernames("dave");
       const daveApi = await signUp(publicApi, dave);
@@ -472,7 +591,7 @@ describe("sensitive observations", () => {
         // Each open redeems the same key; the edges deduplicate, so neither open is turned away
         // and the grants collapse to one edge.
         const overseers = await Promise.all(
-            callbacks.map(cb => daveApi.openGadget(ws.gadgetId, key, cb)));
+            callbacks.map(cb => daveApi.openWorkspace(ws.gadgetId, key, cb)));
         for (const overseer of overseers) overseer[Symbol.dispose]();
       } finally {
         for (const cb of callbacks) cb[Symbol.dispose]();
@@ -491,10 +610,11 @@ describe("sensitive observations", () => {
       (await bobOpens(ws.gadgetId, bob.bobApi, bob.bobAccount))[Symbol.dispose]();
       await expect(ws.session.readValue(true)).resolves.toBe(42);
 
-      // Removing Bob triggers the revocation restart: the DO aborts shortly after this call
-      // returns, killing every stub from this connection -- including the session Bob holds,
-      // which is the point. Everything past here runs on a fresh connection.
-      await ws.overseer.removeCollaborator(bob.bobProfileId, []);
+      // The revocation restart kills every stub, including Bob's session. It can overtake the
+      // ACK on a loaded runner; the fresh session below verifies the persisted removal/cleanup.
+      await ws.overseer.removeCollaborator(bob.bobProfileId, []).catch(error => {
+        if (!(error instanceof Error && error.message.startsWith("Peer closed WebSocket: 3000 "))) throw error;
+      });
       const reopened = await reopenAfterRestart(ws);
 
       try {
@@ -505,7 +625,7 @@ describe("sensitive observations", () => {
         // Removal also tore down his observer record, so re-adding him must not silently restore
         // his coverage: his next open has to name an account for the producer and pass
         // addObserver again.
-        await reopened.overseer.addCollaborator(bob.bob, "build");
+        await reopened.overseer.addCollaborator(bob.bob, "workspace");
         const recorder = new ObserverConfigRecorder()
             .alwaysChoose(bob.bobAccount.id, MAX_OBSERVER_PROMPTS);
         await bobReopens(ws, bob, recorder);

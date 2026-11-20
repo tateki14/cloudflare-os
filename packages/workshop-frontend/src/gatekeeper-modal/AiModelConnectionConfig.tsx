@@ -1,29 +1,33 @@
+import { Fragment } from 'react'
 import { Select, type PortalContainer } from '@cloudflare/kumo'
-import { useIntl } from 'react-intl'
-import { AiChatAuthorInfo } from '@gadgets/workshop-shared/api'
+import type { AiChatAuthorInfo } from '@gadgets/workshop-shared/api'
 import { ConnectionConfigField } from './ConnectionConfigField'
 
 export interface AiModelConnectionConfigProps {
-  availableModels: AiChatAuthorInfo[]
+  chatModels: AiChatAuthorInfo[]
+  decisionModels: AiChatAuthorInfo[]
   selectedModelId: string | undefined
   onSelectedModelIdChange: (id: string | undefined) => void
   selectContainer?: PortalContainer
 }
 
 export function AiModelConnectionConfig({
-  availableModels,
+  chatModels,
+  decisionModels,
   selectedModelId,
   onSelectedModelIdChange,
   selectContainer,
 }: AiModelConnectionConfigProps) {
-  const { formatMessage } = useIntl()
+  const groups = [
+    { label: 'Language models', models: chatModels },
+    { label: 'Decision models', models: decisionModels },
+  ].filter(group => group.models.length > 0)
+
   return (
     <section className="grid gap-3">
       <ConnectionConfigField
-        label={formatMessage({ id: 'aiModelConnectionConfig.modelLabel', defaultMessage: 'Model' })}
-        description={formatMessage({
-          id: 'aiModelConnectionConfig.modelDescription', defaultMessage: 'Choose the model this connection can use.',
-        })}
+        label="Model"
+        description="Language models write text. Decision models answer questions with probabilities."
       >
         <Select
           aria-label={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
@@ -32,12 +36,20 @@ export function AiModelConnectionConfig({
           placeholder={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
           value={selectedModelId}
           onValueChange={(v) => onSelectedModelIdChange(v as string | undefined)}
-          renderValue={(id) => availableModels.find((m) => m.id === id)?.name ?? id}
+          renderValue={(id) => [...chatModels, ...decisionModels].find((m) => m.id === id)?.name ?? id}
         >
-          {availableModels.map(model => (
-            <Select.Option key={model.id} value={model.id}>
-              {model.name}
-            </Select.Option>
+          {groups.map((group, index) => (
+            <Fragment key={group.label}>
+              {index > 0 && <Select.Separator />}
+              <Select.Group>
+                <Select.GroupLabel>{group.label}</Select.GroupLabel>
+                {group.models.map(model => (
+                  <Select.Option key={model.id} value={model.id}>
+                    {model.name}
+                  </Select.Option>
+                ))}
+              </Select.Group>
+            </Fragment>
           ))}
         </Select>
       </ConnectionConfigField>

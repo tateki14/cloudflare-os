@@ -6,20 +6,22 @@ import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import { ActionLogEntry, Overseer, actionChangeTime } from '@gadgets/workshop-shared/api'
 import { ActionKind } from '@gadgets/workshop-shared/gatekeeper'
 import { GatekeeperIcon } from './components/GatekeeperIcon'
-import { HookToggle } from './components/HookToggle'
-import { AlwaysApproveButton, ResolveButton } from './components/ResolveButton'
+import { HookToggle, hookToggleFailureToast } from './components/HookToggle'
 import { WorkshopButton } from './components/WorkshopControls'
 import { useActions } from './useActions'
 import { useActionHistory } from './useActionHistory'
 import type { HistoryViewFilter } from './useActionHistory'
 import { useAutoApproval, autoApprovalKey, type AutoApprovalEntry } from './useAutoApproval'
+import type { AutoApprovalChannel } from './features/approvals/autoApprovalChannel'
 import { useAlwaysApproveTag } from './useAlwaysApproveTag'
 import { useAuthenticatedApi } from './AuthContext'
 import { useAvatar } from './useAvatar'
 import { useVendorBranding } from './useVendorBranding'
 import { useResolveAction } from './useResolveAction'
 import { safeExternalUrl } from './utils/safeExternalUrl'
+import { ReviewRequest } from './features/approvals/ReviewRequest'
 import AutoApproveConfirmDialog from './components/AutoApproveConfirmDialog'
+import { ActionFields, entryFields } from './components/ActionFields'
 
 export type ActivityView = 'review' | 'history' | 'auto'
 
@@ -27,12 +29,14 @@ const PANE_BAR = 'flex h-9 flex-shrink-0 items-center border-b border-kumo-line'
 
 interface ActivityProps {
   overseer: RpcStub<Overseer>
+  // True once the workspace has read restricted data (WorkspaceMetadata.containsRestrictedData).
+  // Latched actions are never auto-approved, so the always-approve affordance is hidden and
+  // existing rules are shown as suspended but stay revocable.
+  restricted?: boolean
   view: ActivityView
   onViewChange: (view: ActivityView) => void
-  onAutoApproveChange?: () => void
-  // Bumped when a rule is enabled from somewhere else (a pending row in chat), so the rule list
-  // reflects it without being reopened.
-  autoApproveReloadTrigger?: number
+  // Shared with the chat: a rule changed here has to reach the tray's own list.
+  autoApproval?: AutoApprovalChannel
 }
 
 /** Pending-status copy while the pending set is still being gathered (also in the popover). */
@@ -65,25 +69,6 @@ function formatFullDate(date: Date): string {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-export function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage']): string {
-  const minutes = Math.floor(Math.max(0, Date.now() - new Date(date).getTime()) / 60_000)
-  if (minutes < 1) return formatMessage({ id: 'activity.relativeTimeJustNow', defaultMessage: 'just now' })
-  if (minutes < 60) {
-    return formatMessage(
-      { id: 'activity.relativeTimeMinutes', defaultMessage: '{minutes}m ago' },
-      { minutes },
-    )
-  }
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return formatMessage({ id: 'activity.relativeTimeHours', defaultMessage: '{hours}h ago' }, { hours })
-  }
-  return formatMessage(
-    { id: 'activity.relativeTimeDays', defaultMessage: '{days}d ago' },
-    { days: Math.floor(hours / 24) },
-  )
 }
 
 function startOfDay(date: Date): number {
@@ -201,10 +186,10 @@ function ActivityNotice({ icon, title, description, children }: {
 
 export default function Activity({
   overseer,
+  restricted,
   view,
   onViewChange,
-  onAutoApproveChange,
-  autoApproveReloadTrigger,
+  autoApproval,
 }: ActivityProps) {
   const { status: pendingStatus, pending: pendingActions } = useActions(overseer)
   const [historyFilter, setHistoryFilter] = useState<HistoryViewFilter>('all')
@@ -218,6 +203,7 @@ export default function Activity({
     actionKind: ActionKind
     actionLabel: string
   } | null>(null)
+
   const toasts = useKumoToastManager()
   const { formatMessage } = useIntl()
 
@@ -236,7 +222,7 @@ export default function Activity({
     return groups
   }, [history.entries, formatMessage])
 
-  const resolveAction = useResolveAction(overseer, setProcessingActions)
+  const { resolveAction, creationAccountModal } = useResolveAction(overseer, setProcessingActions)
 
   const handleToggleHook = async (hookId: number, enabled: boolean) => {
     setTogglingHooks(previous => new Set(previous).add(hookId))
@@ -245,12 +231,7 @@ export default function Activity({
       else await overseer.disableHook(hookId)
     } catch (error) {
       console.error('Failed to toggle hook:', error)
-      toasts.add({
-        title: enabled
-          ? formatMessage({ id: 'activity.toastEnableHookFailed', defaultMessage: 'Failed to enable hook' })
-          : formatMessage({ id: 'activity.toastDisableHookFailed', defaultMessage: 'Failed to disable hook' }),
-        variant: 'error',
-      })
+      toasts.add(hookToggleFailureToast(enabled, error))
     } finally {
       setTogglingHooks(previous => {
         const next = new Set(previous)
@@ -261,7 +242,7 @@ export default function Activity({
   }
 
   const { alwaysApproveTag, isTagAutoApproved } =
-    useAlwaysApproveTag(overseer, setProcessingActions, onAutoApproveChange)
+    useAlwaysApproveTag(overseer, setProcessingActions, autoApproval?.changed)
 
   const toggleExpanded = (id: number) => {
     setExpandedActionId(previous => (previous === id ? null : id))
@@ -286,6 +267,8 @@ export default function Activity({
           <div className="min-h-0 flex-1 overflow-auto">
             {pendingActions.map(record => {
               const autoApproveTarget =
+                // Never auto-approved while restricted, so no rule is offered.
+                !restricted &&
                 record.type === 'action' && record.gatekeeperId !== undefined &&
                 record.description.actionKind !== undefined &&
                 record.description.autoApprovable === true
@@ -301,17 +284,19 @@ export default function Activity({
                 <ReviewRequest
                   key={record.id}
                   record={record}
+                  restricted={restricted}
                   expanded={expandedActionId === record.id}
                   processing={processingActions.has(record.id)}
                   onToggle={() => toggleExpanded(record.id)}
-                  onApprove={() => void resolveAction(record.id, 'approve')}
-                  onReject={() => void resolveAction(record.id, 'deny')}
-                  onAlwaysApprove={
-                    autoApproveTarget &&
-                    !isTagAutoApproved(autoApproveTarget.gatekeeperId, autoApproveTarget.actionKind.tag)
-                      ? () => setConfirmAutoApprove(autoApproveTarget)
-                      : undefined
-                  }
+                  decide={{
+                    onApprove: () => void resolveAction(record, 'approve'),
+                    onReject: () => void resolveAction(record, 'deny'),
+                    onAlwaysApprove:
+                      autoApproveTarget &&
+                      !isTagAutoApproved(autoApproveTarget.gatekeeperId, autoApproveTarget.actionKind.tag)
+                        ? () => setConfirmAutoApprove(autoApproveTarget)
+                        : undefined,
+                  }}
                 />
               )
             })}
@@ -499,7 +484,14 @@ export default function Activity({
           </>
         )
       case 'auto':
-        return <AutoApprovalPanel overseer={overseer} reloadTrigger={autoApproveReloadTrigger} />
+        return (
+          <AutoApprovalPanel
+            overseer={overseer}
+            restricted={restricted}
+            reloadTrigger={autoApproval?.reloadTrigger}
+            onChanged={autoApproval?.changed}
+          />
+        )
     }
   }
 
@@ -507,7 +499,8 @@ export default function Activity({
     <div className="flex h-full flex-col bg-kumo-base">
       {renderActivityContent()}
 
-      {confirmAutoApprove && (
+      {/* The workspace latched: the affordance is gone and confirming could only error. */}
+      {!restricted && confirmAutoApprove && (
         <AutoApproveConfirmDialog
           open
           actionLabel={confirmAutoApprove.actionLabel}
@@ -522,28 +515,49 @@ export default function Activity({
           }}
         />
       )}
+      {creationAccountModal}
     </div>
   )
 }
 
 function AutoApprovalPanel({
   overseer,
+  restricted,
   reloadTrigger,
+  onChanged,
 }: {
   overseer: RpcStub<Overseer>
+  restricted?: boolean
   reloadTrigger?: number
+  /** Reports that a change made here has settled; see `AutoApprovalChannel`. */
+  onChanged?: () => void
 }) {
   const { entries, isLoading, loadError, pending, refresh, setEnabled } = useAutoApproval(overseer)
   const { authenticatedApi } = useAuthenticatedApi()
   const vendorBranding = useVendorBranding(authenticatedApi)
   const { formatMessage } = useIntl()
 
-  const previousReloadTrigger = useRef(reloadTrigger)
+  // No channel means no other surface to hear from, so the panel only ever reloads its own way.
+  const trigger = reloadTrigger ?? 0
+  const previousReloadTrigger = useRef(trigger)
+  // A change made here has already re-read the list on its way out, and its own end of the
+  // channel bumps the trigger for everyone else. Reacting to that bump would read the list a
+  // second time for no new answer.
+  //
+  // Counted rather than flagged, because several completions can land in one React batch. A
+  // flag would swallow the whole advance, so a change made on another surface alongside this
+  // panel's own would go unread: the rule it granted would stay invisible here, and so could not
+  // be revoked from this list, until something else happened to refresh it.
+  const changedHere = useRef(0)
   useEffect(() => {
-    if (reloadTrigger === previousReloadTrigger.current) return
-    previousReloadTrigger.current = reloadTrigger
+    const advance = trigger - previousReloadTrigger.current
+    if (advance <= 0) return
+    previousReloadTrigger.current = trigger
+    const ours = Math.min(changedHere.current, advance)
+    changedHere.current -= ours
+    if (ours === advance) return
     void refresh()
-  }, [reloadTrigger, refresh])
+  }, [trigger, refresh])
 
   const groups = useMemo(() => {
     const byConnection = new Map<
@@ -660,30 +674,30 @@ function AutoApprovalPanel({
                       {entry.actionKind.label}
                     </span>
                     <span className="mt-0.5 block text-[12px] leading-4 tracking-[-0.2px] text-kumo-inactive">
-                      {entry.orphaned
-                        ? <FormattedMessage
-                            id="activity.orphanedRuleNotice"
-                            defaultMessage="This connection no longer offers this action; the rule still applies."
-                          />
-                        : entry.enabled
-                          ? <FormattedMessage id="activity.appliedWithoutAsking" defaultMessage="Applied without asking" />
-                          : <FormattedMessage id="activity.waitsForApproval" defaultMessage="Waits for your approval" />}
+                      {restricted
+                        // Rules don't apply while restricted; say so, but keep them revocable.
+                        ? "Won't apply: this workspace has read sensitive data, so actions always require manual approval."
+                        : entry.orphaned
+                          ? 'This connection no longer offers this action; the rule still applies.'
+                          : entry.enabled
+                            ? 'Applied without asking'
+                            : 'Waits for your approval'}
                     </span>
                   </span>
                   <Switch
                     size="sm"
                     checked={entry.enabled}
-                    disabled={busy}
-                    aria-label={entry.enabled
-                      ? formatMessage(
-                          { id: 'activity.disableAutoApprovalFor', defaultMessage: 'Disable auto-approval for {label}' },
-                          { label: entry.actionKind.label },
-                        )
-                      : formatMessage(
-                          { id: 'activity.enableAutoApprovalFor', defaultMessage: 'Enable auto-approval for {label}' },
-                          { label: entry.actionKind.label },
-                        )}
-                    onCheckedChange={enabled => void setEnabled(entry, enabled)}
+                    // A rule never fires while restricted, so enabling one is pointless; disabling
+                    // must stay possible.
+                    disabled={busy || (restricted === true && !entry.enabled)}
+                    aria-label={`${entry.enabled ? 'Disable' : 'Enable'} auto-approval for ${entry.actionKind.label}`}
+                    // Toggling here is the only way to turn a rule off, and the chat tray
+                    // labels its requests from this same list, so it has to be told.
+                    onCheckedChange={enabled =>
+                      void setEnabled(entry, enabled).finally(() => {
+                        changedHere.current += 1
+                        onChanged?.()
+                      })}
                   />
                 </div>
               )
@@ -692,76 +706,6 @@ function AutoApprovalPanel({
         ))}
       </div>
     </>
-  )
-}
-
-function ReviewRequest({
-  record,
-  expanded,
-  processing,
-  onToggle,
-  onApprove,
-  onReject,
-  onAlwaysApprove,
-}: {
-  record: ActionLogEntry
-  expanded: boolean
-  processing: boolean
-  onToggle: () => void
-  onApprove: () => void
-  onReject: () => void
-  onAlwaysApprove?: () => void
-}) {
-  const { formatMessage } = useIntl()
-  const resourceUrl = safeExternalUrl(record.resourceUrl)
-  return (
-    <article className="border-b border-kumo-line px-5 py-3 transition-colors hover:bg-kumo-elevated/50">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-1.5">
-        <div className="min-w-[8rem] flex-1">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            className="flex max-w-full cursor-pointer items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring"
-          >
-            <h3 className="m-0 truncate text-[13px] font-medium leading-[18px] tracking-[-0.25px] text-kumo-default">
-              {record.description.title}
-            </h3>
-            <CaretRight
-              size={12}
-              className={`flex-shrink-0 text-kumo-inactive transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-            />
-          </button>
-          <p className="mt-0.5 truncate text-[11.5px] leading-4 tracking-[-0.1px] text-kumo-inactive">
-            {resourceUrl ? (
-              <a
-                href={resourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-kumo-default hover:underline"
-              >
-                {record.resourceTitle}
-              </a>
-            ) : record.resourceTitle}
-            <span className="px-1">·</span>
-            {formatRelativeTime(record.createdAt, formatMessage)}
-          </p>
-        </div>
-        <div className="ml-auto flex flex-shrink-0 items-center gap-0.5">
-          {onAlwaysApprove && (
-            <AlwaysApproveButton onClick={onAlwaysApprove} disabled={processing} />
-          )}
-          <ResolveButton tone="deny" onClick={onReject} disabled={processing} />
-          <ResolveButton tone="approve" onClick={onApprove} disabled={processing} />
-        </div>
-      </div>
-
-      {record.description.description && (
-        <p className={`mt-1.5 max-w-2xl whitespace-pre-wrap text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle ${expanded ? '' : 'line-clamp-2'}`}>
-          {record.description.description}
-        </p>
-      )}
-    </article>
   )
 }
 
@@ -822,6 +766,7 @@ function HistoryRow({
               {record.description.description}
             </p>
           )}
+          <ActionFields fields={entryFields(record)} className="mt-2 max-w-2xl" />
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11.5px] text-kumo-inactive">
             <span>{formatFullDate(at)}</span>
             <span className="text-kumo-subtle">{record.resourceTitle}</span>
@@ -847,8 +792,9 @@ function HistoryRow({
             )}
             {record.type === 'bindHook' && record.hookId !== undefined && (
               <HookToggle
+                hookTitle={record.description.title}
                 enabled={record.enabled}
-                disabled={togglingHook}
+                pending={togglingHook}
                 onToggle={enabled => onToggleHook(record.hookId!, enabled)}
               />
             )}

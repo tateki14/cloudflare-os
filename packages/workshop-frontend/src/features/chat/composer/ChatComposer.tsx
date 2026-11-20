@@ -1,6 +1,8 @@
+import { getResourceTypeId } from "@gadgets/workshop-shared/gatekeeper";
 import {
   useState,
   useEffect,
+  useId,
   useRef,
   useMemo,
   useCallback,
@@ -50,7 +52,9 @@ import {
 } from "./attachments/useComposerAttachments";
 import { CapturedConsoleLogsPrompt } from "./CapturedConsoleLogsPrompt";
 import ComposerAddMenu from "./ComposerAddMenu";
-import { ComposerModelSelector } from "./ComposerModelSelector";
+import { ComposerDictationButton } from "./ComposerDictationButton";
+import { ComposerDictationStrip } from "./ComposerDictationStrip";
+import { ComposerModelSelector, type SelectedModel } from "./ComposerModelSelector";
 import { useComposerDraft } from "./draft/useComposerDraft";
 import { buildComposerSubmission } from "./composerSubmission";
 import {
@@ -62,6 +66,7 @@ import {
 } from "./composerDocument";
 import { useComposerResources } from "./useComposerResources";
 import { useComposerEditorLayout } from "./useComposerEditorLayout";
+import { appendDictatedText, useComposerDictation } from "./useComposerDictation";
 import styles from "./ChatComposer.module.css";
 
 // A capsule's text begins with an em space, which reserves the box the mirror paints the vendor
@@ -85,6 +90,7 @@ export const ChatComposer = ({
   isAgentActive,
   models,
   selectedModel,
+  modelsLoading,
   onModelChange,
   pendingConsoleLogCount = 0,
   consoleLogPreview = "",
@@ -102,6 +108,7 @@ export const ChatComposer = ({
   blockedReason,
   chatKey,
   onStop,
+  queuedSteers,
   showThinkingTraces = true,
   onToggleThinkingTraces,
 }: {
@@ -123,7 +130,9 @@ export const ChatComposer = ({
   ) => Promise<void> | void;
   isAgentActive: boolean;
   models: AiChatAuthorInfo[];
-  selectedModel: string | null;
+  selectedModel: SelectedModel;
+  /** True until `models` and the model a new chat starts on have loaded. */
+  modelsLoading?: boolean;
   onModelChange: (modelId: string | null) => void;
   pendingConsoleLogCount?: number;
   consoleLogPreview?: string;
@@ -154,7 +163,10 @@ export const ChatComposer = ({
   blockedReason?: string;
   /** Identity of the chat the composer is bound to; a change clears chat-scoped hints. */
   chatKey?: number | null;
-  onStop?: () => void;
+  /** Stops the agent; rejects, once the failure is reported, if it could not. */
+  onStop?: () => Promise<void>;
+  /** Texts of the steers queued for the agent, which Stop moves into the draft. */
+  queuedSteers?: readonly string[];
   showThinkingTraces?: boolean;
   onToggleThinkingTraces?: () => void;
   /** Show the "Pre-approve actions" menu item (only when there are uncovered candidates). */
@@ -171,7 +183,6 @@ export const ChatComposer = ({
     removeAttachment,
   } = useComposerAttachments({
     getOverseer,
-    modelId: selectedModel,
     onError: (message) => toasts.add({ title: message, variant: "error" }),
   });
   const {
@@ -201,6 +212,9 @@ export const ChatComposer = ({
     }));
   };
   const [isSending, setIsSending] = useState(false);
+  // Set by Stop until the agent goes idle: a steer sent meanwhile would be refused.
+  const [isStopping, setIsStopping] = useState(false);
+  if (isStopping && !isAgentActive) setIsStopping(false);
   const [catalogVersion, setCatalogVersion] = useState(0);
   // The chat the "may not have been sent" hint belongs to; the render condition scopes it, and
   // leaving the chat dismisses it.
@@ -218,6 +232,9 @@ export const ChatComposer = ({
   const sendInFlightRef = useRef(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(true);
+  // Configure… toasts never time out, and their action needs this composer, so it closes them,
+  // each with the close of the manager that added it (useKumoToastManager is new every render).
+  const configureToastsRef = useRef(new Map<string, () => void>());
   const [overlayIndex, setOverlayIndex] = useState(0);
   const overlayItemsRef = useRef<SelectableItem[]>([]);
   const overlayActivateRef = useRef<((index: number) => void) | null>(null);
@@ -247,6 +264,7 @@ export const ChatComposer = ({
     activeUrl,
     attachCreated,
     attachModalOpen,
+    attachModalPrefill,
     closeAttachModal,
     createCapsule,
     dismissUrl,
@@ -272,7 +290,24 @@ export const ChatComposer = ({
         syncPickerCaret(selection.end);
       });
     },
-    onError: (message) => toasts.add({ title: message, variant: "error" }),
+    onError: (title, description, configure) => {
+      const toastId: string = toasts.add({
+        title,
+        description,
+        variant: "error",
+        // A toast offering an action stays until the user acts on it or dismisses it.
+        timeout: configure ? 0 : undefined,
+        actions: configure && [{
+          children: "Configure…",
+          onClick: () => {
+            configureToastsRef.current.delete(toastId);
+            toasts.close(toastId);
+            configure();
+          },
+        }],
+      });
+      if (configure) configureToastsRef.current.set(toastId, () => toasts.close(toastId));
+    },
   });
   const {
     resizeTextarea,
@@ -342,6 +377,45 @@ export const ChatComposer = ({
   }, [activeUrl]);
 
   const isBlocked = !!blockedReason;
+  // Puts dictated words after the draft.
+  const addToDraft = (words: string) => {
+    if (!words) return;
+    recordDraftEdit();
+    setInputValue((draft) => appendDictatedText(draft, words));
+  };
+  // Back to the draft, with the caret at its end, for a user about to read or edit it.
+  const returnToDraft = () => requestAnimationFrame(() => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    moveCaret(textarea.value.length);
+  });
+  const dictation = useComposerDictation({
+    disabled: isBlocked || isSending,
+    chatKey,
+    draftStorageKey,
+    seedNonce,
+    onFinish: (words) => {
+      addToDraft(words);
+      returnToDraft();
+    },
+    onReady: () => toasts.add({
+      title: "Voice typing is ready",
+      description: "Select the microphone to start.",
+      variant: "success",
+    }),
+    onError: (title) => toasts.add({ title, variant: "error" }),
+  });
+  const dictatedText = (dictation.words.final + dictation.words.interim).trim();
+  const showDictation = dictation.status === "listening" || dictation.status === "finishing" ||
+    dictatedText !== "";
+  const dictatedTextId = useId();
+  // Adds the words dictation shows now, and returns the document that holds them, since
+  // inputValueRef and the token refs catch up only on the next render.
+  const addDictation = () => {
+    addToDraft(dictation.take());
+    return getDocumentSnapshot().document;
+  };
 
   // A disabled textarea stops firing mouse events, so drop the hover state the token hit-testing
   // below leaves behind; otherwise the cursor outlives `disabled:cursor-not-allowed`.
@@ -355,6 +429,14 @@ export const ChatComposer = ({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const configureToasts = configureToastsRef.current;
+    return () => {
+      for (const close of configureToasts.values()) close();
+      configureToasts.clear();
     };
   }, []);
 
@@ -453,6 +535,8 @@ export const ChatComposer = ({
 
   const handleSend = async () => {
     if (sendInFlightRef.current || isSending || isBlocked) return;
+    // Send includes the words dictation shows, as part of the draft, so a failed send keeps them.
+    const draft = addDictation();
     setSendHiccup(null);
     const attachmentsSnapshot = pendingAttachments;
     const readyAttachments = attachmentsSnapshot
@@ -461,7 +545,7 @@ export const ChatComposer = ({
     const hasUploadingAttachment = attachmentsSnapshot.some((attachment) => attachment.uploadState === "uploading");
     const hasFailedAttachment = attachmentsSnapshot.some((attachment) => attachment.uploadState === "error");
 
-    if (!inputValue.trim() && !selectedSlashCommand && readyAttachments.length === 0) return;
+    if (!draft.text.trim() && !draft.command && readyAttachments.length === 0) return;
     if (hasUploadingAttachment) {
       toasts.add({
         title: formatMessage({ id: "chatInterface.toastWaitForUploads", defaultMessage: "Please wait for attachment uploads to finish" }),
@@ -489,7 +573,7 @@ export const ChatComposer = ({
     const draftSend = beginDraftSend();
     try {
       const submissionResult = buildComposerSubmission({
-        document: composerDocument,
+        document: draft,
         hasAttachments: readyAttachments.length > 0,
       });
       if (!submissionResult.ok) {
@@ -502,7 +586,7 @@ export const ChatComposer = ({
       const { message, capsules: capsuleSpecifiers, formats: formatRefs } =
         submissionResult.submission;
 
-      await onSend(message, selectedModel,
+      await onSend(message, selectedModel?.id ?? null,
           capsuleSpecifiers,
           readyAttachments.length ? readyAttachments : undefined,
           formatRefs);
@@ -525,6 +609,20 @@ export const ChatComposer = ({
         // anything handleSend itself throws before reaching them.
         console.error("Failed to send chat message:", err);
       }
+    });
+  };
+
+  const handleStop = () => {
+    if (!onStop) return;
+    setIsStopping(true);
+    if (queuedSteers?.length) {
+      recordDraftEdit();
+      setInputValue([inputValue.trimEnd(), ...queuedSteers].filter(Boolean).join("\n\n"));
+    }
+    // A failed Stop may still have dropped the steers on the server, so the draft keeps them, and
+    // Stop can be pressed again.
+    onStop().catch(() => {
+      if (mountedRef.current) setIsStopping(false);
     });
   };
 
@@ -661,9 +759,14 @@ export const ChatComposer = ({
   const hasUnreadyAttachment = pendingAttachments.some(
     (attachment) => attachment.uploadState !== "ready",
   );
+  const messageText = appendDictatedText(inputValue, dictatedText);
   const canSend = !isSending && !isAgentActive && !isBlocked &&
-    (inputValue.trim().length > 0 || selectedSlashCommand !== null || hasReadyAttachment) &&
+    (messageText.trim().length > 0 || selectedSlashCommand !== null || hasReadyAttachment) &&
     !hasUnreadyAttachment && !isCreatingResource;
+  // While the agent works, a plain message steers it (see ChatInterface's handleSend).
+  const canSteer = isAgentActive && !isSending && !isStopping && !isBlocked &&
+    messageText.trim().length > 0 && selectedSlashCommand === null && capsules.length === 0 &&
+    formatTokens.length === 0 && pendingAttachments.length === 0 && !isCreatingResource;
   return (
     // isolation: isolate contains z-indexes used inside the composer (the
     // captured-log floating chip with z-10, the textarea/mirror with z-[1])
@@ -694,14 +797,14 @@ export const ChatComposer = ({
           into the canvas; the lift intensifies a touch on focus. */}
       <div
         ref={promptCardRef}
-        className="themed-prompt-card-shadow relative overflow-visible rounded-2xl border border-kumo-line bg-kumo-control transition-shadow duration-150 ease-out"
+        className="relative overflow-visible rounded-2xl bg-kumo-control shadow-md ring ring-kumo-hairline shadow-black/4 transition-shadow duration-150 ease-out focus-within:shadow-lg"
         onDragEnter={handleAttachmentDragEnter}
         onDragOver={handleAttachmentDragOver}
         onDragLeave={handleAttachmentDragLeave}
         onDrop={handleAttachmentDrop}
       >
         {isAttachmentDragActive && (
-          <div className={`themed-inset-outline pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-2xl border-2 border-dashed p-4 backdrop-blur-[1px] transition-[opacity,transform] duration-150 ease-out ${canAttachMore ? "border-kumo-brand/55 bg-kumo-brand/10" : "border-kumo-warning/60 bg-kumo-warning/10"}`}>
+          <div className={`themed-inset-outline pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-2xl border-2 border-solid p-4 backdrop-blur-[1px] transition-[opacity,transform] duration-150 ease-out ${canAttachMore ? "border-kumo-brand/55 bg-kumo-brand/10" : "border-kumo-warning/60 bg-kumo-warning/10"}`}>
             <div className={`themed-floating-shadow flex items-center gap-2 rounded-full border bg-kumo-base/90 px-3 py-2 text-[13px] font-medium leading-4 tracking-[-0.2px] text-kumo-default ${canAttachMore ? "border-kumo-brand/25" : "border-kumo-warning/30"}`}>
               <span className={`grid h-7 w-7 place-items-center rounded-full ${canAttachMore ? "bg-kumo-brand/12 text-kumo-brand" : "bg-kumo-warning/15 text-kumo-warning"}`}>
                 <FileIcon size={16} weight="duotone" />
@@ -727,8 +830,13 @@ export const ChatComposer = ({
                 />}
           </div>
         )}
+        <ComposerAttachmentTray
+          attachments={pendingAttachments}
+          disabled={isSending}
+          onRemove={removeAttachment}
+        />
         {/* Textarea */}
-        <div className="relative px-4 pb-1 pt-3">
+        <div className="relative px-4 pb-2.5 pt-3">
           {slashCommandPicker.popup}
           {/* The resolved command is marked by color alone, so announce it for screen readers. */}
           <div className="sr-only" aria-live="polite">
@@ -747,8 +855,8 @@ export const ChatComposer = ({
             {activeUrl && (
               <CapsuleOverlay
                 url={activeUrl.text}
-                onSelectAccount={(accountId, vendorId) => {
-                  void createCapsule(accountId, vendorId);
+                onSelectAccount={(accountId, vendorId, resource) => {
+                  void createCapsule({ accountId, vendorId, resourceUrlPattern: resource.urlPattern, resourceTypeId: getResourceTypeId(resource) });
                 }}
                 onRefine={refineUrl}
                 onDismiss={dismissUrl}
@@ -771,6 +879,7 @@ export const ChatComposer = ({
               aria-expanded={slashCommandPicker.open}
               aria-controls={slashCommandPicker.open ? slashCommandPicker.listboxId : undefined}
               aria-activedescendant={slashCommandPicker.activeDescendant}
+              aria-describedby={showDictation ? dictatedTextId : undefined}
               onChange={(e) => {
                 handleInputChange(e.target.value, e.target.selectionStart ?? 0);
                 syncPickerCaret(e.target.selectionStart ?? 0);
@@ -811,7 +920,7 @@ export const ChatComposer = ({
                 isBlocked
                   ? blockedReason
                   : isAgentActive
-                    ? formatMessage({ id: "chatInterface.waitingForAgent", defaultMessage: "Waiting for agent…" })
+                    ? "Message the agent while it works…"
                     : newChat
                       ? formatMessage({ id: "chatInterface.startNewConversation", defaultMessage: "Start a new conversation…" })
                       : formatMessage({ id: "chatInterface.askFollowUp", defaultMessage: "Ask a follow-up…" })
@@ -838,6 +947,11 @@ export const ChatComposer = ({
                 if (slashCommandPicker.open && e.key === "Escape") {
                   e.preventDefault();
                   slashCommandPicker.dismiss();
+                  return;
+                }
+                if (showDictation && e.key === "Escape") {
+                  e.preventDefault();
+                  dictation.discard();
                   return;
                 }
                 if (slashCommandPicker.open && e.key === "Enter" && !e.shiftKey) {
@@ -891,7 +1005,7 @@ export const ChatComposer = ({
                 // Enter sends message (unless Shift is held)
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  if (!isAgentActive && !isBlocked) submitMessage();
+                  if (isAgentActive ? canSteer : !isBlocked) submitMessage();
                   return;
                 }
                 if (activeUrl) {
@@ -918,16 +1032,27 @@ export const ChatComposer = ({
             />
           </div>
         </div>
+        {/* Below the draft, where its words will go when they are added. */}
+        {showDictation && (
+          <ComposerDictationStrip
+            textId={dictatedTextId}
+            words={dictation.words}
+            disabled={isBlocked || isSending}
+            onAdd={() => {
+              addDictation();
+              returnToDraft();
+            }}
+            onDiscard={() => {
+              dictation.discard();
+              // The strip, and the button that had focus, are gone.
+              composerTextareaRef.current?.focus();
+            }}
+          />
+        )}
 
-        <ComposerAttachmentTray
-          attachments={pendingAttachments}
-          disabled={isSending}
-          onRemove={removeAttachment}
-        />
-
-        {/* Footer row: connection/options left, model + send right */}
+        {/* Footer row: add, voice typing, and options left; model and send right */}
         <div className="flex items-center justify-between gap-1.5 px-3 pb-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <div className="flex shrink-0 items-center gap-1.5">
             <ComposerAddMenu
               anchorRef={promptCardRef}
               catalogVersion={catalogVersion}
@@ -940,6 +1065,21 @@ export const ChatComposer = ({
               onAddConnection={handleAttachOpen}
               onSelectSkill={selectSkillFromAddMenu}
             />
+            {dictation.supported && (
+              <ComposerDictationButton
+                status={dictation.status}
+                disabled={isBlocked || isSending}
+                onToggle={() => {
+                  if (dictation.status === "listening") dictation.finish();
+                  else if (dictation.status === "finishing") {
+                    addDictation();
+                    returnToDraft();
+                  } else if (dictation.status === "idle") void dictation.start();
+                  else dictation.pause();
+                }}
+                onCancel={dictation.discard}
+              />
+            )}
             {(canChooseFormat || onToggleThinkingTraces) && <DropdownMenu>
               <DropdownMenu.Trigger
                 render={
@@ -966,7 +1106,7 @@ export const ChatComposer = ({
                     onClick={onToggleThinkingTraces}
                     className="!h-auto rounded-xl !px-2 !py-1.5 text-[12px] leading-4 font-normal tracking-[-0.15px] text-kumo-subtle transition-colors data-highlighted:bg-kumo-tint/70 data-highlighted:text-kumo-default"
                   >
-                    <span className="mr-2 inline-flex h-4 w-4 items-center justify-center text-kumo-inactive">
+                    <span className="inline-flex h-4 w-4 items-center justify-center text-kumo-inactive">
                       <Brain size={14} />
                     </span>
                     <span className="flex-1">
@@ -985,12 +1125,15 @@ export const ChatComposer = ({
               <ComposerModelSelector
                 models={models}
                 selectedModel={selectedModel}
+                loading={modelsLoading}
                 onModelChange={onModelChange}
               />
-              {isAgentActive && onStop ? (
+              {isAgentActive && onStop && (
+                // A steer still being sent can't be handed back to the draft yet.
                 <WorkshopIconButton
-                  onClick={onStop}
-                  tone="primary"
+                  onClick={handleStop}
+                  disabled={isSending || isStopping}
+                  tone={canSteer ? "ghost" : "primary"}
                   className="!h-10 !w-10 sm:!h-8 sm:!w-8"
                   aria-label={formatMessage({ id: "chatInterface.stopAgent", defaultMessage: "Stop agent" })}
                 >
@@ -1003,10 +1146,11 @@ export const ChatComposer = ({
                     <rect x="5" y="5" width="14" height="14" rx="2" />
                   </svg>
                 </WorkshopIconButton>
-              ) : (
+              )}
+              {(!isAgentActive || !onStop || canSteer) && (
                 <WorkshopIconButton
                   onClick={submitMessage}
-                  disabled={!canSend}
+                  disabled={!canSend && !canSteer}
                   tone="primary"
                   className="!h-10 !w-10 disabled:cursor-not-allowed disabled:opacity-30 sm:!h-8 sm:!w-8"
                   aria-label={formatMessage({ id: "chatInterface.sendMessage", defaultMessage: "Send message" })}
@@ -1034,6 +1178,11 @@ export const ChatComposer = ({
         onClose={closeAttachModal}
         getOverseer={getOverseer}
         onCreated={attachCreated}
+        initialVendorId={attachModalPrefill?.resolution.vendorId}
+        initialResourceUrl={attachModalPrefill?.url}
+        initialResourceTypeId={attachModalPrefill?.resolution.resourceTypeId}
+        initialResourceUrlPattern={attachModalPrefill?.resolution.resourceUrlPattern}
+        initialAccountId={attachModalPrefill?.resolution.accountId}
       />
     </div>
   );

@@ -1,8 +1,8 @@
 // Wiring coverage for session-side commit advertising: every commit id a session read returns
 // must be advertised to the workspace git cache, or a later attempt to mount it as a worktree
-// fails as unknown. The pure helpers are tested in Node (git-commits.test.ts); only this suite can
-// catch a session method that forgets to wrap its cursor or advertise its shas -- removing any
-// `#gitCache.wrap()`/`#gitCache.advertise()` call in github.ts must fail this file.
+// fails as unknown. The pure helpers are tested in Node (git-commits.test.ts here, git-objects.test.ts in the kit); only this suite can
+// catch a session method that forgets to advertise its listing's or its own shas -- dropping any
+// listing's `advertising` (see observedListing) or `#gitCache.advertise()` call in github.ts must fail this file.
 //
 // Sessions are instantiated directly against fake gatekeepers (the same shape as
 // gatekeeper-cloudflare's workerd session suite): the REST/caching layer below the session is not
@@ -102,10 +102,16 @@ function commitSummary(id: string, parents: string[]): GitHubCommitSummary {
 /**
  * The session only calls what the test drives, so each test supplies just those methods.
  * `isSimulatedCommitId` -- consulted by every advertising callback -- defaults to "nothing is
- * simulated"; tests exercising the withholding override it.
+ * simulated"; tests exercising the withholding override it. `authorizeRead`, through which every
+ * read authorizes, passes the observation straight to the queue.
  */
 function fakeGatekeeper(methods: Partial<Record<string, unknown>>): GitHubGatekeeperImpl {
-  return { isSimulatedCommitId: () => false, ...methods } as unknown as GitHubGatekeeperImpl;
+  return {
+    isSimulatedCommitId: () => false,
+    authorizeRead: (queue: RpcStub<ApprovalQueue>, observation: { title: string; description: string }) =>
+      queue.authorizeObservation(observation),
+    ...methods,
+  } as unknown as GitHubGatekeeperImpl;
 }
 
 function repoSession(queue: TestApprovalQueue, methods: Partial<Record<string, unknown>>) {
@@ -133,7 +139,8 @@ describe("GitHubRepoSessionImpl advertising", () => {
 
     expect(await cursor.next()).toHaveLength(1);
     expect(queue.cache.advertised.toSorted()).toEqual([oid(1), oid(2), oid(3)]);
-    expect(queue.observations).toEqual(["List pull requests"]);
+    // Each page is authorized as it leaves, not the listing once when it was opened.
+    expect(queue.observations).toEqual(["List pull requests", "List pull requests (page 2)"]);
   });
 
   it("advertises head and base shas from searchPullRequests, skipping empty provisional shas", async () => {
@@ -307,14 +314,14 @@ describe("GitHubRepoSessionImpl push", () => {
     return { prepared, submitted, methods };
   }
 
-  it("records the branch-head observation and declares the pushed commit", async () => {
+  it("records no observation for its internal branch-head read and declares the pushed commit", async () => {
     const queue = new TestApprovalQueue();
     const { prepared, submitted, methods } = pushFakes();
     const session = repoSession(queue, methods);
 
     await session.push("main", oid(1));
 
-    expect(queue.observations).toEqual(["Read head of branch main"]);
+    expect(queue.observations).toEqual([]);
     expect(prepared).toHaveLength(1);
     expect(prepared[0].slice(0, 3)).toEqual(["main", oid(1), false]);
     expect(submitted).toHaveLength(1);
@@ -458,5 +465,45 @@ describe("GitHubPullRequestImpl advertising", () => {
     const cursor = await session.listCommits();
     await cursor.next();
     expect(queue.cache.advertised.toSorted()).toEqual([oid(2), oid(3)]);
+  });
+});
+
+function prepare(type: string) {
+  return async () => ({ type });
+}
+
+describe("observation logging", () => {
+  // Reads a method makes only to prepare an action, or to open a capability, return nothing to
+  // the caller, so they must not be logged as observations.
+  it("records no observations for mutations or for opening issue and pull request stubs", async () => {
+    const queue = new TestApprovalQueue();
+    const submitted: string[] = [];
+    const methods = {
+      openIssue: async () => ({ id: "1", title: "Issue", repo: REPO }),
+      openPullRequest: async () => ({ id: "2", title: "PR", repo: REPO }),
+      prepareSetTitle: prepare("setTitle"),
+      prepareSetBody: prepare("setBody"),
+      prepareAddLabels: prepare("addLabels"),
+      prepareRemoveLabels: prepare("removeLabels"),
+      prepareChangeState: prepare("changeState"),
+      prepareCreatePullRequest: async () => ({ type: "createPullRequest", provisionalId: "~1" }),
+      submitActionForApproval: async (_queue: unknown, action: { type: string }) => {
+        submitted.push(action.type);
+      },
+    };
+    const session = repoSession(queue, methods);
+
+    for (const item of [await session.getIssue("1"), await session.getPullRequest("2")]) {
+      await item.setTitle("New title");
+      await item.setBody("New body");
+      await item.addLabels(["bug"]);
+      await item.removeLabels(["bug"]);
+      await item.close();
+      await item.reopen();
+    }
+    await session.createPullRequest({ title: "PR", head: "feature", base: "main" });
+
+    expect(submitted).toHaveLength(13);
+    expect(queue.observations).toEqual([]);
   });
 });

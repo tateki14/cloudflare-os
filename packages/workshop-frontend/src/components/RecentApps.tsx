@@ -2,8 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Clock, ArrowRight } from '@phosphor-icons/react'
 import { useAuthenticatedApi } from '../AuthContext'
 import { useState, useEffect } from 'react'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
-import { GadgetMetadataWithTimestamps } from '@gadgets/workshop-shared/api'
+import { WorkspaceMetadataWithTimestamps } from '@gadgets/workshop-shared/api'
 
 // A simple deterministic gradient based on the gadget ID
 function getGradient(id: string): string {
@@ -46,8 +45,7 @@ function formatRelativeTime(date: Date, formatMessage: IntlShape['formatMessage'
   )
 }
 
-function AppRow({ gadget }: { gadget: GadgetMetadataWithTimestamps }) {
-  const { formatMessage } = useIntl()
+function AppRow({ gadget }: { gadget: WorkspaceMetadataWithTimestamps }) {
   const gradient = getGradient(gadget.id)
 
   return (
@@ -91,13 +89,13 @@ function AppRow({ gadget }: { gadget: GadgetMetadataWithTimestamps }) {
 
 export default function RecentApps() {
   const { authenticatedApi } = useAuthenticatedApi()
-  const [gadgets, setGadgets] = useState<GadgetMetadataWithTimestamps[]>([])
+  const [gadgets, setGadgets] = useState<WorkspaceMetadataWithTimestamps[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    authenticatedApi.listGadgets().then((list) => {
+    authenticatedApi.listWorkspaces().then((list) => {
       if (cancelled) return
       const sorted = [...list].toSorted((a, b) => b.lastActive.getTime() - a.lastActive.getTime())
       setGadgets(sorted.slice(0, 4))

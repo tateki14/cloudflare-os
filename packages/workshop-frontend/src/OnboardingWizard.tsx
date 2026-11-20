@@ -1,11 +1,11 @@
 import { logRpcFailure } from './rpcErrors'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useKumoToastManager } from '@cloudflare/kumo'
-import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
+import { Switch, useKumoToastManager } from '@cloudflare/kumo'
 import { useAuthenticatedApi } from './AuthContext'
 import {
   AiChatAuthorInfo,
   AiGatewayInfo,
+  GatekeeperVendorInfo,
 } from '@gadgets/workshop-shared/api'
 import {
   VendorDescription,
@@ -23,9 +23,11 @@ import {
   Hexagon,
 } from '@phosphor-icons/react'
 import AddModelModal from './AddModelModal'
-import { persistSelectedModel } from './modelSelection'
+import { cacheSelectedModel } from './modelSelection'
 import { logoComponents } from './components/ConnectionLogos'
 import { getVendorIconBackground } from './components/vendorColors'
+import { GatekeeperIcon } from './components/GatekeeperIcon'
+import { refreshGatekeeperApps } from './useGatekeeperApps'
 import { compressAvatar, avatarBlobUrl } from './avatarUtils'
 import { invalidateAvatarCache } from './useAvatar'
 import { useTheme } from './ThemeContext'
@@ -34,10 +36,12 @@ import SiteLogo from './components/SiteLogo'
 import { useDocumentTitle } from './useDocumentTitle'
 import { AccountsSubscriberAdapter } from './accountsSubscriber'
 import { openConnectWindow } from './connectHandoff'
+import { AuthPopupCancelledError } from './features/native-app/authPopup'
 
 // ─── constants ──────────────────────────────────────────────────────────────────
 
 const TOTAL_STEPS_WITH_CONNECTIONS = 4
+const CONNECTIONS_STEP = 2
 
 // Maps RPC vendor IDs to logo keys in our logoComponents map
 const VENDOR_LOGO_MAP: Record<string, string> = {
@@ -90,12 +94,19 @@ export default function OnboardingWizard({
   const [aiConfig, setAiConfig] = useState<AiGatewayInfo | null>(null)
   const [addModelOpen, setAddModelOpen] = useState(false)
   const [modelsLoading, setModelsLoading] = useState(true)
+  // False only on an AI Gateway deployment whose administrator turned adding models off.
+  const canAddModels = aiConfig?.enabled !== true || aiConfig.userModelsEnabled
 
   // Connections state
   const [vendors, setVendors] = useState<VendorEntry[]>([])
   const [connectedVendorIds, setConnectedVendorIds] = useState<Set<string>>(new Set())
   const [vendorsLoading, setVendorsLoading] = useState(true)
   const [connectingVendorId, setConnectingVendorId] = useState<string | null>(null)
+
+  // Ambient gatekeepers the user can opt into. Each is on unless the user switches it off.
+  const [ambientVendors, setAmbientVendors] = useState<GatekeeperVendorInfo[]>([])
+  const [ambientLoading, setAmbientLoading] = useState(true)
+  const [switchedOffAmbientIds, setSwitchedOffAmbientIds] = useState<ReadonlySet<string>>(new Set())
 
   // Entrance animation
   useEffect(() => {
@@ -222,6 +233,22 @@ export default function OnboardingWizard({
     }
   }, [authenticatedApi])
 
+  useEffect(() => {
+    let cancelled = false
+    authenticatedApi
+      .listAddableGatekeepers()
+      .then((list) => {
+        if (!cancelled) setAmbientVendors(list)
+      })
+      .catch((err) => logRpcFailure('Failed to load addable gatekeepers:', err))
+      .finally(() => {
+        if (!cancelled) setAmbientLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [authenticatedApi])
+
   // ── avatar handlers ───────────────────────────────────────────────────────────
 
   const handleFileSelect = async (file: File) => {
@@ -260,22 +287,31 @@ export default function OnboardingWizard({
   const handleConnect = async (vendorId: string) => {
     setConnectingVendorId(vendorId)
     try {
-      openConnectWindow(await authenticatedApi.connectAccount(vendorId))
+      await openConnectWindow(await authenticatedApi.connectAccount(vendorId), authenticatedApi)
     } catch (err) {
+      if (err instanceof AuthPopupCancelledError) return
       console.error('Failed to start connection:', err)
-      toasts.add({
-        title: formatMessage({ id: 'onboardingWizard.toastStartConnectionFailed', defaultMessage: 'Failed to start connection' }),
-        variant: 'error',
-      })
+      toasts.add({ title: err instanceof Error ? err.message : 'Could not complete connection', variant: 'error' })
     } finally {
       // Reset after a short delay — the subscription will update the UI when the connection completes
       setTimeout(() => setConnectingVendorId(null), 2000)
     }
   }
 
+  const handleAmbientToggle = (vendorId: string, on: boolean) => {
+    setSwitchedOffAmbientIds((prev) => {
+      const next = new Set(prev)
+      if (on) next.delete(vendorId)
+      else next.add(vendorId)
+      return next
+    })
+  }
+
   // ── navigation ────────────────────────────────────────────────────────────────
 
-  const showConnectionsStep = vendorsLoading || vendors.length > 0
+  const connectionsLoading = vendorsLoading || ambientLoading
+  const showConnectionsStep =
+    connectionsLoading || vendors.length > 0 || ambientVendors.length > 0
   const totalSteps = showConnectionsStep
     ? TOTAL_STEPS_WITH_CONNECTIONS
     : TOTAL_STEPS_WITH_CONNECTIONS - 1
@@ -285,6 +321,8 @@ export default function OnboardingWizard({
     setStep((currentStep) => Math.min(currentStep, showcaseStep))
   }, [showcaseStep])
 
+  // The user must see the built-in tools' switches before finishing turns any of them on.
+  const canGoNext = !(step === CONNECTIONS_STEP && connectionsLoading)
   const goNext = () => setStep((s) => Math.min(s + 1, totalSteps - 1))
   const goBack = () => setStep((s) => Math.max(s - 1, 0))
 
@@ -302,7 +340,23 @@ export default function OnboardingWizard({
       }
       // selectedModelId is null when the user chose "No agent" or didn't pick one
       await authenticatedApi.setPreferredModel(selectedModelId)
-      persistSelectedModel(selectedModelId)
+      cacheSelectedModel(currentUser?.id, selectedModelId)
+      // The tools are optional, so one that fails (say, an admin disabled it meanwhile) is
+      // reported and doesn't keep the user in onboarding.
+      const ambientToProvision = ambientVendors.filter((v) => !switchedOffAmbientIds.has(v.id))
+      const failedNames: string[] = []
+      await Promise.all(ambientToProvision.map(async ({ id, description }) => {
+        try {
+          await authenticatedApi.provisionAmbientAccount(id)
+        } catch (err) {
+          logRpcFailure(`Failed to turn on ${id}:`, err)
+          failedNames.push(description.displayName)
+        }
+      }))
+      if (failedNames.length > 0) {
+        toasts.add({ title: `Couldn't turn on ${failedNames.join(', ')}.`, variant: 'warning' })
+      }
+      if (ambientToProvision.length > failedNames.length) refreshGatekeeperApps(authenticatedApi)
       await authenticatedApi.completeOnboarding()
       onComplete()
     } catch (err) {
@@ -538,7 +592,7 @@ export default function OnboardingWizard({
                               {model.name}
                             </p>
                             <p className="text-xs text-kumo-subtle truncate">
-                              {model.id}
+                              {model.description ?? model.id}
                             </p>
                           </div>
                           {selectedModelId === model.id && (
@@ -554,22 +608,26 @@ export default function OnboardingWizard({
                       {models.length === 0 && (
                         <div className="text-center py-8">
                           <p className="text-sm text-kumo-subtle mb-1">
-                            <FormattedMessage id="onboardingWizard.noModelsConfigured" defaultMessage="No models configured yet" />
+                            {canAddModels ? 'No models configured yet' : 'No models available yet'}
                           </p>
                           <p className="text-xs text-kumo-inactive">
-                            <FormattedMessage id="onboardingWizard.addModelToGetStarted" defaultMessage="Add a model to get started" />
+                            {canAddModels
+                              ? 'Add a model to get started'
+                              : 'Your deployment’s administrator provides the models'}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    <button
-                      onClick={() => setAddModelOpen(true)}
-                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-kumo-subtle border border-dashed border-kumo-line rounded-xl hover:border-kumo-fill hover:text-kumo-default hover:bg-kumo-tint transition-colors"
-                    >
-                      <Plus size={14} weight="bold" />
-                      <FormattedMessage id="onboardingWizard.addNewModel" defaultMessage="Add new model..." />
-                    </button>
+                    {canAddModels && (
+                      <button
+                        onClick={() => setAddModelOpen(true)}
+                        className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-kumo-subtle border border-dashed border-kumo-line rounded-xl hover:border-kumo-fill hover:text-kumo-default hover:bg-kumo-tint transition-colors"
+                      >
+                        <Plus size={14} weight="bold" />
+                        Add new model...
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -588,17 +646,11 @@ export default function OnboardingWizard({
                   />
                 </p>
 
-                {vendorsLoading ? (
+                {connectionsLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="w-6 h-6 border-2 border-kumo-brand border-t-transparent rounded-full animate-spin" />
                   </div>
-                ) : vendors.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-kumo-subtle">
-                      <FormattedMessage id="onboardingWizard.noServicesAvailable" defaultMessage="No services available" />
-                    </p>
-                  </div>
-                ) : (
+                ) : vendors.length > 0 && (
                   <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 min-[360px]:grid-cols-2">
                     {sortedVendors.map((vendor) => {
                       const Logo = logoComponents[vendor.logoKey]
@@ -660,6 +712,14 @@ export default function OnboardingWizard({
                   </div>
                 )}
 
+                {ambientVendors.length > 0 && (
+                  <AmbientToolList
+                    vendors={ambientVendors}
+                    switchedOffIds={switchedOffAmbientIds}
+                    onToggle={handleAmbientToggle}
+                  />
+                )}
+
                 <p className="text-xs text-kumo-inactive mt-4 text-center">
                   <FormattedMessage id="onboardingWizard.optionalManageAnyTime" defaultMessage="Optional · you can manage connections any time" />
                 </p>
@@ -668,7 +728,7 @@ export default function OnboardingWizard({
 
             {/* ── Final step: What you can do ────────────────────────────────── */}
             <div className="min-h-[320px] w-full flex-shrink-0 p-5 sm:min-h-[420px] sm:p-8">
-              <ShowcaseStep active={step === showcaseStep} siteName={siteName} />
+              <ShowcaseStep active={step === showcaseStep} siteName={siteName} canAddModels={canAddModels} />
             </div>
           </div>
 
@@ -691,7 +751,15 @@ export default function OnboardingWizard({
               {step < totalSteps - 1 ? (
                 <button
                   onClick={goNext}
-                  className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-150 text-kumo-inverse bg-kumo-brand hover:bg-kumo-brand-hover"
+                  disabled={!canGoNext}
+                  className={`
+                    flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg
+                    transition-all duration-150
+                    ${canGoNext
+                      ? 'text-kumo-inverse bg-kumo-brand hover:bg-kumo-brand-hover'
+                      : 'text-kumo-inactive bg-kumo-tint cursor-not-allowed'
+                    }
+                  `}
                 >
                   <FormattedMessage id="onboardingWizard.next" defaultMessage="Next" />
                   <ArrowRight size={14} weight="bold" />
@@ -740,10 +808,55 @@ export default function OnboardingWizard({
       }}
       authenticatedApi={authenticatedApi}
       aiConfig={aiConfig}
+      chatModelsOnly
     />
     </>
   )
 }
+
+// ─── built-in tools ─────────────────────────────────────────────────────────────
+
+const AmbientToolList = ({
+  vendors,
+  switchedOffIds,
+  onToggle,
+}: {
+  vendors: GatekeeperVendorInfo[]
+  switchedOffIds: ReadonlySet<string>
+  onToggle: (vendorId: string, on: boolean) => void
+}) => (
+  <div className="mt-6">
+    <h3 className="text-sm font-medium text-kumo-default">Built-in tools</h3>
+    <p className="mb-3 mt-0.5 text-xs text-kumo-subtle">
+      These turn on in every workspace when you finish. You can turn them off on the Gatekeepers page.
+    </p>
+    <ul className="divide-y divide-kumo-line rounded-xl border border-kumo-line">
+      {vendors.map(({ id, description }) => (
+        <li key={id} className="flex items-center gap-2.5 px-3 py-2.5">
+          <GatekeeperIcon
+            vendorId={id}
+            fallbackText={description.displayName}
+            logoUrl={description.logo?.url}
+            color={description.color}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-kumo-default">
+              {description.displayName}
+            </p>
+            {description.tagline && (
+              <p className="truncate text-xs text-kumo-subtle">{description.tagline}</p>
+            )}
+          </div>
+          <Switch
+            aria-label={description.displayName}
+            checked={!switchedOffIds.has(id)}
+            onCheckedChange={(on) => onToggle(id, on)}
+          />
+        </li>
+      ))}
+    </ul>
+  </div>
+)
 
 // ─── showcase step ──────────────────────────────────────────────────────────────
 
@@ -753,6 +866,8 @@ interface ShowcaseFeature {
   iconBg: string
   title: string
   description: string
+  /** Set on a feature that exists only where users may add models of their own. */
+  ownModels?: true
 }
 
 function showcaseFeatures(formatMessage: IntlShape['formatMessage']): ShowcaseFeature[] {
@@ -781,11 +896,10 @@ function showcaseFeatures(formatMessage: IntlShape['formatMessage']): ShowcaseFe
     icon: Key,
     iconColor: 'text-kumo-warning',
     iconBg: 'bg-kumo-warning-tint',
-    title: formatMessage({ id: 'onboardingWizard.featureModelsTitle', defaultMessage: 'Bring your own models' }),
-    description: formatMessage({
-      id: 'onboardingWizard.featureModelsDescription',
-      defaultMessage: 'Plug in personal API tokens from any provider to use the models you love.',
-    }),
+    title: 'Bring your own models',
+    description:
+      'Plug in personal API tokens from any provider to use the models you love.',
+    ownModels: true,
   },
   {
     icon: Plugs,
@@ -800,7 +914,11 @@ function showcaseFeatures(formatMessage: IntlShape['formatMessage']): ShowcaseFe
   ]
 }
 
-function ShowcaseStep({ active, siteName }: { active: boolean; siteName: string }) {
+function ShowcaseStep({ active, siteName, canAddModels }: {
+  active: boolean
+  siteName: string
+  canAddModels: boolean
+}) {
   // Mount-trigger for staggered fade-in when the step becomes visible
   const [revealed, setRevealed] = useState(false)
   const { formatMessage } = useIntl()
@@ -830,7 +948,7 @@ function ShowcaseStep({ active, siteName }: { active: boolean; siteName: string 
       </div>
 
       <div className="space-y-2.5">
-        {features.map((feature, i) => {
+        {SHOWCASE_FEATURES.filter((feature) => canAddModels || !feature.ownModels).map((feature, i) => {
           const Icon = feature.icon
           return (
             <div

@@ -1,17 +1,18 @@
-import { createObservabilityContext } from "@gadgets/backend-utils/observability-context";
+import { createObservabilityContext } from "@gadgets/observability/observability-context";
 
 /** Observability fields emitted by the Context gatekeeper. */
 export type ContextObservabilityFields = {
   bodyBytes: number;
   branch: string;
   collectionId: string;
-  dir: string;
+  commit: string;
+  consecutiveFailures: number;
   filepath: string;
+  invalidSkillManifestCount: number;
+  invalidSkillManifests: Array<{ filepath: string; reason: string }>;
   maxBodyBytes: number;
-  maxGitDirBytes: number;
   operation: string;
   repoName: string;
-  sizeBytes: number;
   tokenId: number | string;
   vendorId: string;
 };

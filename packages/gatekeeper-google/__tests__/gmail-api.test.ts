@@ -1,11 +1,13 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
   base64UrlDecodedByteLength, buildEncodedEmail, decodeBase64UrlToBytes,
-  enumerateGmailAttachments, extractRfc822Attachments, gmailMessageIdQueryValue, GmailApi,
+  enumerateGmailAttachments, gmailAttachmentInputToOutbound, gmailMessageIdQueryValue, GmailApi,
   GmailApiError,
-  MAX_GMAIL_ATTACHMENT_BYTES,
-  normalizeAggregateRecipients, parseGmailDraft, parseGmailDraftSnapshot, parseGmailPayloadContent,
-  parseMimeMessage, type GmailPayloadPart,
+  MAX_GMAIL_ATTACHMENT_BYTES, MAX_GMAIL_FORWARD_SOURCE_BYTES,
+  normalizeAggregateRecipients, normalizeContentId, normalizeMessageIdHeader,
+  normalizeReferencesHeader, normalizeTextBody, parseGmailDraft, parseGmailDraftSnapshot, parseGmailPayloadContent,
+  parseLegacyGmailDraft, parseMimeMessage, gmailAttachmentBytes,
+  type GmailAttachmentSnapshot, type GmailPayloadPart,
 } from "../src/google-api";
 import {containsBytes} from "./gmail-test-utils";
 
@@ -46,7 +48,50 @@ const api = () => new GmailApi("me@example.com", async () => "token");
 
 afterEach(() => vi.unstubAllGlobals());
 
+// The decoded body of the first base64 MIME part whose Content-Type starts with `contentType`.
+function mimePartText(encodedRaw: string, contentType: string): string {
+  const raw = new TextDecoder().decode(decodeBase64UrlToBytes(encodedRaw));
+  const header = raw.indexOf(`Content-Type: ${contentType}`);
+  expect(header).toBeGreaterThanOrEqual(0);
+  const start = raw.indexOf("\r\n\r\n", header) + 4;
+  const end = raw.indexOf("\r\n--", start);
+  const binary = atob(raw.slice(start, end).replace(/\s/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(binary, char => char.charCodeAt(0)));
+}
+
 describe("Gmail recipient and MIME construction", () => {
+  it("encodes exactly the normalized bodies and headers it exports", () => {
+    const text = "one\ntwo\rthree\r\nfour";
+    const html = "<p>one</p>\n<p>two</p>";
+    const encoded = buildEncodedEmail({
+      from: "me@example.com",
+      to: ["to@example.com"],
+      cc: [],
+      bcc: [],
+      subject: "Bodies",
+      text,
+      html,
+      messageId: " <new@example.com> ",
+      inReplyTo: "<parent@example.com>",
+      references: "<root@example.com>\t<parent@example.com>",
+      attachments: [],
+    });
+    expect(normalizeTextBody(text)).toBe("one\r\ntwo\r\nthree\r\nfour");
+    expect(mimePartText(encoded, "text/plain")).toBe(normalizeTextBody(text));
+    expect(mimePartText(encoded, "text/html")).toBe(normalizeTextBody(html));
+    expect(() => normalizeTextBody("a\0b")).toThrow(/NUL/);
+
+    const raw = new TextDecoder().decode(decodeBase64UrlToBytes(encoded));
+    expect(raw).toContain(`Message-ID: ${normalizeMessageIdHeader(" <new@example.com> ")}\r\n`);
+    expect(normalizeMessageIdHeader(" <new@example.com> ")).toBe("<new@example.com>");
+    expect(raw).toContain(
+      `References: ${normalizeReferencesHeader("<root@example.com>\t<parent@example.com>")
+        .join(" ")}\r\n`);
+    expect(() => normalizeReferencesHeader("root@example.com")).toThrow(/References/);
+    expect(normalizeContentId("logo@example.com")).toBe("<logo@example.com>");
+    expect(normalizeContentId("<logo@example.com>")).toBe("<logo@example.com>");
+  });
+
   it("bounds ordered message headers without changing duplicates", () => {
     const gmail = api();
     expect(gmail.collectMessageHeaders([
@@ -132,6 +177,74 @@ describe("Gmail recipient and MIME construction", () => {
     expect(parsed.text).toContain("Plain");
     expect(parsed.html).toContain("<strong>HTML</strong>");
     expect(parsed.messageId).toBe("<stable@gadgets.invalid>");
+  });
+
+  it("round-trips exact PDF bytes in new mail, replies, and appended forward files", async () => {
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x00, 0x80, 0xff, 0x0d, 0x0a]);
+    const input = {filename: "report.pdf", mimeType: "application/pdf", content: bytes.buffer};
+    const source = api().buildSendRaw(
+      ["me@example.com"], "Source", "Original", {attachments: [input]}, "<upload-source@example.com>");
+    const sourceMessage = {id: "source", threadId: "thread", internalDate: "1", raw: source.raw};
+    const reply = await api().buildReplyRaw(
+      sourceMessage, "Reply", false, {to: ["target@example.com"], attachments: [input]},
+      "<upload-reply@example.com>");
+    const forward = await api().buildForwardRaw(
+      sourceMessage, ["target@example.com"], "Forward", {
+        attachments: [{...input, filename: "extra.pdf"}],
+      }, "<upload-forward@example.com>");
+    for (const message of [source, reply, forward]) {
+      const parsed = await parseMimeMessage(message.raw);
+      expect(parsed.attachments.length).toBe(message === forward ? 2 : 1);
+      for (const attachment of parsed.attachments) {
+        expect(attachment.mimeType).toBe("application/pdf");
+        expect(attachment.disposition).toBe("attachment");
+        expect(new Uint8Array(attachment.content as ArrayBuffer)).toEqual(bytes);
+      }
+    }
+    expect(forward.attachments.map(attachment => attachment.filename)).toEqual(["report.pdf", "extra.pdf"]);
+    expect((await parseMimeMessage(forward.raw)).attachments.map(attachment => attachment.filename))
+      .toEqual(["report.pdf", "extra.pdf"]);
+  });
+
+  it("accepts empty files and the exact per-file size limit", () => {
+    const empty = gmailAttachmentInputToOutbound({
+      filename: "empty.bin", mimeType: "application/octet-stream", content: new ArrayBuffer(0),
+    });
+    expect(empty).toEqual({filename: "empty.bin", contentType: "application/octet-stream",
+      data: "", disposition: "attachment", description: "empty.bin", origin: "agent"});
+    const maximum = gmailAttachmentInputToOutbound({
+      filename: "maximum.bin", mimeType: "application/octet-stream",
+      content: new ArrayBuffer(MAX_GMAIL_ATTACHMENT_BYTES),
+    });
+    expect(atob(maximum.data.replace(/\s/g, "")).length).toBe(MAX_GMAIL_ATTACHMENT_BYTES);
+  });
+
+  it.each(["", " ", ".", "..", "../report.pdf", "dir/report.pdf", "dir\\report.pdf",
+    "report.pdf\r\nX-Injected: yes", "report\u0000.pdf", "=?UTF-8?B?Zm9vLmJpbg==?=", "a =?utf-8?q?b?= c"])(
+    "rejects unsafe upload filename %j", filename => {
+      expect(() => gmailAttachmentInputToOutbound({
+        filename, mimeType: "application/pdf", content: new ArrayBuffer(0),
+      })).toThrow(/filename/);
+    });
+
+  it.each(["", "not-a-type", "application/pdf\r\nX-Injected: yes", "multipart/mixed"])(
+    "rejects unsafe upload MIME type %j", mimeType => {
+      expect(() => gmailAttachmentInputToOutbound({
+        filename: "report.pdf", mimeType, content: new ArrayBuffer(0),
+      })).toThrow(/attachment|Multipart/);
+    });
+
+  it("rejects oversized inputs before constructing send, reply, or forward MIME", async () => {
+    const input = {filename: "large.bin", mimeType: "application/octet-stream",
+      content: new ArrayBuffer(MAX_GMAIL_ATTACHMENT_BYTES + 1)};
+    expect(() => gmailAttachmentInputToOutbound(input)).toThrow(/byte limit/);
+    expect(() => api().buildSendRaw(["to@example.com"], "Subject", "Body", {attachments: [input]}))
+      .toThrow(/byte limit/);
+    const invalidSource = {id: "source", threadId: "thread", internalDate: "1", raw: "invalid"};
+    await expect(api().buildReplyRaw(invalidSource, "Reply", false, {attachments: [input]}))
+      .rejects.toThrow(/byte limit/);
+    await expect(api().buildForwardRaw(invalidSource, ["to@example.com"], undefined, {attachments: [input]}))
+      .rejects.toThrow(/byte limit/);
   });
 
   it("builds a Gmail-style inline forward with source HTML and attachments", async () => {
@@ -525,7 +638,7 @@ describe("Gmail recipient and MIME construction", () => {
     })).rejects.toThrow(/unsupported.*Content-Location/i);
   });
 
-  it("uses quoted-pair escapes in structured MIME parameters", () => {
+  it("uses quoted-pair escapes in structured MIME parameters", async () => {
     const boundary = "quoted-pair-boundary";
     const escapedFilename = String.raw`quote\"-slash\\.eml`;
     const raw = [
@@ -543,22 +656,34 @@ describe("Gmail recipient and MIME construction", () => {
       "",
     ].join("\r\n");
 
-    expect(extractRfc822Attachments(encodeRawEmail(raw))[0]).toMatchObject({
+    const parsed = await parseGmailDraft({
+      id: "draft", threadId: "thread", internalDate: "1", raw: encodeRawEmail(raw),
+    });
+    expect(parsed.attachments[0]).toMatchObject({
       filename: 'quote"-slash\\.eml',
       disposition: "attachment",
     });
   });
 
-  it("rejects an oversized message/rfc822 multipart boundary", () => {
+  it("rejects an oversized message/rfc822 multipart boundary", async () => {
     const boundary = "b".repeat(71);
     const raw = [
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       "",
+      `--${boundary}`,
+      "Content-Type: message/rfc822",
+      "Content-Disposition: attachment; filename=nested.eml",
+      "",
+      "From: nested@example.com",
+      "",
+      "Nested body",
       `--${boundary}--`,
       "",
     ].join("\r\n");
 
-    expect(() => extractRfc822Attachments(encodeRawEmail(raw))).toThrow(/multipart boundary/);
+    await expect(parseGmailDraft({
+      id: "draft", threadId: "thread", internalDate: "1", raw: encodeRawEmail(raw),
+    })).rejects.toThrow();
   });
 
   it("rejects only filenames whose RFC2231 replacement exceeds a 998-byte line", () => {
@@ -637,7 +762,7 @@ describe("Gmail recipient and MIME construction", () => {
       id: "draft", threadId: "thread", internalDate: "1", raw: encodeRawEmail(raw),
     });
 
-    expect(parsed.text).toBe("Default text body\n");
+    expect(parsed.text).toBe("Default text body");
     expect(parsed.attachments[0].contentType).toBe(
       "application/octet-stream; x-format=opaque");
   });
@@ -747,75 +872,200 @@ describe("Gmail recipient and MIME construction", () => {
     ]);
   });
 
-  it("preserves calendar methods through draft parsing and rebuilding", async () => {
-    const original = api().buildOutbound({
-      from: "me@example.com",
-      to: ["to@example.com"],
-      cc: [],
-      bcc: [],
-      subject: "Invitation",
-      text: "Calendar invitation attached.",
-      messageId: "<calendar@example.com>",
-      attachments: [{
-        filename: "invite.ics",
-        contentType: "text/calendar; method=REQUEST",
-        data: btoa("BEGIN:VCALENDAR\nMETHOD:REQUEST\nEND:VCALENDAR\n"),
-        disposition: "attachment",
-        description: "Calendar invitation",
-      }],
-    });
-    const parsed = await parseGmailDraft({
-      id: "draft", threadId: "thread", internalDate: "1", raw: original.raw,
-    });
-    expect(parsed.attachments[0].contentType).toBe(
-      "text/calendar; method=REQUEST; charset=utf-8");
-    expect(atob(parsed.attachments[0].data)).toBe(
-      "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n");
+  it.each(["text/calendar", "application/ics"].flatMap(mediaType =>
+    ["base64", "quoted-printable", "8bit"].map(encoding => ({mediaType, encoding}))))(
+    "reconstructs historical $mediaType semantics for $encoding without changing exact parsing",
+    async ({mediaType, encoding}) => {
+      const calendar = "BEGIN:VCALENDAR\nMETHOD:REQUEST\rSUMMARY:Review\r\nEND:VCALENDAR\n";
+      const contentType = `${mediaType}; method=REQUEST; charset=iso-8859-1`;
+      const body = encoding === "base64" ? btoa(calendar)
+        : encoding === "quoted-printable"
+          ? [...calendar].map(char => `=${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("")
+          : calendar;
+      const source = {
+        id: "draft", threadId: "thread", internalDate: "1",
+        raw: encodeRawEmail([
+          "From: me@example.com", "To: to@example.com", "Subject: Historical calendar",
+          'Content-Type: multipart/mixed; boundary="legacy-calendar"', "",
+          "--legacy-calendar", "Content-Type: text/plain", "", "Body",
+          "--legacy-calendar", `Content-Type: ${contentType}`,
+          'Content-Disposition: attachment; filename="invite.ics"',
+          `Content-Transfer-Encoding: ${encoding}`, "", body, "--legacy-calendar--", "",
+        ].join("\r\n")),
+      };
 
-    const rebuilt = api().buildOutbound({
-      ...parsed,
-      from: parsed.from!,
-      messageId: parsed.messageId!,
+      const exact = await parseGmailDraft(source);
+      const legacy = await parseLegacyGmailDraft(source);
+
+      expect(exact.attachments[0].contentType).toBe(contentType);
+      expect(atob(exact.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+      expect(legacy.attachments[0].contentType).toBe(encoding === "8bit" ? contentType
+        : `${mediaType}; method=REQUEST; charset=utf-8`);
+      expect(atob(legacy.attachments[0].data.replace(/\s/g, "")))
+        .toBe(calendar.replace(/\r\n|\r|\n/g, "\r\n"));
+      expect({...legacy, attachments: []}).toEqual({...exact, attachments: []});
     });
-    const reparsed = await parseGmailDraft({
-      id: "draft", threadId: "thread", internalDate: "1", raw: rebuilt.raw,
-    });
-    expect(reparsed.attachments[0].contentType).toBe(
-      "text/calendar; method=REQUEST; charset=utf-8");
+
+  it("preserves unencoded non-calendar bytes during historical verification", async () => {
+    const bytes = "zero:\u0000 latin1:\u00e9 high:\u00ff\nunchanged\r";
+    const raw = [
+      "From: me@example.com", "To: to@example.com", "Subject: Historical binary",
+      'Content-Type: multipart/mixed; boundary="legacy-binary"', "",
+      "--legacy-binary", "Content-Type: text/plain", "", "Body",
+      "--legacy-binary", "Content-Type: application/octet-stream",
+      'Content-Disposition: attachment; filename="original.bin"',
+      "Content-Transfer-Encoding: binary", "", bytes, "--legacy-binary--", "",
+    ].join("\r\n");
+    const source = {id: "draft", threadId: "thread", internalDate: "1",
+      raw: btoa(raw).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")};
+
+    const legacy = await parseLegacyGmailDraft(source);
+
+    expect(atob(legacy.attachments[0].data.replace(/\s/g, ""))).toBe(bytes);
+    expect(legacy).toEqual(await parseGmailDraft(source));
   });
 
-  it("preserves unencoded non-UTF-8 calendar bytes and charset", async () => {
-    const boundary = "latin1-calendar-boundary";
-    const calendar = "BEGIN:VCALENDAR\nSUMMARY:caf\xe9\nEND:VCALENDAR\n";
+  it("reproduces the pre-upgrade builder only in historical mode", async () => {
+    const nested = "From: a@example.com\r\nSubject: Nested\r\n\r\nNested body";
+    const spec = {
+      from: "me@example.com", to: ["to@example.com"], cc: [], bcc: [], subject: "Historical",
+      text: "Body", html: '<p><img src="cid:image@example.com"></p>', messageId: "<m@example.com>",
+      attachments: [
+        {filename: "image.png", contentType: "image/png", data: btoa("png"), disposition: "inline" as const,
+          contentId: "<image@example.com>", description: "Image"},
+        {filename: "nested.eml", contentType: "message/rfc822", data: btoa(nested),
+          disposition: "attachment" as const, description: "Nested"},
+        {filename: "tail.bin", contentType: "application/octet-stream", data: btoa("tail"),
+          disposition: "attachment" as const, description: "Tail"},
+      ],
+    };
+    const parts = async (historical: boolean) => (await parseGmailDraft({
+      id: "draft", threadId: "thread", internalDate: "1", raw: buildEncodedEmail(spec, historical),
+    })).attachments.map(part => [part.filename, atob(part.data.replace(/\s/g, ""))]);
+
+    expect(await parts(false)).toEqual([["image.png", "png"], ["nested.eml", nested], ["tail.bin", "tail"]]);
+    // The old builder classified the inline image as a regular attachment too, and left MIMEText's
+    // extra CRLF inside the non-final nested message.
+    expect(await parts(true)).toEqual([
+      ["image.png", "png"], ["image.png", "png"], ["nested.eml", `${nested}\r\n`], ["tail.bin", "tail"],
+    ]);
+  });
+
+  it("exempts only historical verification builds from the MIME ceiling", () => {
+    const image = (id: string) => ({
+      filename: `${id}.png`, contentType: "image/png", data: btoa("\0".repeat(9.5 * 1024 * 1024)),
+      disposition: "inline" as const, contentId: `<${id}@example.com>`, description: "Image",
+    });
+    const spec = {
+      from: "me@example.com", to: ["to@example.com"], cc: [], bcc: [], subject: "Large",
+      text: "Body", html: '<img src="cid:a@example.com">', messageId: "<m@example.com>",
+      attachments: [image("a")],
+    };
+
+    // The old builder emitted the inline image twice, past the ceiling the real message fits.
+    expect(api().buildOutbound(spec, true).raw.length).toBeGreaterThan(MAX_GMAIL_FORWARD_SOURCE_BYTES * 4 / 3);
+    expect(() => api().buildOutbound({...spec, attachments: [image("a"), image("b")]}))
+      .toThrow(/MIME limit/);
+  });
+
+  it.each(["text/calendar", "application/ics"].flatMap(mediaType =>
+    ["\n", "\r", "\r\n", ""].map(ending => ({mediaType, ending}))))(
+    "round-trips uploaded $mediaType bytes with line ending $ending through edits",
+    async ({mediaType, ending}) => {
+      const calendar = `BEGIN:VCALENDAR${ending}SUMMARY:caf\xe9${ending}END:VCALENDAR${ending}`;
+      const bytes = Uint8Array.from(calendar, char => char.charCodeAt(0));
+      const contentType = `${mediaType}; charset=iso-8859-1; method=REQUEST`;
+      const uploaded = gmailAttachmentInputToOutbound({
+        filename: "invite.ics", mimeType: contentType, content: bytes.buffer,
+      });
+      const original = api().buildOutbound({
+        from: "me@example.com",
+        to: ["to@example.com"],
+        cc: [],
+        bcc: [],
+        subject: "Invitation",
+        text: "Calendar invitation attached.",
+        messageId: "<calendar@example.com>",
+        attachments: [uploaded],
+      });
+      const parsed = await parseGmailDraft({
+        id: "draft", threadId: "thread", internalDate: "1", raw: original.raw,
+      });
+      expect(parsed.attachments[0].contentType).toBe(contentType);
+      expect(atob(parsed.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+
+      const rebuilt = api().buildOutbound({
+        ...parsed,
+        from: parsed.from!,
+        messageId: parsed.messageId!,
+        subject: "Updated invitation",
+        text: "Updated body, unchanged calendar.",
+      });
+      const reparsed = await parseGmailDraft({
+        id: "draft", threadId: "thread", internalDate: "1", raw: rebuilt.raw,
+      });
+      expect(reparsed.attachments[0].contentType).toBe(contentType);
+      expect(atob(reparsed.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+    });
+
+  it.each(["text/calendar", "application/ics"].flatMap(mediaType =>
+    ["8bit (source mechanism)", "binary", "base64", "quoted-printable"]
+      .map(encoding => ({mediaType, encoding}))))(
+    "preserves external $mediaType bytes and metadata with $encoding transfer encoding",
+    async ({mediaType, encoding}) => {
+      const boundary = "latin1-calendar-boundary";
+      const calendar = "BEGIN:VCALENDAR\nSUMMARY:caf\xe9\rX-BYTES:\xff\r\n" +
+        `--${boundary}-not-a-delimiter\nEND:VCALENDAR\r\n`;
+      const contentType = `${mediaType}; charset=iso-8859-1; method=REQUEST`;
+      const body = encoding === "base64" ? btoa(calendar)
+        : encoding === "quoted-printable"
+          ? [...calendar].map(char => `=${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
+            .join("=\r\n")
+          : calendar;
+      const raw = [
+        "From: me@example.com",
+        "To: to@example.com",
+        "Subject: Latin-1 invitation",
+        `Content-Type: multipart/mixed; boundary=${boundary}`,
+        "",
+        `--${boundary}`,
+        "Content-Type: text/plain",
+        "",
+        "Body",
+        `--${boundary}`,
+        `Content-Type: ${contentType}`,
+        "Content-Disposition: attachment; filename=invite.ics",
+        `Content-Transfer-Encoding: ${encoding}`,
+        "",
+        body,
+        `--${boundary}--`,
+        "",
+      ].join("\r\n");
+      const encoded = btoa(raw).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+      const source = {id: "source", threadId: "thread", internalDate: "1", raw: encoded};
+      const parsed = await parseGmailDraft(source);
+      expect(parsed.attachments[0].contentType).toBe(contentType);
+      expect(atob(parsed.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+
+      const forwarded = await api().buildForwardRaw(source, ["recipient@example.com"]);
+      expect(forwarded.attachments[0].contentType).toBe(contentType);
+      expect(atob(forwarded.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+      const reparsed = await parseGmailDraft({...source, id: "forward", raw: forwarded.raw});
+      expect(reparsed.attachments[0].contentType).toBe(contentType);
+      expect(atob(reparsed.attachments[0].data.replace(/\s/g, ""))).toBe(calendar);
+    });
+
+  it("ignores non-alphabet characters in base64 attachment bodies, as MIME requires", async () => {
     const raw = [
-      "From: me@example.com",
-      "To: to@example.com",
-      "Subject: Latin-1 invitation",
-      `Content-Type: multipart/mixed; boundary=${boundary}`,
-      "",
-      `--${boundary}`,
-      "Content-Type: text/plain",
-      "",
-      "Body",
-      `--${boundary}`,
-      "Content-Type: text/calendar; charset=iso-8859-1; method=REQUEST",
-      "Content-Disposition: attachment; filename=invite.ics",
-      "Content-Transfer-Encoding: 8bit (source mechanism)",
-      "",
-      calendar,
-      `--${boundary}--`,
-      "",
+      "From: me@example.com", "To: to@example.com", "Subject: Base64", "MIME-Version: 1.0",
+      "Content-Type: multipart/mixed; boundary=x", "", "--x", "Content-Type: text/plain", "", "Body",
+      "--x", "Content-Type: application/octet-stream",
+      "Content-Disposition: attachment; filename=a.bin", "Content-Transfer-Encoding: base64", "",
+      "YQ\f==", "--x--", "",
     ].join("\r\n");
     const encoded = btoa(raw).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
-
-    const parsed = await parseGmailDraft({
-      id: "draft", threadId: "thread", internalDate: "1", raw: encoded,
-    });
-    expect(parsed.attachments[0].contentType).toBe(
-      "text/calendar; charset=iso-8859-1; method=REQUEST");
-    expect([...atob(parsed.attachments[0].data.replace(/\s/g, ""))].map(char => char.charCodeAt(0)))
-      .toEqual([..."BEGIN:VCALENDAR\r\nSUMMARY:caf\xe9\r\nEND:VCALENDAR\r\n"]
-        .map(char => char.charCodeAt(0)));
+    const parsed = await parseGmailDraft({id: "draft", threadId: "thread", internalDate: "1", raw: encoded});
+    expect(atob(parsed.attachments[0].data.replace(/\s/g, ""))).toBe("a");
   });
 
   it("preserves calendar methods while forwarding", async () => {
@@ -840,12 +1090,12 @@ describe("Gmail recipient and MIME construction", () => {
     }, ["recipient@example.com"]);
 
     expect(forwarded.attachments[0].contentType).toBe(
-      "text/calendar; method=REQUEST; charset=utf-8");
+      "text/calendar; method=REQUEST");
     const parsed = await parseGmailDraft({
       id: "forward", threadId: "thread", internalDate: "1", raw: forwarded.raw,
     });
     expect(parsed.attachments[0].contentType).toBe(
-      "text/calendar; method=REQUEST; charset=utf-8");
+      "text/calendar; method=REQUEST");
   });
 
   it.each([
@@ -910,11 +1160,14 @@ describe("Gmail recipient and MIME construction", () => {
     const attachment = (await parseMimeMessage(message.raw)).attachments[0];
     expect(attachment.mimeType).toBe("message/rfc822");
     expect(containsBytes(rawBytes, sourceBytes)).toBe(true);
-    expect(extractRfc822Attachments(message.raw)).toEqual([{
-      bytes: sourceBytes,
+    const parsed = await parseGmailDraft({
+      id: "draft", threadId: "thread", internalDate: "1", raw: message.raw,
+    });
+    expect(parsed.attachments[0]).toMatchObject({
       filename: "forwarded-message.eml",
       disposition: "attachment",
-    }]);
+    });
+    expect(atob(parsed.attachments[0].data.replace(/\s/g, ""))).toBe(binary);
   });
 
   it("parses base64-encoded message/rfc822 draft attachments", async () => {
@@ -950,11 +1203,10 @@ describe("Gmail recipient and MIME construction", () => {
     expect(new TextDecoder().decode(Uint8Array.from(
       atob(parsed.attachments[0].data.replace(/\s/g, "")), char => char.charCodeAt(0))))
       .toBe(nested);
-    expect(extractRfc822Attachments(encoded)).toEqual([]);
   });
 
   it.each(["7bit", "8bit", "binary"])(
-    "extracts exact unencoded %s message/rfc822 bytes", transferEncoding => {
+    "parses exact unencoded %s message/rfc822 bytes", async transferEncoding => {
       const nested = `From: nested@example.com\r\n\r\nExact ${
         transferEncoding === "8bit" ? "caf\u00e9" : "body"}`;
       const boundary = "exact-boundary";
@@ -971,31 +1223,15 @@ describe("Gmail recipient and MIME construction", () => {
         "",
       ].join("\r\n");
 
-      expect(extractRfc822Attachments(encodeRawEmail(raw))).toEqual([{
-        bytes: new TextEncoder().encode(nested),
+      const parsed = await parseGmailDraft({
+        id: "draft", threadId: "thread", internalDate: "1", raw: encodeRawEmail(raw),
+      });
+      expect(parsed.attachments[0]).toMatchObject({
         filename: "forwarded.eml",
         disposition: "attachment",
-      }]);
-    });
-
-  it.each(["base64", "quoted-printable"])(
-    "skips %s-encoded message/rfc822 parts", transferEncoding => {
-      const boundary = "encoded-boundary";
-      const raw = [
-        `Content-Type: multipart/mixed; boundary="${boundary}"`,
-        "",
-        `--${boundary}`,
-        "Content-Type: message/rfc822",
-        `Content-Transfer-Encoding: ${transferEncoding} (source mechanism)`,
-        "",
-        transferEncoding === "base64"
-          ? btoa("From: nested@example.com\r\n\r\nNested body")
-          : "From: nested@example.com=0D=0A=0D=0ANested body",
-        `--${boundary}--`,
-        "",
-      ].join("\r\n");
-
-      expect(extractRfc822Attachments(encodeRawEmail(raw))).toEqual([]);
+      });
+      expect(Uint8Array.from(atob(parsed.attachments[0].data.replace(/\s/g, "")), char => char.charCodeAt(0)))
+        .toEqual(new TextEncoder().encode(nested));
     });
 
   it("rejects a nested message that is not valid 7bit or 8bit MIME data", () => {
@@ -1341,6 +1577,346 @@ describe("Gmail attachment snapshots", () => {
   });
 });
 
+describe("Gmail streamed attachment bytes", () => {
+  afterEach(() => vi.useRealTimers());
+
+  const utf8 = (text: string) => new TextEncoder().encode(text);
+
+  // A stream that hands out one of `chunks` for each read of it, and records how it was used.
+  function body(chunks: Uint8Array[]) {
+    const use = {pulls: 0, cancelled: [] as unknown[]};
+    const queue = [...chunks];
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        use.pulls++;
+        const chunk = queue.shift();
+        if (chunk) controller.enqueue(chunk);
+        else controller.close();
+      },
+      cancel(reason) {
+        use.cancelled.push(reason);
+      },
+    }, {highWaterMark: 0});
+    return {stream, use};
+  }
+
+  async function read(stream: ReadableStream<Uint8Array>): Promise<number[]> {
+    const reader = stream.getReader();
+    const bytes: number[] = [];
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) return bytes;
+      bytes.push(...chunk.value);
+    }
+  }
+
+  // The bytes of `answer`, given to the decoder `step` bytes at a time.
+  function decoded(answer: string, size: number, step = answer.length): Promise<number[]> {
+    const bytes = utf8(answer);
+    const chunks: Uint8Array[] = [];
+    for (let at = 0; at < bytes.length; at += step) chunks.push(bytes.slice(at, at + step));
+    return read(gmailAttachmentBytes(body(chunks).stream, size));
+  }
+
+  const detached = (size: number, readable = true): GmailAttachmentSnapshot => ({
+    key: "1",
+    messageId: "m1",
+    attachmentId: "a1",
+    info: {filename: "a.pdf", mimeType: "application/pdf", size, disposition: "attachment", readable},
+  });
+
+  it("decodes an answer split at any byte: in the key, in a quartet, at the closing quote", async () => {
+    const answer = utf8('{"data":"AQIDBAUGBw"}');
+    for (let split = 0; split <= answer.length; split++) {
+      const {stream} = body([answer.slice(0, split), answer.slice(split)]);
+      expect(await read(gmailAttachmentBytes(stream, 7)), `split at ${split}`)
+        .toEqual([1, 2, 3, 4, 5, 6, 7]);
+    }
+    expect(await decoded('{"data":"AQIDBAUGBw"}', 7, 1)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it.each([
+    ["a compact answer", '{"data":"AQID"}', [1, 2, 3]],
+    ["a pretty-printed answer", '{\r\n\t"data" : "AQID"\n}\n', [1, 2, 3]],
+    ["members before and after", '{"attachmentId":"a\\"data\\":\\"_w","size":3,"data":"AQID",' +
+      '"datum":"_w","n":-1.5e3,"ok":true,"none":null}', [1, 2, 3]],
+    ["the URL-safe alphabet", '{"data":"-_8"}', [0xfb, 0xff]],
+    ["the standard alphabet", '{"data":"+/8"}', [0xfb, 0xff]],
+    ["padding", '{"data":"/w=="}', [0xff]],
+    ["padding written as escapes", '{"data":"AQIDBA\\u003d\\u003d"}', [1, 2, 3, 4]],
+    ["an escaped slash", '{"data":"\\/w"}', [0xff]],
+    ["characters written as escapes, in either case of hex",
+      '{"data":"\\u0041Q\\u0049D\\u002b\\u002F8"}', [1, 2, 3, 0xfb, 0xff]],
+    ["no bytes", '{"data":""}', []],
+  ])("decodes %s", async (_name, answer, bytes) => {
+    expect(await decoded(answer, bytes.length)).toEqual(bytes);
+    expect(await decoded(answer, bytes.length, 1)).toEqual(bytes);
+  });
+
+  it("reads nothing before it is read, and one chunk of the answer for each of its own", async () => {
+    const {stream, use} = body(['{"data":"AQID', "BAUG", 'Bw"}'].map(utf8));
+    const reader = gmailAttachmentBytes(stream, 7).getReader();
+    await Promise.resolve();
+    expect(use.pulls).toBe(0);
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(1, 2, 3)});
+    expect(use.pulls).toBe(1);
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(4, 5, 6)});
+    expect(use.pulls).toBe(2);
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(7)});
+    expect(use.pulls).toBe(3);
+    expect(await reader.read()).toEqual({done: true, value: undefined});
+  });
+
+  it("errors as soon as more bytes are decoded than the snapshot's size, and lets the answer go", async () => {
+    const {stream, use} = body(['{"data":"AQIDBAUG', 'Bw"}'].map(utf8));
+    const reader = gmailAttachmentBytes(stream, 5).getReader();
+    await expect(reader.read()).rejects.toThrow(
+      "Attachment content no longer matches the authorized snapshot.");
+    expect(use.pulls).toBe(1);
+    expect(use.cancelled).toHaveLength(1);
+  });
+
+  it("errors at the string's end when fewer bytes were decoded than the snapshot's size", async () => {
+    const {stream, use} = body(['{"data":"AQID', '"}'].map(utf8));
+    const reader = gmailAttachmentBytes(stream, 4).getReader();
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(1, 2, 3)});
+    await expect(reader.read()).rejects.toThrow(
+      "Attachment content no longer matches the authorized snapshot.");
+    expect(use.cancelled).toHaveLength(1);
+  });
+
+  it.each([
+    ["ends inside the string", '{"data":"AQID', 3],
+    ["ends before the object does", '{"data":"AQID"', 3],
+    ["holds a character outside the alphabets", '{"data":"AQ*D"}', 3],
+    ["holds an escape of a character outside the alphabets", '{"data":"AQ\\u002aD"}', 3],
+    ["holds an escape of a character past the alphabets' table", '{"data":"AQ\\u0149D"}', 3],
+    ["holds an escaped quote", '{"data":"AQI\\""}', 3],
+    ["holds an escape that JSON has not", '{"data":"AQ\\ID"}', 3],
+    ["holds an escape whose digits are not hex", '{"data":"AQ\\u003zD"}', 3],
+    ["ends inside an escape", '{"data":"AQID\\u00', 3],
+    ["goes on after its padding", '{"data":"/w==AQID"}', 4],
+    ["is padded where nothing is missing", '{"data":"AQID="}', 3],
+    ["ends on a lone character", '{"data":"AQIDB"}', 3],
+    ["is not JSON", "<html>AQID</html>", 3],
+    ["is not an object", '["data","AQID"]', 3],
+    ["holds its data deeper", '{"body":{"data":"AQID"}}', 3],
+    ["holds data twice", '{"data":"AQID","data":"AQID"}', 3],
+    ["holds data that is not a string", '{"data":3}', 3],
+    ["goes on after the object", '{"data":"AQID"}{', 3],
+  ])("errors on an answer that %s, with none of its text", async (_name, answer, size) => {
+    for (const step of [answer.length, 1]) {
+      await expect(decoded(answer, size, step)).rejects.toThrow(
+        /^Gmail returned an invalid attachment response\.$/);
+    }
+  });
+
+  it("errors on an answer without data as the whole read does", async () => {
+    await expect(decoded('{"size":3}', 3)).rejects.toThrow(
+      /^Attachment content is no longer available\.$/);
+    await expect(decoded("{}", 0)).rejects.toThrow(/^Attachment content is no longer available\.$/);
+  });
+
+  it("errors with what the answer broke with", async () => {
+    const broken = new Error("connection lost");
+    const reader = gmailAttachmentBytes(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.error(broken);
+      },
+    }, {highWaterMark: 0}), 3).getReader();
+    await expect(reader.read()).rejects.toBe(broken);
+  });
+
+  it("cancels the answer when it is cancelled, a read of it in progress included", async () => {
+    const cancelled: unknown[] = [];
+    const reader = gmailAttachmentBytes(new ReadableStream<Uint8Array>({
+      pull: () => new Promise<void>(() => {}),
+      cancel(reason) {
+        cancelled.push(reason);
+      },
+    }, {highWaterMark: 0}), 3).getReader();
+    const pending = reader.read();
+    await reader.cancel("stop");
+    expect(cancelled).toEqual(["stop"]);
+    expect(await pending).toEqual({done: true, value: undefined});
+  });
+
+  it("asks Gmail for the data alone and hands on its bytes as they arrive", async () => {
+    let release!: (chunk: Uint8Array) => void;
+    const rest = new Promise<Uint8Array>(resolve => {
+      release = resolve;
+    });
+    let pulls = 0;
+    const answer = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (pulls++ === 0) {
+          controller.enqueue(utf8('{"data":"AQID'));
+        } else {
+          controller.enqueue(await rest);
+          controller.close();
+        }
+      },
+    }, {highWaterMark: 0});
+    const calls = stubFetch([new Response(answer)]);
+    const reader = (await api().openAttachmentContent(detached(6))).getReader();
+    expect(calls.map(call => call.url.href)).toEqual([
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/m1/attachments/a1?fields=data",
+    ]);
+    // Opened with nothing of the body read, and the first bytes are there before it has ended.
+    expect(pulls).toBe(0);
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(1, 2, 3)});
+    release(utf8('BAUG"}'));
+    expect(await reader.read()).toEqual({done: false, value: Uint8Array.of(4, 5, 6)});
+    expect(await reader.read()).toEqual({done: true, value: undefined});
+  });
+
+  it("is held neither to the attachment limit nor to what the snapshot calls readable", async () => {
+    const size = MAX_GMAIL_ATTACHMENT_BYTES + 1;
+    stubFetch([new Response(`{"data":"${"AAAA".repeat((size - 2) / 3)}AAA"}`)]);
+    const reader = (await api().openAttachmentContent(detached(size, false))).getReader();
+    let total = 0;
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      total += chunk.value.byteLength;
+    }
+    expect(total).toBe(size);
+  });
+
+  it("refuses an attachment Gmail does not give, and an ID that is not one, as the whole read does", async () => {
+    const calls = stubFetch([json({error: {message: "Requested entity was not found."}}, 404)]);
+    await expect(api().openAttachmentContent(detached(3))).rejects.toThrow(
+      /^Gmail API attachments\.get failed \[http=404\]$/);
+    expect(calls).toHaveLength(1);
+    await expect(api().openAttachmentContent({...detached(3), attachmentId: "a/../1"}))
+      .rejects.toThrow("Invalid attachment ID.");
+    await expect(api().openAttachmentContent({...detached(3), messageId: "m?1"}))
+      .rejects.toThrow("Invalid message ID.");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("gives up an open that Gmail never answers", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", (_input: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal!.addEventListener("abort", () => reject(init.signal!.reason));
+    }));
+    const refused = expect(api().openAttachmentContent(detached(3))).rejects.toMatchObject(
+      {name: "TimeoutError", message: "Gmail did not answer in time."});
+    await vi.advanceTimersByTimeAsync(60_000);
+    await refused;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("gives up an open whose token never comes, or comes after the time is out", async () => {
+    vi.useFakeTimers();
+    const calls = stubFetch([]);
+    // The token provider asks Google who the token is for, and the account for the token: neither
+    // heeds the signal the request is made with.
+    const stalled = new GmailApi("me@example.com", () => new Promise<string>(() => {}));
+    const refused = expect(stalled.openAttachmentContent(detached(3))).rejects.toMatchObject(
+      {name: "TimeoutError", message: "Gmail did not answer in time."});
+    await vi.advanceTimersByTimeAsync(60_000);
+    await refused;
+    expect(calls).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+
+    // A token that comes a moment after the time is out is used for no request that is sent:
+    // fetch is given a signal that has aborted already.
+    let give!: (token: string) => void;
+    const slow = new GmailApi("me@example.com", () => new Promise<string>(resolve => { give = resolve; }));
+    const late = expect(slow.openAttachmentContent(detached(3))).rejects.toMatchObject({name: "TimeoutError"});
+    await vi.advanceTimersByTimeAsync(60_000);
+    await late;
+    give("token");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(calls.map(({init}) => init.signal?.aborted)).toEqual([true]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("lets go of an answer that comes after the time is out, also when its body has failed by then", async () => {
+    vi.useFakeTimers();
+    const unheard: unknown[] = [];
+    const hear = (reason: unknown) => { unheard.push(reason); };
+    process.on("unhandledRejection", hear);
+    try {
+      // The answer a token reload held back: its body failed when the request was given up.
+      const failed = new ReadableStream<Uint8Array>({start: controller => controller.error(new Error("aborted"))});
+      let give!: (token: string) => void;
+      stubFetch([new Response(failed)]);
+      const slow = new GmailApi("me@example.com", () => new Promise<string>(resolve => { give = resolve; }));
+      const late = expect(slow.openAttachmentContent(detached(3))).rejects.toMatchObject({name: "TimeoutError"});
+      await vi.advanceTimersByTimeAsync(60_000);
+      await late;
+      give("token");
+      await vi.advanceTimersByTimeAsync(1000);
+      vi.useRealTimers();
+      // A rejection nothing handles is reported after the turn it was left unhandled in.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(unheard).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", hear);
+    }
+  });
+
+  it("does not time the body of an answer that has begun", async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const waited = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    // As fetch does, the body breaks when the request's signal aborts.
+    vi.stubGlobal("fetch", async (_input: string, init: RequestInit) => new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          init.signal!.addEventListener("abort", () => controller.error(init.signal!.reason));
+        },
+        async pull(controller) {
+          await waited;
+          controller.enqueue(utf8('{"data":"AQID"}'));
+          controller.close();
+        },
+      }, {highWaterMark: 0})));
+    const content = await api().openAttachmentContent(detached(3));
+    expect(vi.getTimerCount()).toBe(0);
+    const bytes = read(content);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    release();
+    expect(await bytes).toEqual([1, 2, 3]);
+  });
+
+  it("streams inline data in steps of at most 64 KiB, checked against the snapshot's size", async () => {
+    const bytes = Uint8Array.from({length: 100_000}, (_, index) => index % 251);
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const inline: GmailAttachmentSnapshot = {
+      ...detached(bytes.length, false),
+      attachmentId: undefined,
+      inlineData: btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""),
+    };
+    const calls = stubFetch([]);
+    const reader = (await api().openAttachmentContent(inline)).getReader();
+    const first = await reader.read();
+    const second = await reader.read();
+    expect([first.value?.byteLength, second.value?.byteLength]).toEqual([65_535, 34_465]);
+    expect([...first.value!, ...second.value!]).toEqual([...bytes]);
+    expect(await reader.read()).toEqual({done: true, value: undefined});
+
+    expect(await read(await api().openAttachmentContent(
+      {...inline, inlineData: "AQID", info: {...inline.info, size: 3}}))).toEqual([1, 2, 3]);
+    expect(await read(await api().openAttachmentContent(
+      {...inline, inlineData: "", info: {...inline.info, size: 0}}))).toEqual([]);
+    await expect(api().openAttachmentContent(
+      {...inline, inlineData: "AQID", info: {...inline.info, size: 4}})).rejects.toThrow(
+      "Attachment content no longer matches the authorized snapshot.");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a snapshot with neither an attachment ID nor inline data", async () => {
+    await expect(api().openAttachmentContent({...detached(3), attachmentId: undefined}))
+      .rejects.toThrow("Attachment content is no longer available.");
+  });
+});
+
 describe("Gmail draft semantic headers", () => {
   const draftWithHeader = (header: string) => {
     const base = buildEncodedEmail({
@@ -1539,13 +2115,22 @@ describe("Gmail API request shapes", () => {
     expect(calls[0].url.searchParams.get("includeSpamTrash")).toBe("true");
   });
 
-  it("uses the per-message modify endpoint", async () => {
+  it("modifies exactly the listed messages through batchModify", async () => {
     const calls = stubFetch([new Response(null, {status: 204})]);
-    await api().modifyMessage("m1", ["STARRED"], ["UNREAD"]);
-    expect(calls[0].url.pathname).toBe("/gmail/v1/users/me/messages/m1/modify");
+    await api().batchModifyMessages(["m1", "m2"], ["STARRED"], ["UNREAD"]);
+    expect(calls[0].url.pathname).toBe("/gmail/v1/users/me/messages/batchModify");
     expect(calls[0].init.method).toBe("POST");
     expect(JSON.parse(String(calls[0].init.body)))
-      .toEqual({addLabelIds: ["STARRED"], removeLabelIds: ["UNREAD"]});
+      .toEqual({ids: ["m1", "m2"], addLabelIds: ["STARRED"], removeLabelIds: ["UNREAD"]});
+  });
+
+  it("rejects batchModify calls outside Gmail's ID-count limits before fetching", async () => {
+    const calls = stubFetch([]);
+    await expect(api().batchModifyMessages([], ["STARRED"])).rejects.toThrow(/between 1 and 1000/);
+    await expect(api().batchModifyMessages(
+      Array.from({length: 1001}, (_, i) => `m${i}`), ["STARRED"]))
+      .rejects.toThrow(/between 1 and 1000/);
+    expect(calls).toHaveLength(0);
   });
 
   it("creates drafts and renames labels through their resource endpoints", async () => {
@@ -1604,12 +2189,91 @@ describe("Gmail API request shapes", () => {
     expect(error.message).not.toContain("confidential");
   });
 
-  it("preserves Gmail API errors when response cancellation fails", async () => {
-    const cancel = vi.fn(() => Promise.reject(new Error("cancel failed")));
-    stubFetch([new Response(new ReadableStream({cancel}), {status: 400})]);
+  it("gives up on an error body that never ends, cancelling it, and still reports Gmail's status", async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn(() => Promise.reject(new Error("cancel failed")));
+      stubFetch([new Response(new ReadableStream({cancel}), {status: 400})]);
+      const failed = api().listMessages(20).catch(value => value);
+      await vi.advanceTimersByTimeAsync(2000);
+      const error = await failed;
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(error).toBeInstanceOf(GmailApiError);
+      expect(error.status).toBe(400);
+      expect(error.reasons).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A 403 can be a usage limit, a missing permission or another refusal, and only Google's reason
+  // says which.
+  it("carries Google's reason codes, and says what to do about a rate limit", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    stubFetch([json({error: {
+      code: 403, status: "PERMISSION_DENIED",
+      message: "User-rate limit exceeded for confidential@example.com",
+      errors: [{reason: "userRateLimitExceeded", message: "User-rate limit exceeded"}],
+    }}, 403)]);
     const error = await api().listMessages(20).catch(value => value);
-    expect(cancel).toHaveBeenCalledOnce();
     expect(error).toBeInstanceOf(GmailApiError);
-    expect(error.status).toBe(400);
+    expect(error.status).toBe(403);
+    expect(error.reasons).toEqual(["userRateLimitExceeded"]);
+    expect(error.message).toBe(
+      "Gmail API messages.list failed [http=403 reason=userRateLimitExceeded] Gmail is limiting " +
+      "requests. Try again later, with fewer or smaller requests: a short-term limit lifts within " +
+      "a minute or so, but a daily limit, such as the one on sending mail, can take hours.");
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({
+      event: "google.api.request.failed", provider: "Gmail", operation: "messages.list",
+      httpStatus: 403, providerCode: 403, providerStatus: "PERMISSION_DENIED",
+      providerReasons: ["userRateLimitExceeded"],
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("confidential");
+    warn.mockRestore();
+  });
+
+  it("logs a 404, which callers expect and handle, as information and not as a warning", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    stubFetch([json({error: {code: 404, status: "NOT_FOUND", errors: [{reason: "notFound"}]}}, 404)]);
+    const error = await api().getThread("1a03a1e31ecc5e70").catch(value => value);
+    expect(error).toBeInstanceOf(GmailApiError);
+    expect(error.status).toBe(404);
+    expect(warn).not.toHaveBeenCalled();
+    expect(info.mock.calls.map(([entry]) => entry)).toEqual([expect.objectContaining({
+      event: "google.api.request.failed", provider: "Gmail", operation: "threads.get", httpStatus: 404,
+    })]);
+    vi.restoreAllMocks();
+  });
+
+  it("says to reconnect when the token lacks a scope, and treats any 429 as a rate limit", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    stubFetch([
+      json({error: {code: 403, errors: [{reason: "insufficientPermissions"}], details: [
+        {"@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT"},
+      ]}}, 403),
+      json({error: {code: 403, errors: [{reason: "forbidden"}]}}, 403),
+    ]);
+    const scope = await api().listMessages(20).catch(value => value);
+    expect(scope.reasons).toEqual(["insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"]);
+    expect(scope.message).toBe(
+      "Gmail API messages.list failed [http=403 reason=insufficientPermissions,ACCESS_TOKEN_SCOPE_INSUFFICIENT] " +
+      "The Google connection lacks a permission this needs: reconnect the Google account and allow " +
+      "the access it asks for.");
+    // A 429 that outlasts its retries names no reason of its own. It is also how a daily limit
+    // shows, which a minute's wait does not lift.
+    expect(new GmailApiError(429, "messages.send").message).toBe(
+      "Gmail API messages.send failed [http=429] Gmail is limiting requests. Try again later, " +
+      "with fewer or smaller requests: a short-term limit lifts within a minute or so, but a daily " +
+      "limit, such as the one on sending mail, can take hours.");
+    // The Google Cloud project's own quota is a limit too, so it gets the same advice.
+    expect(new GmailApiError(403, "messages.list", ["dailyLimitExceeded"]).message).toBe(
+      "Gmail API messages.list failed [http=403 reason=dailyLimitExceeded] Gmail is limiting " +
+      "requests. Try again later, with fewer or smaller requests: a short-term limit lifts within " +
+      "a minute or so, but a daily limit, such as the one on sending mail, can take hours.");
+    const refused = await api().listMessages(20).catch(value => value);
+    expect(refused.message).toBe("Gmail API messages.list failed [http=403 reason=forbidden]");
+    vi.restoreAllMocks();
   });
 });

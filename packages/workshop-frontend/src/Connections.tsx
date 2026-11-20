@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Dialog, Tooltip, useKumoToastManager } from '@cloudflare/kumo'
 import {
   Pencil,
@@ -8,11 +8,10 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { RpcStub } from 'capnweb'
-import { FormattedMessage, useIntl } from 'react-intl'
-import { Overseer, GadgetClient, GadgetBindingInfo, BoundHookInfo, AuthenticatedApi, WorkpieceId } from '@gadgets/workshop-shared/api'
+import { Overseer, GadgetClient, GadgetBindingInfo, BoundHookInfo, AuthenticatedApi, WorkpieceId, GATEKEEPER_ERROR_CODES, getGatekeeperErrorCode } from '@gadgets/workshop-shared/api'
 import GatekeeperModal from './GatekeeperModal'
 import { GatekeeperIcon } from './components/GatekeeperIcon'
-import { HookToggle } from './components/HookToggle'
+import { HookToggle, hookToggleFailureToast } from './components/HookToggle'
 import { useVendorBranding } from './useVendorBranding'
 import { WorkshopButton, WorkshopIconButton, WorkshopInput } from './components/WorkshopControls'
 import { EmptyState } from './components/EmptyState'
@@ -22,6 +21,7 @@ import {
   loadBindingCardData,
 } from './components/BlueprintBindingCard'
 import { reportIssue } from './errorReporting'
+import { classifyRpcError, rpcFailureDescription } from './rpcErrors'
 import { isImeComposing } from './keyboardEvent'
 
 interface ConnectionsProps {
@@ -56,7 +56,10 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
   const [togglingHooks, setTogglingHooks] = useState<Set<number>>(new Set())
   const [annotationTarget, setAnnotationTarget] = useState<GadgetBindingInfo | null>(null)
   const toasts = useKumoToastManager()
-  const { formatMessage } = useIntl()
+  // A connection created here whose bind the restart interrupted. Creating a vendor connection
+  // restarts the workspace while any "build" collaborator is live, the creator's own session
+  // included, and the doomed session refuses to bind it, so it is bound once the session is replaced.
+  const pendingBind = useRef<{ gatekeeperId: WorkpieceId; chatId?: number }>(undefined)
 
   const loadGatekeepers = async () => {
     try {
@@ -88,6 +91,18 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
     }
   }
 
+  const bindConnection = async (gatekeeperId: WorkpieceId, bindChatId: number | undefined) => {
+    await gadget.bindWithSuggestedName(gatekeeperId, bindChatId)
+    toasts.add({
+      title: bindChatId === undefined
+        ? 'Connection created successfully'
+        : "Connection created — accept the chat's changes to keep it",
+      variant: 'success',
+    })
+    await loadGatekeepers()
+    onConnectionsChange?.()
+  }
+
   const handleToggleHook = async (id: number, enabled: boolean) => {
     // Optimistically reflect the new state.
     setHooks((prev) => prev.map((h) => (h.id === id ? { ...h, enabled } : h)))
@@ -101,12 +116,7 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
       await loadGatekeepers()
     } catch (err) {
       console.error('Failed to toggle hook:', err)
-      toasts.add({
-        title: enabled
-          ? formatMessage({ id: 'connections.toastEnableHookFailed', defaultMessage: 'Failed to enable hook' })
-          : formatMessage({ id: 'connections.toastDisableHookFailed', defaultMessage: 'Failed to disable hook' }),
-        variant: 'error',
-      })
+      toasts.add(hookToggleFailureToast(enabled, err))
       // Revert optimistic update.
       setHooks((prev) => prev.map((h) => (h.id === id ? { ...h, enabled: !enabled } : h)))
     } finally {
@@ -151,6 +161,17 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
     if (isVisible) loadGatekeepers()
   }, [isVisible])
 
+  // Keyed on `gadget` alone: a new stub means a new session (a chat switch keeps the stub), so the
+  // pending bind runs once, in the replacement session, into the chat it was added from.
+  useEffect(() => {
+    const pending = pendingBind.current
+    if (!pending) return
+    pendingBind.current = undefined
+    bindConnection(pending.gatekeeperId, pending.chatId).catch((err) => {
+      console.error('Failed to bind connection:', err)
+      toasts.add({ title: 'Failed to add connection', description: rpcFailureDescription(err), variant: 'error' })
+    })
+  }, [gadget])
 
   // What an agent spawner created here may offer its agents: this gadget itself (under the same
   // `GADGET` name the gadget's own code uses) plus each of the gadget's bindings. All are enabled
@@ -503,8 +524,9 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
                         </div>
                         <div className="ml-auto flex shrink-0 items-center gap-2">
                           <HookToggle
+                            hookTitle={hook.description.title}
                             enabled={hook.enabled}
-                            disabled={togglingHooks.has(hook.id)}
+                            pending={togglingHooks.has(hook.id)}
                             onToggle={(enabled) => handleToggleHook(hook.id, enabled)}
                           />
                           <Tooltip content={formatMessage({
@@ -537,25 +559,18 @@ export default function Connections({ overseer, gadget, chatId, authenticatedApi
         onClose={() => setIsNewConnectionModalVisible(false)}
         getOverseer={() => overseer}
         spawnerEnvCandidates={spawnerEnvCandidates}
-        onCreated={async (gk) => {
+        onCreated={async (gk, gatekeeperId) => {
+          gk[Symbol.dispose]()
           try {
-            const gatekeeperId = await gk.getId()
-            await gadget.bindWithSuggestedName(gatekeeperId, chatId)
-            toasts.add({
-              title: chatId === undefined
-                ? formatMessage({
-                    id: 'connections.toastConnectionCreated', defaultMessage: 'Connection created successfully',
-                  })
-                : formatMessage({
-                    id: 'connections.toastConnectionCreatedProvisional',
-                    defaultMessage: "Connection created — accept the chat's changes to keep it",
-                  }),
-              variant: 'success',
-            })
-            await loadGatekeepers()
-            onConnectionsChange?.()
-          } finally {
-            gk[Symbol.dispose]()
+            await bindConnection(gatekeeperId, chatId)
+          } catch (err) {
+            // Only the refusal and the browser losing its session are cured by the replacement
+            // session. A flagged reset can come from downstream (the vendor's describe()) over a
+            // healthy session that nothing replaces, so it stays with the modal like any other.
+            const pendingRestart = getGatekeeperErrorCode(err) === GATEKEEPER_ERROR_CODES.pendingRestart
+            if (!pendingRestart && classifyRpcError(err) !== 'connection') throw err
+            console.debug('Binding the new connection once the session is replaced:', err)
+            pendingBind.current = { gatekeeperId, chatId }
           }
         }}
       />
@@ -652,8 +667,8 @@ function BlueprintAnnotationModal({
   return (
     <>
       <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-        <Dialog className="responsive-dialog !z-[1000] !w-[min(480px,calc(100vw-32px))] overflow-hidden bg-kumo-base p-0" size="lg">
-          <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-4 py-4 sm:px-5">
+        <Dialog className="responsive-dialog !z-[1000] !top-[clamp(24px,10vh,80px)] !flex !max-h-[calc(100vh-clamp(24px,10vh,80px)-24px)] !w-[min(480px,calc(100vw-32px))] !-translate-y-0 flex-col overflow-hidden bg-kumo-base p-0" size="lg">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-kumo-line px-4 py-4 sm:px-5">
             <div className="min-w-0">
               <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
                 <FormattedMessage id="connections.blueprintSettingsTitle" defaultMessage="Blueprint settings" />
@@ -674,7 +689,7 @@ function BlueprintAnnotationModal({
             />
           </div>
 
-          <div className="space-y-4 px-4 py-4 sm:px-5">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
             {loadError ? (
               <div className="text-[13px] text-kumo-subtle">{loadError}</div>
             ) : !data ? (
@@ -693,7 +708,7 @@ function BlueprintAnnotationModal({
             )}
           </div>
 
-          <div className="border-t border-kumo-line px-4 py-3 sm:px-5">
+          <div className="shrink-0 border-t border-kumo-line px-4 py-3 sm:px-5">
             {saveError && (
               <div className="mb-3 flex items-start gap-2 rounded-lg border border-l-2 border-l-kumo-brand border-y-kumo-line border-r-kumo-line bg-kumo-base px-3 py-2 text-[12px] leading-[18px] font-normal tracking-[-0.2px] text-kumo-default">
                 <Warning size={14} weight="fill" className="mt-0.5 shrink-0 text-kumo-brand" />

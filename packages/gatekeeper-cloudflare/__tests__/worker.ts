@@ -5,7 +5,7 @@
 // `ctx.exports.X({props})` is only reachable through `ctx.facets`, which is the same way the overseer
 // instantiates a gatekeeper in production.
 
-import { DurableObject, RpcStub, RpcTarget } from "cloudflare:workers";
+import { DurableObject, RpcStub, RpcTarget, WorkerEntrypoint } from "cloudflare:workers";
 import type { GatekeeperUserVerifier, GitCache, GitObjectType, GitOid }
   from "@gadgets/workshop-shared/gatekeeper";
 import type { CloudflareObservabilityGatekeeper } from "../src/cloudflare.js";
@@ -19,9 +19,10 @@ type GatekeeperProps = {
   workerName?: string;
 };
 
-type TestExports = {
+export type TestExports = {
   CloudflareObservabilityGatekeeper(options: { props: GatekeeperProps }):
     DurableObjectClass<CloudflareObservabilityGatekeeper>;
+  TestConnectCallback(options: { props: { label: string } }): Fetcher<TestConnectCallback>;
 };
 
 /**
@@ -49,8 +50,11 @@ class TestGitCache extends RpcTarget implements GitCache {
   }
 }
 
-/** Stands in for another user's Cloudflare account during an observer admission check. */
+/** Stands in for another user's Cloudflare account during an observer access check. */
 class TestVerifier extends RpcTarget {
+  /** The account IDs `checkTelemetryAccess` was asked about, in order. */
+  readonly asked: string[] = [];
+
   constructor(private readonly outcome: boolean | string) {
     super();
   }
@@ -58,6 +62,22 @@ class TestVerifier extends RpcTarget {
   async hasObservabilityAccess(): Promise<boolean> {
     if (typeof this.outcome === "string") throw new Error(this.outcome);
     return this.outcome;
+  }
+
+  async checkTelemetryAccess(accountIds: string[]): Promise<boolean[]> {
+    this.asked.push(...accountIds);
+    if (typeof this.outcome === "string") throw new Error(this.outcome);
+    return accountIds.map(() => this.outcome === true);
+  }
+}
+
+/** The labels of the `TestConnectCallback`s notified of credential expiry, in arrival order. */
+export const expiryNotices: string[] = [];
+
+/** Stands in for the Workshop's connect callback, which an account stores to report expiry. */
+export class TestConnectCallback extends WorkerEntrypoint<Env, { label: string }> {
+  async credentialsExpired(): Promise<void> {
+    expiryNotices.push(this.ctx.props.label);
   }
 }
 
@@ -86,6 +106,28 @@ export class TestHooks extends DurableObject<Env> {
     } catch (error) {
       return error instanceof Error ? error.message : String(error);
     }
+  }
+
+  /**
+   * Run `verifyObserverAccess` for observers, keyed by ID, whose verifiers have known answers.
+   * Returns the allowed observer IDs or the thrown message, and what each verifier was asked.
+   */
+  async verifyObserverAccess(
+    facetName: string, props: GatekeeperProps,
+    outcomes: Record<string, boolean | string>, subresources: string[],
+  ): Promise<{ result: string[] | string; asked: Record<string, string[]> }> {
+    const verifiers = Object.entries(outcomes).map(([id, outcome]) => ({ id, target: new TestVerifier(outcome) }));
+    const observers = verifiers.map(({ id, target }) => ({
+      id, verifier: new RpcStub(target) as unknown as Fetcher<GatekeeperUserVerifier>,
+    }));
+    let result: string[] | string;
+    try {
+      ({ allowedObserverIds: result } =
+        await this.#gatekeeper(facetName, props).verifyObserverAccess(observers, subresources));
+    } catch (error) {
+      result = error instanceof Error ? error.message : String(error);
+    }
+    return { result, asked: Object.fromEntries(verifiers.map(({ id, target }) => [id, target.asked])) };
   }
 
   /** The resource description for a binding, which encodes the account/Worker split. */

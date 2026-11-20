@@ -1,18 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
-import { createTypedStorage } from "@gadgets/typed-storage";
 import type { AiChatAuthorInfo } from "@gadgets/workshop-shared/api";
-import { applyCodeChange, type CodeChange, type CodeContent }
+import { applyCodeChange, requireTextContent, type CodeChange, type CodeContent, type FileContent }
   from "@gadgets/workshop-shared/code-change";
 import type { GitOid, GitPullHints } from "@gadgets/workshop-shared/gatekeeper";
 import type { OverseerDurableObject } from "../src/overseer.js";
 import { WorktreeSessionImpl, type WorktreeSessionHost } from "../src/worktree-session";
 import type { WorktreeTurnAccess } from "../src/agent";
 import { formatUnifiedDiff } from "../src/agent";
-import { WorkspaceGitCache, gitObjectMetadataCollection } from "../src/git-cache";
-import { GitStore, gitObjectsCollection } from "../src/git-store";
-import { concatBytes } from "../src/git-codec";
+import { WorkspaceGitCache } from "../src/git-cache";
+import { makeOverseerStorage } from "../src/storage-schema/overseer-storage";
+import { concatBytes, gitObjectOid } from "../src/git-codec";
+import { CHUNK_MAX_SIZE } from "../src/git-chunked-blob";
 import { makeMockStorage } from "./mock-storage";
 import { COMMIT_1, FIXTURE_OBJECTS, PACKED_OIDS, b64Bytes } from "./git-cache-fixtures";
 // Vite's ?raw import; resolved relative to this file, so the test below can compare the
@@ -20,7 +20,7 @@ import { COMMIT_1, FIXTURE_OBJECTS, PACKED_OIDS, b64Bytes } from "./git-cache-fi
 // @ts-expect-error -- ?raw imports have no type declaration
 import WORKTREE_DTS_SOURCE from "../src/worktree-binding.d.ts?raw";
 // The text module workshop-backend ships -- a symlink to the .d.ts above (see
-// worktreeAgentApiText in overseer.ts).
+// agentApiText in overseer.ts).
 import WORKTREE_BINDING_TYPES from "../src/worktree-binding.txt";
 
 declare module "cloudflare:workers" {
@@ -63,26 +63,33 @@ async function loadFixtureRepo(impl: any): Promise<void> {
 }
 
 // The turn half of the session: runAgent's worktree closures, mirrored closely enough to drive
-// WorktreeSessionImpl end to end -- a session-content overlay with removal tombstones, an
-// appendChange that applies each change the way the step buffer does, and buffered commit
-// advancements, all drained through the real barrier (impl.commitAgentStep).
+// WorktreeSessionImpl end to end -- a session-content overlay with removal tombstones, the
+// pinned-else-accepted base resolution, an appendChange that applies each change the way the
+// step buffer does (pinning the worktree in the turn on its first write or commit, as the
+// barrier will in the chat), and buffered commit advancements, all drained through the real
+// barrier (impl.commitAgentStep).
 function makeTurn(impl: any, chatId: number) {
-  let content = new Map<number, Map<string, string>>();
+  let content = new Map<number, Map<string, FileContent>>();
   let removed = new Map<number, Set<string>>();
   let pins = new Map<number, string>();
   let changes: { change: CodeChange }[] = [];
   let commits: { worktreeId: number, commit: string, previousHead: string }[] = [];
+  let baseCommit = (id: number): string | undefined =>
+      pins.get(id) ?? impl.getWorktreePinBase(id);
+  let pin = (id: number) => {
+    if (!pins.has(id)) pins.set(id, impl.getWorktreePinBase(id));
+  };
 
   let access: WorktreeTurnAccess = {
-    getPinBase: id => pins.get(id),
+    getBaseCommit: baseCommit,
     getBufferedHead: id => commits.findLast(entry => entry.worktreeId === id)?.commit,
     getOverlayFiles: id => content.get(id) ?? new Map(),
     getRemovedPaths: id => removed.get(id) ?? new Set(),
     readFile: async (id, path) => {
       let existing = content.get(id)?.get(path);
-      if (existing !== undefined) return existing;
+      if (existing !== undefined) return requireTextContent(existing);
       if (removed.get(id)?.has(path)) return undefined;
-      let base = pins.get(id);
+      let base = baseCommit(id);
       if (base === undefined) return undefined;
       let text = await impl.readFileAtCommit(base, path);
       if (text === undefined) return undefined;
@@ -103,9 +110,12 @@ function makeTurn(impl: any, chatId: number) {
         removed.get(id)?.delete(path);
       }
       changes.push({ change: one });
+      pin(id);
     },
-    appendCommit: (id, commit, previousHead) =>
-        commits.push({ worktreeId: id, commit, previousHead }),
+    appendCommit: (id, commit, previousHead) => {
+      commits.push({ worktreeId: id, commit, previousHead });
+      pin(id);
+    },
   };
 
   return {
@@ -113,7 +123,7 @@ function makeTurn(impl: any, chatId: number) {
     pins,
     bufferedChanges: changes,
     bufferedCommits: commits,
-    session: (id: number) => new WorktreeSessionImpl(impl, id, access, USER),
+    session: (id: number) => new WorktreeSessionImpl(impl, id, access, async () => USER),
     barrier: async () => impl.commitAgentStep(
         chatId, AGENT, [{ type: "message", message: "step" }],
         { changes: changes.splice(0), createdGadgets: [], createdWorktrees: [],
@@ -121,9 +131,10 @@ function makeTurn(impl: any, chatId: number) {
   };
 }
 
-// Creates a worktree through the barrier and returns a session over it.
-async function createWorktreeSession(impl: any, chatId: number, commitRef: string) {
-  let created = await impl.createWorktree("Repo", chatId, commitRef);
+// Creates a worktree through the barrier and returns a session over it. The worktree is
+// unpinned: the session resolves against its accepted commit until the first write or commit.
+async function createWorktreeSession(impl: any, chatId: number, commitId: string) {
+  let created = await impl.createWorktree("Repo", chatId, commitId);
   await impl.commitAgentStep(chatId, AGENT, [{ type: "message", message: "create" }], {
     changes: [],
     createdGadgets: [],
@@ -132,14 +143,13 @@ async function createWorktreeSession(impl: any, chatId: number, commitRef: strin
     worktreeCommits: [],
   });
   let turn = makeTurn(impl, chatId);
-  turn.pins.set(created.id, created.baseCommit);
   return { id: created.id, baseCommit: created.baseCommit, turn,
            session: turn.session(created.id) };
 }
 
 async function commitFiles(
     impl: any, files: Record<string, string>, parents: string[] = []): Promise<string> {
-  return await impl.gitStore.writeFilesAsCommit(new Map(Object.entries(files)), {
+  return await impl.gitCache.writeFilesAsCommit(new Map(Object.entries(files)), {
     parents,
     author: { name: "Alice", email: "alice@example.com" },
     message: "test commit",
@@ -152,24 +162,17 @@ async function commitFiles(
 // `pinBase` -- so tests can observe or fail pulls precisely.
 function makeLocalHarness(
     pull: (cache: WorkspaceGitCache, oids: GitOid[], hints: GitPullHints) => Promise<void>) {
-  let storage = createTypedStorage(makeMockStorage(), {
-    collections: {
-      gitObjects: gitObjectsCollection(),
-      gitObjectMetadata: gitObjectMetadataCollection(),
-    },
-  });
+  let storage = makeOverseerStorage(makeMockStorage());
   let cache: WorkspaceGitCache = new WorkspaceGitCache(storage, {
     pull: (_gatekeeperId, oids, hints) => pull(cache, oids, hints),
   });
-  let gitStore = new GitStore(storage.gitObjects);
   let session = (pinBase: string): WorktreeSessionImpl => {
     let host: WorktreeSessionHost = {
       gitCache: cache,
-      gitStore,
       getWorktreeRecord: () => ({ headCommit: pinBase }),
     };
     let access: WorktreeTurnAccess = {
-      getPinBase: () => pinBase,
+      getBaseCommit: () => pinBase,
       getBufferedHead: () => undefined,
       getOverlayFiles: () => new Map(),
       getRemovedPaths: () => new Set(),
@@ -177,12 +180,209 @@ function makeLocalHarness(
       appendChange: () => { throw new Error("read-only test"); },
       appendCommit: () => { throw new Error("read-only test"); },
     };
-    return new WorktreeSessionImpl(host, 5, access, USER);
+    return new WorktreeSessionImpl(host, 5, access, async () => USER);
   };
-  return { cache, gitStore, session };
+  return { cache, session };
 }
 
+// Deterministic bytes with no long repeats, so chunking finds content-defined cuts.
+const pseudoRandom = (size: number, seed: number) => {
+  let out = new Uint8Array(size);
+  for (let i = 0, x = seed; i < size; i++) {
+    x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+    out[i] = x >>> 24;
+  }
+  return out;
+};
+const read = async (stream: ReadableStream<Uint8Array>) => new Uint8Array(await new Response(stream).arrayBuffer());
+// Large arrays compare by Buffer, not by vitest's element-wise deep equality.
+const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
+
+describe("streamed bytes", () => {
+  it("reads a range from the middle of a chunked blob, exactly, a piece at a time",
+      () => withImpl(async impl => {
+    addChat(impl, 1);
+    const {session} = await createWorktreeSession(impl, 1, await commitFiles(impl, {}));
+    const data = pseudoRandom(5 * CHUNK_MAX_SIZE, 1);
+    await session.writeBytes("big.bin", data);
+    const range = {offset: 1_234_567, length: 2 * CHUNK_MAX_SIZE + 89};
+    expect(same(await read(await session.readBytes("big.bin", range)),
+                data.subarray(range.offset, range.offset + range.length))).toBe(true);
+    expect(same(await read(await session.readBytes("big.bin")), data)).toBe(true);
+    await expect(session.readBytes("big.bin", {offset: data.length - 1, length: 2}))
+      .rejects.toThrow("Invalid byte range");
+  }));
+
+  it("stops a blob's stream when the session ends mid-read", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const {session, turn} = await createWorktreeSession(impl, 1, await commitFiles(impl, {}));
+    await session.writeBytes("big.bin", pseudoRandom(4 * CHUNK_MAX_SIZE, 2));
+    const reader = (await session.readBytes("big.bin")).getReader();
+    expect((await reader.read()).done).toBe(false);
+    const live = turn.access.getBaseCommit;
+    turn.access.getBaseCommit = () => undefined;
+    try {
+      // At most the piece being delivered is still read; the stream then errors.
+      let error: unknown;
+      let after = 0;
+      for (;;) {
+        try {
+          let result = await reader.read();
+          if (result.done) break;
+          after += result.value.byteLength;
+        } catch (err) {
+          error = err;
+          break;
+        }
+      }
+      expect(after).toBeLessThanOrEqual(CHUNK_MAX_SIZE);
+      expect(String(error)).toContain("not part of the current session");
+    } finally {
+      turn.access.getBaseCommit = live;
+    }
+  }));
+
+  it.each(["default", "bytes"] as const)(
+      "writes a %s stream of odd-sized pieces, of any length, as one blob", type => withImpl(async impl => {
+    addChat(impl, 1);
+    const {session, turn} = await createWorktreeSession(impl, 1, await commitFiles(impl, {}));
+    const data = pseudoRandom(type === "default" ? 30_000_000 : 3 * CHUNK_MAX_SIZE + 5, 3);
+    const piece = 777_777;
+    let pos = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      ...(type === "bytes" ? {type: "bytes" as const} : {}),
+      pull(controller) {
+        if (pos >= data.length) {
+          controller.close();
+          (controller as ReadableByteStreamController).byobRequest?.respond(0);
+          return;
+        }
+        controller.enqueue(data.slice(pos, pos += piece));
+      },
+    });
+    await session.writeBytes("stream.bin", stream);
+    const commit = await session.commit("streamed");
+    await turn.barrier();
+    const ref = await impl.gitCache.fileBytesAtCommit(commit, "stream.bin");
+    expect(ref).toEqual({oid: gitObjectOid("blob", data), byteLength: data.length});
+    expect(same(impl.gitCache.readBlob(ref.oid, ref.byteLength), data)).toBe(true);
+  }), 60_000);
+});
+
 describe("listFiles", () => {
+  it("keeps raw reads observational and preserves text reads, edits and commits", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const text = "\ufeffhello😀\n";
+    const base = await commitFiles(impl, {"a.txt": text});
+    const {session, turn, id} = await createWorktreeSession(impl, 1, base);
+    expect(await new Response(await session.readBytes("a.txt")).bytes()).toEqual(new TextEncoder().encode(text));
+    expect(turn.access.getOverlayFiles(id).has("a.txt")).toBe(false);
+    expect(await session.readFile("a.txt")).toBe(text);
+    expect(impl.gitCache.readCommitFiles(base)).toEqual(new Map([["a.txt", text]]));
+    await session.writeFile("a.txt", text + "edited\n");
+    const commit = await session.commit("text after raw read");
+    await turn.barrier();
+    expect(impl.gitCache.readCommitFiles(commit)).toEqual(new Map([["a.txt", text + "edited\n"]]));
+  }));
+
+  it("resolves host image metadata over pending edits without making a commit", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const base = await commitFiles(impl, {"a.txt": "hello😀\n"});
+    const {session, turn, id} = await createWorktreeSession(impl, 1, base);
+    const original = await impl.getWorktreeFileOid(1, id, "a.txt", turn.access);
+    expect(original).toEqual(await impl.gitCache.fileOidAtCommit(base, "a.txt"));
+    await session.writeFile("a.txt", "edited😀\n");
+    const edited = await impl.getWorktreeFileOid(1, id, "a.txt", turn.access);
+    expect(edited).toBe(impl.gitCache.writeBlob(new TextEncoder().encode("edited😀\n")).oid);
+    expect(edited).not.toBe(original);
+    const bytes = Uint8Array.of(0, 255, 17);
+    await session.writeBytes("picture.png", bytes);
+    await session.deleteFile("a.txt");
+    expect(await impl.getWorktreeFileOid(1, id, "a.txt", turn.access)).toBeUndefined();
+    expect(await impl.getWorktreeFileOid(1, id, "picture.png", turn.access))
+        .toBe(impl.gitCache.writeBlob(bytes).oid);
+    expect(impl.gitCache.readBlob(original!)).toEqual(new TextEncoder().encode("hello😀\n"));
+    expect(impl.storage.gadgets.get(id).headCommit).toBe(base);
+    addChat(impl, 2);
+    impl.storage.chatContext.put({chatId: 2, bindings: {OTHER: id}});
+    await expect(impl.getWorktreeFileOid(2, id, "picture.png", turn.access)).rejects.toThrow(/No worktree in this chat/);
+  }));
+
+  it("pins lazy base blobs without reading them or refolding history across read-only steps", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const base = await commitFiles(impl, {"a.txt": "one", "b.txt": "two"});
+    const {session, turn, id} = await createWorktreeSession(impl, 1, base);
+    const read = vi.spyOn(impl.gitCache, "fileBytesAtCommit").mockRejectedValue(new Error("Blob must stay lazy"));
+    const fold = vi.spyOn(impl, "worktreeTouchedPaths");
+    expect(await impl.getWorktreeFileOid(1, id, "a.txt", turn.access)).toBe(await impl.gitCache.fileOidAtCommit(base, "a.txt"));
+    impl.addChatMessages(1, AGENT, [{type: "message", message: "Read-only step"}]);
+    expect(await impl.getWorktreeFileOid(1, id, "b.txt", turn.access)).toBe(await impl.gitCache.fileOidAtCommit(base, "b.txt"));
+    expect(fold).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+    await session.deleteFile("a.txt");
+    await turn.barrier();
+    expect(await impl.getWorktreeFileOid(1, id, "a.txt", turn.access)).toBeUndefined();
+    expect(fold).not.toHaveBeenCalled();
+  }));
+
+  it("resolves byte identities without copying the Git object or adding permission records", () => withImpl(async impl => {
+    const commit = await commitFiles(impl, {"a.txt": "same text\n"});
+    const before = [...impl.storage.gitObjects.list()];
+    const [a, b] = await Promise.all([
+      impl.gitCache.fileBytesAtCommit(commit, "a.txt"),
+      impl.gitCache.fileBytesAtCommit(commit, "a.txt"),
+    ]);
+    expect(a).toEqual(b);
+    addChat(impl, 1);
+    const {session} = await createWorktreeSession(impl, 1, commit);
+    expect(await new Response(await session.readBytes("a.txt")).text()).toBe("same text\n");
+    expect([...impl.storage.gitObjects.list()]).toEqual(before);
+    expect(impl.gitCache.readCommitFiles(commit)).toEqual(new Map([["a.txt", "same text\n"]]));
+  }));
+
+  it("bounds byte writes and ranges without changing the file on failure", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const base = await commitFiles(impl, {});
+    const {session} = await createWorktreeSession(impl, 1, base);
+    await session.writeBytes("data.bin", Uint8Array.of(0, 255, 7));
+    expect(await new Response(await session.readBytes("data.bin", {offset: 1, length: 2})).bytes())
+      .toEqual(Uint8Array.of(255, 7));
+    expect(await new Response(await session.readBytes("data.bin", {offset: 3, length: 0})).bytes())
+      .toEqual(new Uint8Array());
+    for (const range of [{offset: -1, length: 1}, {offset: 0, length: -1}, {offset: 1, length: 3},
+      {offset: 4, length: 0}, {offset: 0.5, length: 1}, {offset: Number.MAX_SAFE_INTEGER, length: 1}]) {
+      await expect(session.readBytes("data.bin", range)).rejects.toThrow("Invalid byte range");
+    }
+    // Bytes of any size can be written and read back.
+    const large = new Uint8Array(9 * 1024 * 1024);
+    for (let i = 0; i < large.length; i += 4093) large[i] = i & 0xff;
+    await session.writeBytes("large.bin", large);
+    expect(await new Response(await session.readBytes("large.bin", {offset: 4093 * 1000, length: 3}))
+      .bytes()).toEqual(large.slice(4093 * 1000, 4093 * 1000 + 3));
+    expect(await new Response(await session.readBytes("data.bin")).bytes()).toEqual(Uint8Array.of(0, 255, 7));
+    await session.writeBytes("empty.bin", new Uint8Array());
+    expect(await new Response(await session.readBytes("empty.bin")).bytes()).toEqual(new Uint8Array());
+    await expect(session.readBytes("missing.bin")).rejects.toThrow("no such file");
+  }));
+
+  it("writes, replaces, commits and deletes bytes through the DO worktree API", () => withImpl(async impl => {
+    addChat(impl, 1);
+    const base = await commitFiles(impl, {});
+    const {session, turn, id} = await createWorktreeSession(impl, 1, base);
+    await session.writeBytes("image.bin", Uint8Array.of(0, 255, 3, 4));
+    await session.writeBytes("image.bin", Uint8Array.of(0, 5, 0, 3, 4));
+    expect(new Uint8Array(await new Response(await session.readBytes("image.bin")).arrayBuffer())).toEqual(Uint8Array.of(0, 5, 0, 3, 4));
+    const commit = await session.commit("binary replacement");
+    await turn.barrier();
+    expect(impl.getWorktreeRecord(id).headCommit).toBe(commit);
+    const value = await impl.gitCache.fileBytesAtCommit(commit, "image.bin");
+    expect(impl.gitCache.readBlob(value.oid, value.byteLength)).toEqual(Uint8Array.of(0, 5, 0, 3, 4));
+    await expect(session.readFile("image.bin")).rejects.toThrow(/Binary/);
+    await session.deleteFile("image.bin");
+    const deleted = await session.commit("delete binary");
+    await turn.barrier();
+    expect(await impl.gitCache.fileBytesAtCommit(deleted, "image.bin")).toBeUndefined();
+  }));
   it("surfaces all five entry kinds, non-recursively and recursively",
       () => withImpl(async impl => {
     addChat(impl, 1);
@@ -477,18 +677,20 @@ describe("grep", () => {
     ].toSorted());
   });
 
-  it("notes every path sharing one unobtainable oversized blob", async () => {
-    // Two paths with identical content share a single blob oid. The pull "succeeds" but
-    // delivers nothing, which the batched fetch's size filter reads as omitted-for-size: the
-    // skip must then report *each* file holding that blob, not just one of them.
+  it("notes every path sharing one binary blob, and searches a large file", async () => {
+    // Two paths with identical content share a single blob oid: the skip must report *each*
+    // file holding that blob, not just one of them. A file of any size is searched.
     let harness = makeLocalHarness(async () => {});
     let cache = harness.cache;
     let smallBlob = await cache.putFromGatekeeper(
         7, "blob", new TextEncoder().encode("x marks the spot\n"));
-    let sharedOid = "cd".repeat(20);
+    let sharedOid = await cache.putFromGatekeeper(7, "blob", new Uint8Array([0x78, 0, 0x78]));
+    let hugeBlob = await cache.putFromGatekeeper(7, "blob",
+        new TextEncoder().encode(`${"filler line\n".repeat(800_000)}x at the end\n`));
     let treeOid = await cache.putFromGatekeeper(7, "tree", treePayload([
       { mode: "100644", name: "big1.txt", oid: sharedOid },
       { mode: "100644", name: "big2.txt", oid: sharedOid },
+      { mode: "100644", name: "huge.txt", oid: hugeBlob },
       { mode: "100644", name: "small.txt", oid: smallBlob },
     ]));
     let commitOid = await cache.putFromGatekeeper(
@@ -497,25 +699,26 @@ describe("grep", () => {
 
     let result = await session.grep(/x/);
     expect(result).toContain("small.txt:1:x marks the spot");
-    expect(result).toContain("(skipped: big1.txt is too large to read)");
-    expect(result).toContain("(skipped: big2.txt is too large to read)");
+    expect(result).toContain("huge.txt:800001:x at the end");
+    expect(result).toContain("(skipped: big1.txt is not a text file)");
+    expect(result).toContain("(skipped: big2.txt is not a text file)");
 
     // structuredGrep reports the same skips as error entries.
-    expect(await session.structuredGrep(/x/)).toEqual({
+    expect(await session.structuredGrep(/x/, ["big1.txt", "big2.txt", "small.txt"])).toEqual({
       matches: [{ file: "small.txt", line: 1, text: "x marks the spot" }],
       errors: [
-        { file: "big1.txt", error: "big1.txt is too large to read" },
-        { file: "big2.txt", error: "big2.txt is too large to read" },
+        { file: "big1.txt", error: "big1.txt is not a text file" },
+        { file: "big2.txt", error: "big2.txt is not a text file" },
       ],
     });
 
     // A directly named file whose *content* is unreadable fails its scope: alone it throws,
     // beside a searchable path it degrades to a skip.
     await expect(session.grep(/x/, "big1.txt")).rejects.toThrow(
-        "big1.txt is too large to read");
+        "big1.txt is not a text file");
     expect(await session.grep(/x/, ["big1.txt", "small.txt"])).toBe(
         "small.txt:1:x marks the spot\n" +
-        "(skipped: big1.txt is too large to read)");
+        "(skipped: big1.txt is not a text file)");
   });
 });
 
@@ -537,7 +740,7 @@ describe("commit and diff", () => {
 
     // Identity is the turn's initiator; the parent is the previous head; the tree is the
     // overlay over the pin base.
-    let [info] = await impl.gitStore.readCommitLog(commit, { depth: 1 });
+    let [info] = impl.gitCache.readCommitLog(commit, { depth: 1 });
     expect(info.parents).toEqual([c1]);
     expect(info.author).toEqual({ name: "Alice", email: "alice@example.com" });
     expect(info.message).toBe("tweak a.txt\n");
@@ -545,6 +748,34 @@ describe("commit and diff", () => {
 
     await turn.barrier();
     expect(impl.storage.gadgets.get(id)!.headCommit).toBe(commit);
+    // The write was the epoch's first modification: the barrier pinned the worktree at its
+    // accepted commit, declared on the step's message alongside the advancement.
+    expect(impl.storage.chatMeta.get(1)!.codeBase!.pins).toEqual(
+        [{ gadgetId: id, baseCommit: c1, mergedCommit: c1 }]);
+  }));
+
+  it("commit() on an untouched worktree pins it, so the advancement is a revertable change",
+      () => withImpl(async impl => {
+    addChat(impl, 1);
+    let c1 = await commitFiles(impl, { "a.txt": "one\n" });
+    let { id, session, turn } = await createWorktreeSession(impl, 1, c1);
+    expect(impl.storage.chatMeta.get(1)!.codeBase).toBeUndefined();
+
+    // No writes: the commit's tree is the accepted commit's, parented on the head.
+    let commit = await session.commit("empty");
+    expect(impl.gitCache.commitTree(commit)).toBe(impl.gitCache.commitTree(c1));
+    await turn.barrier();
+    expect(impl.storage.gadgets.get(id)!.headCommit).toBe(commit);
+    expect(impl.storage.chatMeta.get(1)!.codeBase!.pins).toEqual(
+        [{ gadgetId: id, baseCommit: c1, mergedCommit: c1 }]);
+    let step = [...impl.storage.chats.list()].at(-1)!;
+    expect(step.pins).toEqual([{ gadgetId: id, baseCommit: c1 }]);
+    expect(step.worktreeCommits).toEqual([{ worktreeId: id, commit, previousHead: c1 }]);
+
+    // Reverting the step rolls the head back and unpins.
+    await impl.revertChanges(1, step.sequence, USER);
+    expect(impl.storage.gadgets.get(id)!.headCommit).toBe(c1);
+    expect(impl.storage.chatMeta.get(1)!.codeBase!.pins).toEqual([]);
   }));
 
   it("explicit commits squash out accepts' auto-commits", () => withImpl(async impl => {
@@ -558,7 +789,8 @@ describe("commit and diff", () => {
     await turn.barrier();
 
     // An accept auto-commits the (clean-after-commit... make it dirty first) overlay and
-    // re-pins. Note the pin advanced through an auto-commit while the head stayed `first`.
+    // advances the accepted commit. Note it advanced through an auto-commit while the head
+    // stayed `first`.
     await session.writeFile("a.txt", "three\n");
     await turn.barrier();
     await impl.mergeChanges(1, USER_META, "client-user");
@@ -566,18 +798,22 @@ describe("commit and diff", () => {
     expect(record.headCommit).toBe(first);
     expect(record.pinBase).not.toBe(first);
 
-    // A new turn (fresh overlay over the re-pin): the next explicit commit's parent is the
-    // last explicit commit -- the auto-commit never appears in explicit history.
+    // A new turn (fresh overlay over the unpinned worktree, which resolves against the
+    // advanced accepted commit): the next explicit commit's parent is the last explicit commit
+    // -- the auto-commit never appears in explicit history.
     let turn2 = makeTurn(impl, 1);
-    turn2.pins.set(id, record.pinBase);
     let session2 = turn2.session(id);
+    expect(await session2.readFile("a.txt")).toBe("three\n");
     await session2.writeFile("a.txt", "four\n");
     let second = await session2.commit("second");
-    let [info] = await impl.gitStore.readCommitLog(second, { depth: 1 });
+    let [info] = impl.gitCache.readCommitLog(second, { depth: 1 });
     expect(info.parents).toEqual([first]);
     expect(await impl.readFileAtCommit(second, "a.txt")).toBe("four\n");
     await turn2.barrier();
     expect(impl.storage.gadgets.get(id)!.headCommit).toBe(second);
+    // ...and the write re-pinned the worktree at the advanced accepted commit.
+    expect(impl.storage.chatMeta.get(1)!.codeBase!.pins).toEqual(
+        [{ gadgetId: id, baseCommit: record.pinBase, mergedCommit: record.pinBase }]);
   }));
 
   it("an edited executable keeps its mode; untouched special entries ride through",
@@ -620,7 +856,24 @@ describe("commit and diff", () => {
     // Against an explicit commit id (here the same base, spelled out).
     expect(await session.diff(c1)).toBe(diff);
     await expect(session.diff("feed".repeat(10))).rejects.toThrow(/not known/);
+    // Only full ids: knowing one is the capability to read the commit, and a prefix is guessable.
+    await expect(session.diff(c1.slice(0, 8))).rejects.toThrow(/not a full git commit id/);
   }));
+
+  it("diff() diffs a 9 MB file's change as text", () => withImpl(async impl => {
+    addChat(impl, 1);
+    let big = Array.from({ length: 600_000 }, (_, i) => `line ${i} of the file`).join("\n") + "\n";
+    expect(big.length).toBeGreaterThan(9_000_000);
+    let c1 = await commitFiles(impl, { "big.txt": big });
+    let { session } = await createWorktreeSession(impl, 1, c1);
+    await session.writeFile("big.txt", big.replace("line 543210 of the file\n", "line 543210 changed\n"));
+    let diff = await session.diff();
+    expect(diff).toContain("-line 543210 of the file\n+line 543210 changed\n");
+    expect(diff.length).toBeLessThan(1000);
+    let structured = await session.structuredDiff();
+    expect(structured.errors).toEqual([]);
+    expect(structured.files.map(file => [file.path, file.status])).toEqual([["big.txt", "modified"]]);
+  }), 60_000);
 
   it("diff() reports EOF-newline changes with git's no-newline markers", () => withImpl(async impl => {
     addChat(impl, 1);
@@ -635,6 +888,28 @@ describe("commit and diff", () => {
     let diff = await session.diff();
     expect(diff).toBe(formatUnifiedDiff("a.txt", "one", "one\n", true, true));
     expect(diff).toContain("-one\n\\ No newline at end of file\n+one");
+  }));
+
+  it("diff() spells paths verbatim, without C-style quoting", () => withImpl(async impl => {
+    // Paths are left as written so an agent can reuse them in a tool call. (jsdiff >= 9 quotes
+    // and octal-escapes non-ASCII, `"` and `\` in its file headers, as git does.)
+    addChat(impl, 1);
+    let c1 = await commitFiles(impl, { "notes/café.md": "old\n" });
+    let { session } = await createWorktreeSession(impl, 1, c1);
+    await session.writeFile("notes/café.md", "new\n");
+    await session.writeFile("docs/报告 \"v2\".md", "new\n");
+
+    expect(await session.diff()).toBe([
+      "--- /dev/null",
+      "+++ b/docs/报告 \"v2\".md",
+      "@@ -0,0 +1,1 @@",
+      "+new",
+      "--- a/notes/café.md",
+      "+++ b/notes/café.md",
+      "@@ -1,1 +1,1 @@",
+      "-old",
+      "+new",
+    ].join("\n"));
   }));
 
   it("diff() notes special entries instead of failing", () => withImpl(async impl => {
@@ -664,7 +939,7 @@ describe("commit and diff", () => {
       throw new Error("simulated pull outage");
     });
     let cache = harness.cache;
-    let base = await harness.gitStore.writeFilesAsCommit(new Map([["a.txt", "one\n"]]), {
+    let base = await harness.cache.writeFilesAsCommit(new Map([["a.txt", "one\n"]]), {
       parents: [],
       author: { name: "Alice", email: "alice@example.com" },
       message: "base",
@@ -694,6 +969,187 @@ describe("commit and diff", () => {
     expect(pulls).toEqual(
         [{ oids: [ghostOid], hints: expect.objectContaining({ referencedBy: ghostTree }) }]);
   });
+
+  it("structuredDiff() returns numbered hunks per changed file", () => withImpl(async impl => {
+    addChat(impl, 1);
+    let c1 = await commitFiles(impl, {
+      "a.txt": "one\ntwo\n",
+      "b.txt": "bee\n",
+      "long.txt": "1\n2\n3\n4\n5\n6\n7\n8\n",
+      "same.txt": "unchanged\n",
+    });
+    let { session } = await createWorktreeSession(impl, 1, c1);
+
+    await session.writeFile("a.txt", "one!\ntwo\n");
+    await session.deleteFile("b.txt");
+    await session.writeFile("c.txt", "sea\n");
+    await session.writeFile("empty.txt", "");
+    await session.writeFile("long.txt", "1\n2\n3\n4\n4.5\n5\n6\n7\n8\n");
+
+    let result = await session.structuredDiff();
+    expect(result).toEqual({
+      files: [
+        { path: "a.txt", status: "modified", oldKind: "file", newKind: "file",
+          hunks: [{ header: "@@ -1,2 +1,2 @@", lines: [
+          { kind: "removed", text: "one", oldLineNumber: 1 },
+          { kind: "added", text: "one!", newLineNumber: 1 },
+          { kind: "context", text: "two", oldLineNumber: 2, newLineNumber: 2 },
+        ] }] },
+        { path: "b.txt", status: "removed", oldKind: "file",
+          hunks: [{ header: "@@ -1,1 +0,0 @@", lines: [
+          { kind: "removed", text: "bee", oldLineNumber: 1 },
+        ] }] },
+        { path: "c.txt", status: "added", newKind: "file",
+          hunks: [{ header: "@@ -0,0 +1,1 @@", lines: [
+          { kind: "added", text: "sea", newLineNumber: 1 },
+        ] }] },
+        // An empty file has no lines to diff, but its addition still shows.
+        { path: "empty.txt", status: "added", newKind: "file", hunks: [] },
+        // Context is limited to 3 lines, so the hunk starts mid-file.
+        { path: "long.txt", status: "modified", oldKind: "file", newKind: "file",
+          hunks: [{ header: "@@ -2,6 +2,7 @@", lines: [
+          { kind: "context", text: "2", oldLineNumber: 2, newLineNumber: 2 },
+          { kind: "context", text: "3", oldLineNumber: 3, newLineNumber: 3 },
+          { kind: "context", text: "4", oldLineNumber: 4, newLineNumber: 4 },
+          { kind: "added", text: "4.5", newLineNumber: 5 },
+          { kind: "context", text: "5", oldLineNumber: 5, newLineNumber: 6 },
+          { kind: "context", text: "6", oldLineNumber: 6, newLineNumber: 7 },
+          { kind: "context", text: "7", oldLineNumber: 7, newLineNumber: 8 },
+        ] }] },
+      ],
+      errors: [],
+    });
+
+    // Headers are spelled exactly as the rendered diff spells them.
+    let diffLines = (await session.diff()).split("\n");
+    for (let file of result.files) {
+      for (let hunk of file.hunks) expect(diffLines).toContain(hunk.header);
+    }
+
+    // Against an explicit commit id, with the same id rules as diff().
+    expect(await session.structuredDiff(c1)).toEqual(result);
+    await expect(session.structuredDiff(c1.slice(0, 8))).rejects.toThrow(/not a full git commit id/);
+
+    // After committing, HEAD matches the worktree.
+    await session.commit("changes");
+    expect(await session.structuredDiff()).toEqual({ files: [], errors: [] });
+  }));
+
+  it("structuredDiff() reports EOF-newline markers as unnumbered context",
+      () => withImpl(async impl => {
+    addChat(impl, 1);
+    let c1 = await commitFiles(impl, { "a.txt": "one" });
+    let { session } = await createWorktreeSession(impl, 1, c1);
+    await session.writeFile("a.txt", "one\n");
+
+    expect(await session.structuredDiff()).toEqual({
+      files: [{ path: "a.txt", status: "modified", oldKind: "file", newKind: "file",
+                hunks: [{ header: "@@ -1,1 +1,1 @@", lines: [
+        { kind: "removed", text: "one", oldLineNumber: 1 },
+        { kind: "context", text: "\\ No newline at end of file" },
+        { kind: "added", text: "one", newLineNumber: 1 },
+      ] }] }],
+      errors: [],
+    });
+  }));
+
+  it("structuredDiff() reports special entries as errors", () => withImpl(async impl => {
+    addChat(impl, 1);
+    await loadFixtureRepo(impl);
+    let c1 = await commitFiles(impl, { "a.txt": "one\n" });
+    let { session } = await createWorktreeSession(impl, 1, c1);
+
+    let result = await session.structuredDiff(COMMIT_1);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      { file: "link.md", error: "link.md is a symlink to README.md" },
+      { file: "vendored", error: "vendored is a submodule (gitlink) pointing at commit " +
+                                 "1111111111111111111111111111111111111111" },
+    ]));
+    expect(result.files).toContainEqual({ path: "a.txt", status: "added", newKind: "file", hunks: [
+      { header: "@@ -0,0 +1,1 @@", lines: [{ kind: "added", text: "one", newLineNumber: 1 }] },
+    ] });
+    expect(result.files.find(file => file.path === "README.md")?.status).toBe("removed");
+    // Every path lands in exactly one of the two lists.
+    let errorPaths = result.errors.map(error => error.file);
+    expect(result.files.some(file => errorPaths.includes(file.path))).toBe(false);
+  }));
+
+  it("diffs report executable-bit changes, with or without content changes",
+      () => withImpl(async impl => {
+    addChat(impl, 1);
+    // Two commits holding the same blobs, differing only in the files' modes.
+    let scriptOid = await impl.gitCache.putFromGatekeeper(
+        999, "blob", new TextEncoder().encode("#!/bin/sh\n"));
+    let toolOid = await impl.gitCache.putFromGatekeeper(
+        999, "blob", new TextEncoder().encode("tool\n"));
+    let commitWithModes = async (entries: { mode: string, name: string, oid: string }[]) => {
+      let tree = await impl.gitCache.putFromGatekeeper(999, "tree", treePayload(entries));
+      return await impl.gitCache.putFromGatekeeper(
+          999, "commit", commitPayload(tree, [], JSON.stringify(entries)));
+    };
+    let plain = await commitWithModes([
+      { mode: "100644", name: "script.sh", oid: scriptOid },
+      { mode: "100755", name: "tool", oid: toolOid },
+    ]);
+    let modesFlipped = await commitWithModes([
+      { mode: "100755", name: "script.sh", oid: scriptOid },
+      { mode: "100644", name: "tool", oid: toolOid },
+    ]);
+    let toolOnly = await commitWithModes([{ mode: "100644", name: "tool", oid: toolOid }]);
+    let { session } = await createWorktreeSession(impl, 1, modesFlipped);
+    // An edit keeps the base's mode, so this is a content change on top of the mode change.
+    await session.writeFile("tool", "tool v2\n");
+    let toolHunks = [{ header: "@@ -1,1 +1,1 @@", lines: [
+      { kind: "removed", text: "tool", oldLineNumber: 1 },
+      { kind: "added", text: "tool v2", newLineNumber: 1 },
+    ] }];
+    let toolDiff = formatUnifiedDiff("tool", "tool\n", "tool v2\n", true, true);
+
+    // Mode changes: a "modified" file whose kinds differ, with or without hunks.
+    expect(await session.structuredDiff(plain)).toEqual({
+      files: [
+        { path: "script.sh", status: "modified", oldKind: "file", newKind: "executable",
+          hunks: [] },
+        { path: "tool", status: "modified", oldKind: "executable", newKind: "file",
+          hunks: toolHunks },
+      ],
+      errors: [],
+    });
+    expect(await session.diff(plain)).toBe([
+      "diff --git a/script.sh b/script.sh\nold mode 100644\nnew mode 100755",
+      "diff --git a/tool b/tool\nold mode 100755\nnew mode 100644",
+      toolDiff,
+    ].join("\n"));
+
+    // An added executable names its kind; an unchanged mode gets no mode lines.
+    let scriptHunks = [{ header: "@@ -0,0 +1,1 @@", lines: [
+      { kind: "added", text: "#!/bin/sh", newLineNumber: 1 },
+    ] }];
+    expect((await session.structuredDiff(toolOnly)).files).toEqual([
+      { path: "script.sh", status: "added", newKind: "executable", hunks: scriptHunks },
+      { path: "tool", status: "modified", oldKind: "file", newKind: "file", hunks: toolHunks },
+    ]);
+    expect(await session.diff(toolOnly)).toBe([
+      "diff --git a/script.sh b/script.sh\nnew file mode 100755",
+      formatUnifiedDiff("script.sh", "", "#!/bin/sh\n", false, true),
+      toolDiff,
+    ].join("\n"));
+
+    // So does a removed one.
+    await session.deleteFile("script.sh");
+    expect((await session.structuredDiff(modesFlipped)).files).toEqual([
+      { path: "script.sh", status: "removed", oldKind: "executable", hunks: [
+        { header: "@@ -1,1 +0,0 @@",
+          lines: [{ kind: "removed", text: "#!/bin/sh", oldLineNumber: 1 }] },
+      ] },
+      { path: "tool", status: "modified", oldKind: "file", newKind: "file", hunks: toolHunks },
+    ]);
+    expect(await session.diff(modesFlipped)).toBe([
+      "diff --git a/script.sh b/script.sh\ndeleted file mode 100755",
+      formatUnifiedDiff("script.sh", "#!/bin/sh\n", "", true, false),
+      toolDiff,
+    ].join("\n"));
+  }));
 });
 
 describe("worktree binding description", () => {

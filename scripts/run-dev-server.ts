@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 // Generates dev-only wrangler.dev.jsonc files for dynamic service bindings,
-// then launches `wrangler dev` with all discovered workers.
+// then launches `wrangler dev` with all discovered workers and the PDF renderer.
 //
 // Flags:
-//   --use-workers-ai-binding   Include the Workers AI binding in
-//                               workshop-backend (requires Cloudflare login).
+//   --use-workers-ai-binding   Include the Workers AI binding in workshop-backend and in the
+//                               gatekeepers that declare one (requires Cloudflare login).
 //   --port PORT                 Listen on PORT instead of 8787. Overrides VITE_BACKEND_HOST.
 //
 // Env:
@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "jsonc-parser";
 import { resolveBinEntry } from "./bin-entry.ts";
 import { getDevServerConfig } from "./dev-server-config.ts";
+import { generateWorkerConfigs } from "./generate-worker-configs.ts";
 import { killProcessTree } from "./kill-process-tree.ts";
 import { pnpmCommand } from "./pnpm-command.ts";
 import type { ServiceBinding, WranglerBuild } from "./release/manifest-lib.ts";
@@ -31,6 +32,9 @@ const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(SCRIPTS_DIR, "..");
 const PACKAGES_DIR = join(ROOT, "packages");
 const WORKSHOP_BACKEND_DIR = join(PACKAGES_DIR, "workshop-backend");
+// The Worker that draws PDF pages for the Google gatekeeper, which binds to it by name. It is not a
+// gatekeeper, so nothing below discovers it, routes to it or gives it credentials.
+const PDF_RENDERER_DIR = join(PACKAGES_DIR, "pdf-renderer");
 
 /** A gatekeeper package as {@link findGatekeepers} discovers it. */
 interface Gatekeeper {
@@ -79,6 +83,19 @@ try {
   process.exit(1);
 }
 
+// The deploy service binds CLOUDFLARE_OS_DEPLOYMENT as JSON, and the backend treats the string form
+// as absent, so a value from the shell or `.dev.vars` is parsed here, before the builds so bad JSON
+// fails fast, and written into the backend's config as an object. An empty value counts as unset.
+let cloudflareOsDeployment: unknown;
+if (process.env.CLOUDFLARE_OS_DEPLOYMENT) {
+  try {
+    cloudflareOsDeployment = JSON.parse(process.env.CLOUDFLARE_OS_DEPLOYMENT);
+  } catch {
+    console.error("CLOUDFLARE_OS_DEPLOYMENT is not valid JSON; set it as one JSON line.");
+    process.exit(1);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Discover gatekeeper packages.
 // ---------------------------------------------------------------------------
@@ -98,6 +115,10 @@ function findGatekeepers(parentDir: string): Gatekeeper[] {
     return [];
   }
 }
+
+// The committed wrangler.jsonc files are generated from cloudflare.config.ts; regenerate them so a
+// TypeScript edit reaches `pnpm dev-server` without a separate step.
+await generateWorkerConfigs({ check: false });
 
 const gatekeepers = findGatekeepers(PACKAGES_DIR);
 
@@ -163,7 +184,7 @@ function stopDevWatchers(): void {
 process.on("exit", stopDevWatchers);
 
 // Reaches each app watcher's `pnpm exec vite build --watch` grandchild, which a bare kill() on the
-// `node build-app.mjs --watch` wrapper leaves holding CPU and file watches after we are gone. Must
+// `node build-app.ts --watch` wrapper leaves holding CPU and file watches after we are gone. Must
 // not call stopDevWatchers() first: killing a wrapper reparents its children away from it, and the
 // tree walk can no longer find them.
 async function stopDevWatchersDeep(): Promise<void> {
@@ -363,18 +384,18 @@ for (const gk of gatekeepers) {
     );
   }
 
-  // Single-file app UI (Vite bundle written to src/generated/app.txt by build-app.mjs).
+  // Single-file app UI (Vite bundle written to src/generated/app.txt by build-app.ts).
   //
   // Deferred until Wrangler is listening: unlike the configurator watcher, `vite build --watch`
   // cannot skip its initial build, and these are the largest builds in the repo, so running them now
   // takes cores from the worker bundles Wrangler is building concurrently. Nothing needs them sooner
   // -- the pre-flight already wrote the `app.txt` they will produce -- and Vite reads the disk when
   // it finally starts, so an edit made while the server was coming up is still picked up.
-  if (existsSync(join(gk.dir, "build-app.mjs"))) {
+  if (existsSync(join(gk.dir, "build-app.ts"))) {
     deferredWatchers.push(() => spawnDevWatcher(
       `app UI watcher for ${gk.name}`,
       process.execPath,
-      [join(gk.dir, "build-app.mjs"), "--watch"],
+      [join(gk.dir, "build-app.ts"), "--watch"],
     ));
   }
 }
@@ -467,6 +488,7 @@ function devBuildConfig(build: WranglerBuild | undefined, pkgDir: string): Wrang
 // Maps a gatekeeper name to the shared env vars whose values seed its CLIENT_ID / CLIENT_SECRET.
 const SHARED_GATEKEEPER_CREDS: Record<string, { id: string; secret: string }> = {
   "gatekeeper-github": { id: "GITHUB_CLIENT_ID", secret: "GITHUB_CLIENT_SECRET" },
+  "gatekeeper-gitlab": { id: "GITLAB_CLIENT_ID", secret: "GITLAB_CLIENT_SECRET" },
   "gatekeeper-google": { id: "GOOGLE_CLIENT_ID", secret: "GOOGLE_CLIENT_SECRET" },
   "gatekeeper-cloudflare": { id: "CLOUDFLARE_OAUTH_CLIENT_ID", secret: "CLOUDFLARE_OAUTH_CLIENT_SECRET" },
   "gatekeeper-supabase": { id: "SUPABASE_CLIENT_ID", secret: "SUPABASE_CLIENT_SECRET" },
@@ -476,6 +498,9 @@ const SHARED_GATEKEEPER_CREDS: Record<string, { id: string; secret: string }> = 
   "gatekeeper-slack": { id: "SLACK_CLIENT_ID", secret: "SLACK_CLIENT_SECRET" },
   "gatekeeper-linear": { id: "LINEAR_CLIENT_ID", secret: "LINEAR_CLIENT_SECRET" },
   "gatekeeper-spotify": { id: "SPOTIFY_CLIENT_ID", secret: "SPOTIFY_CLIENT_SECRET" },
+  "gatekeeper-x": { id: "X_CLIENT_ID", secret: "X_CLIENT_SECRET" },
+  "gatekeeper-microsoft": { id: "MICROSOFT_CLIENT_ID", secret: "MICROSOFT_CLIENT_SECRET" },
+  "gatekeeper-pagerduty": { id: "PAGERDUTY_CLIENT_ID", secret: "PAGERDUTY_CLIENT_SECRET" },
 };
 
 // Deployment-configured vars a gatekeeper reads that its committed `wrangler.jsonc` deliberately
@@ -491,6 +516,24 @@ const PASSTHROUGH_GATEKEEPER_VARS: Record<string, string[]> = {
     "MCP_PORTAL_TRUST_ANNOTATIONS", "MCP_PORTAL_HIDDEN_SERVER_IDS", "MCP_ALLOW_INSECURE",
   ],
   "gatekeeper-mcp": ["MCP_ALLOW_INSECURE"],
+  // A tunnel's public origin, for GitHub to deliver hook events to; unset, hooks are refused.
+  "gatekeeper-github": ["WEBHOOK_ORIGIN"],
+  // The instance a self-hosted GitLab gatekeeper talks to, and the Access service token for one
+  // behind Cloudflare Access; unset, it talks to gitlab.com.
+  "gatekeeper-gitlab": ["GITLAB_URL", "GITLAB_API_URL", "CF_ACCESS_CLIENT_ID", "CF_ACCESS_CLIENT_SECRET"],
+  // Each connection's daily read limit; unset, the in-code default.
+  "gatekeeper-x": ["X_DAILY_READ_LIMIT"],
+  // The signing secret of the PagerDuty webhook a tunnel delivers to; unset, hooks are refused.
+  "gatekeeper-pagerduty": ["PAGERDUTY_WEBHOOK_SECRET"],
+  // The most Google Drive connections may do (unset, read and write), whether a vision model
+  // reads the pages of a PDF that have no text (unset, it does), and how many calls to it one
+  // PDF's text may have in flight (unset, the number in the code).
+  "gatekeeper-google": ["GOOGLE_DRIVE_ACCESS", "PDF_OCR", "PDF_OCR_CALLS"],
+  // The Entra tenant (or allowlist of tenant IDs) to accept, which must be set or the gatekeeper
+  // refuses to start, the most agents may do in SharePoint, Outlook and Calendar (unset: write, send
+  // and schedule), and whether SharePoint asks for every site or only those granted to the app
+  // (unset, every site).
+  "gatekeeper-microsoft": ["MICROSOFT_TENANT_ID", "MICROSOFT_ALLOWED_TENANT_IDS", "MICROSOFT_SHAREPOINT_ACCESS", "MICROSOFT_SHAREPOINT_SITES", "MICROSOFT_OUTLOOK_ACCESS", "MICROSOFT_CALENDAR_ACCESS"],
 };
 
 for (const gk of gatekeepers) {
@@ -514,7 +557,27 @@ for (const gk of gatekeepers) {
     }
   }
 
+  // Workers AI always runs remotely, which needs a Cloudflare login, so it stays opt-in here too.
+  if (config.ai) {
+    if (useWorkersAi) config.ai.remote = true;
+    else delete config.ai;
+  }
+
   const outPath = join(gk.dir, "wrangler.dev.jsonc");
+  writeFileSync(outPath, JSON.stringify(config, null, 2) + "\n");
+  console.log(`generated: ${outPath}`);
+}
+
+// ---------------------------------------------------------------------------
+// Generate packages/pdf-renderer/wrangler.dev.jsonc. Only other Workers reach the renderer, through
+// a service binding their own config declares, so all its config needs for dev is the dev build
+// settings.
+// ---------------------------------------------------------------------------
+{
+  const config = parse(readFileSync(join(PDF_RENDERER_DIR, "wrangler.jsonc"), "utf8"));
+  config.build = devBuildConfig(config.build, PDF_RENDERER_DIR);
+
+  const outPath = join(PDF_RENDERER_DIR, "wrangler.dev.jsonc");
   writeFileSync(outPath, JSON.stringify(config, null, 2) + "\n");
   console.log(`generated: ${outPath}`);
 }
@@ -532,6 +595,12 @@ for (const gk of gatekeepers) {
   // For local testing, create an account named "admin" to test admin features.
   config.vars = config.vars || {};
   config.vars.ADMINS = ["admin"];
+  // A local instance, where `cf-os api` may act as anyone. Never set by a deployment.
+  config.vars.WORKSHOP_ENVIRONMENT = "development";
+
+  if (cloudflareOsDeployment !== undefined) {
+    config.vars.CLOUDFLARE_OS_DEPLOYMENT = cloudflareOsDeployment;
+  }
 
   // Pass through the optional OAuth sign-in / AI Gateway billing env vars from the shell
   // environment, so you can run e.g.
@@ -548,6 +617,10 @@ for (const gk of gatekeepers) {
     // needs the token even when the binding is present.
     "CF_AI_GATEWAY", "CF_AI_GATEWAY_PROVIDERS", "CF_AI_GATEWAY_ACCOUNT_ID",
     "CF_AI_GATEWAY_API_TOKEN", "CF_AI_GATEWAY_USE_BINDING",
+    // The bounds on admin access to workspaces (see docs/admin-access.md), e.g.
+    // `ADMIN_WORKSPACE_ACCESS_MAX=off pnpm dev-server` turns the dev admin's inspection off, and
+    // `ADMIN_WORKSPACE_WRITES=on pnpm dev-server` lets the dev admin write to workspaces.
+    "ADMIN_WORKSPACE_ACCESS_MAX", "ADMIN_AUDIT_RETENTION_MIN_DAYS", "ADMIN_WORKSPACE_WRITES",
   ];
   // OAuth app credentials (GOOGLE_/GITHUB_/CLOUDFLARE_OAUTH_*) are NOT passed to the backend anymore;
   // they are injected into the gatekeeper Workers (see SHARED_GATEKEEPER_CREDS below).
@@ -609,6 +682,7 @@ const configs = [
   "wrangler.dev.jsonc",
   join("packages", "workshop-backend", "wrangler.dev.jsonc"),
   ...gatekeepers.map(gk => join(gk.dir, "wrangler.dev.jsonc")),
+  join(PDF_RENDERER_DIR, "wrangler.dev.jsonc"),
 ];
 
 const args = configs.flatMap(c => ["-c", c]);

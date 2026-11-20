@@ -1,4 +1,4 @@
-/** The initiation-to-OAuth nonce handoff for gatekeeper connect flows. */
+/** Connect-flow handshake state: the initiation-to-OAuth nonce handoff and the once-only `complete()`. */
 
 import {
   generateNonce,
@@ -14,6 +14,9 @@ export type ConnectNonceKv = KvMutable;
 
 /** KV key holding the in-flight connect nonce. Unchanged from every current gatekeeper. */
 export const NONCE_KEY = "nonce";
+
+// Unchanged from the gatekeepers that already record the attempt.
+const CONNECT_ATTEMPTED_KEY = "connectAttempted";
 
 /** Stages in the two-step connect handshake. */
 export type ConnectStage = "initiation" | "oauth";
@@ -37,25 +40,36 @@ function rejectReservedKeys(extra: object): void {
 }
 
 /**
- * Stores a connect-flow initiation nonce.
+ * Stores a connect-flow initiation nonce, with provider metadata decided when the link is minted —
+ * what it was minted *for* (a reconnect, say) — rather than inferred when it is used. The metadata
+ * rides the attempt: `advanceToOAuth` carries it into the OAuth record, and `claimOAuth` returns it.
  * @param kv Durable Object nonce storage.
  * @param initiationNonce Nonce carried by the connect link.
  * @param now Current Unix time in milliseconds.
+ * @param meta Provider metadata to retain through the callback.
  */
-export function putInitiation(kv: ConnectNonceKv, initiationNonce: string, now: number): void {
-  kv.put<StoredNonce>(NONCE_KEY, {
+export function putInitiation<Meta extends object>(
+  kv: ConnectNonceKv,
+  initiationNonce: string,
+  now: number,
+  meta?: Meta & NonceExtra,
+): void {
+  if (meta) rejectReservedKeys(meta);
+  kv.put(NONCE_KEY, {
+    ...meta,
     value: initiationNonce,
     expiresAt: now + INITIATION_NONCE_LIFETIME_MS,
     stage: "initiation",
-  });
+  } satisfies StoredNonce);
 }
 
 /**
- * Advances a valid connect attempt to OAuth.
+ * Advances a valid connect attempt to OAuth, keeping the metadata `putInitiation` stored.
  * @param kv Durable Object nonce storage.
  * @param initiationNonce Nonce carried by the connect link.
  * @param now Current Unix time in milliseconds.
- * @param extra Provider metadata to retain through the callback.
+ * @param extra Provider metadata to retain through the callback, overriding initiation metadata of
+ * the same name.
  * @returns The OAuth nonce, or `null` when invalid.
  *
  * @example
@@ -85,13 +99,48 @@ export function advanceToOAuth<Extra extends object>(
   if (stored?.stage !== "initiation" || !isLiveNonce(stored, initiationNonce, now)) return null;
 
   const oauthNonce = generateNonce();
+  // The record's own fields come last, so the initiation stage's value, expiry and stage go.
   kv.put(NONCE_KEY, {
+    ...stored,
     ...extra,
     value: oauthNonce,
     expiresAt: now + OAUTH_NONCE_LIFETIME_MS,
     stage: "oauth",
   } satisfies StoredNonce);
   return oauthNonce;
+}
+
+/**
+ * Reads a valid OAuth-stage attempt without claiming it, for a flow whose user may try again: a
+ * form whose pasted key is checked with the provider before anything is spent. Check the nonce
+ * with this, ask the provider, then `claimOAuth()` and go on only if that claim succeeds, taking
+ * the attempt's metadata from the claim. A refused key leaves the attempt as it was, so the form
+ * can be shown again with the same nonce, once a second check finds it still open; a newer link,
+ * a disconnect or the attempt's expiry while the provider was asked makes the claim fail. Two
+ * submissions may both reach the provider, and only one can claim.
+ * @param kv Durable Object nonce storage.
+ * @param oauthNonce Nonce the form or provider returned.
+ * @param now Current Unix time in milliseconds.
+ * @returns Stored provider metadata, or `null` when invalid.
+ *
+ * @example
+ * ```ts
+ * if (peekOAuth(kv, submittedNonce, Date.now()) === null) return null;
+ * if (!(await providerAccepts(key))) {
+ *   // The attempt may have ended meanwhile, and a form shown for it could not be posted.
+ *   return peekOAuth(kv, submittedNonce, Date.now()) === null ? null : { retry: "The provider refused that key." };
+ * }
+ * const attempt = claimOAuth<ConnectAttempt>(kv, submittedNonce, Date.now());
+ * if (attempt === null) return null;
+ * ```
+ */
+export function peekOAuth<Extra extends object = Record<never, never>>(
+  kv: ConnectNonceKv,
+  oauthNonce: string,
+  now: number,
+): StoredNonce<Extra> | null {
+  const stored = kv.get<StoredNonce<Extra>>(NONCE_KEY);
+  return stored?.stage === "oauth" && isLiveNonce(stored, oauthNonce, now) ? stored : null;
 }
 
 /**
@@ -109,9 +158,37 @@ export function claimOAuth<Extra extends object = Record<never, never>>(
   oauthNonce: string,
   now: number,
 ): StoredNonce<Extra> | null {
-  const stored = kv.get<StoredNonce<Extra>>(NONCE_KEY);
-  if (stored?.stage !== "oauth" || !isLiveNonce(stored, oauthNonce, now)) return null;
-
-  kv.delete(NONCE_KEY);
+  const stored = peekOAuth<Extra>(kv, oauthNonce, now);
+  if (stored !== null) kv.delete(NONCE_KEY);
   return stored;
+}
+
+/**
+ * Whether this account has called `GatekeeperConnectCallback.complete()`. Each call stages another
+ * Workshop ticket, and an unredeemed ticket revokes the account, so a second call can destroy the
+ * connection the first made, even when the first threw or lost its reply. Refuse the connect when
+ * this is true.
+ * @param kv Durable Object storage.
+ * @returns Whether the account's one `complete()` was attempted.
+ */
+export function isConnectAttempted(kv: ConnectNonceKv): boolean {
+  return kv.get<boolean>(CONNECT_ATTEMPTED_KEY) === true;
+}
+
+/**
+ * Records the account's one `complete()` attempt. Re-check `isConnectAttempted`, write the live
+ * credential, and mark with no `await` among them, then await `complete()`. Never cleared; revoking
+ * the account deletes it with the rest of storage.
+ * @param kv Durable Object storage.
+ *
+ * @example
+ * ```ts
+ * if (isConnectAttempted(kv)) return refuse();
+ * creds.connect(grant);
+ * markConnectAttempted(kv);
+ * const handoff = await callback.complete(user);
+ * ```
+ */
+export function markConnectAttempted(kv: ConnectNonceKv): void {
+  kv.put(CONNECT_ATTEMPTED_KEY, true);
 }

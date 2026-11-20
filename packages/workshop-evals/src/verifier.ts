@@ -1,12 +1,20 @@
+import { setTimeout as delay } from "node:timers/promises";
 import type { RpcCompatible, RpcStub } from "capnweb";
-import type { WorkshopAgentSession } from "@gadgets/integration-tests/agent-session";
-import type { GadgetClient, WorkpieceId, WorkpieceSummary } from "@gadgets/workshop-shared/api";
+import type { AgentTurnResult, WorkshopAgentSession } from "@gadgets/integration-tests/agent-session";
+import type {
+  AiChatMessage, GadgetClient, WorkpieceId, WorkpieceSummary,
+} from "@gadgets/workshop-shared/api";
 import type { EvalCheck, EvalCheckOutcome } from "./task.js";
+import { RenderedView, ViewHostError } from "./view-host.js";
 
 const EVIDENCE_LIMIT = 2_000;
 const VERIFIER_THREW = "verifier.threw";
 
-export type VerifierSession = Pick<WorkshopAgentSession, "openGadget">;
+export type VerifierSession =
+  Pick<WorkshopAgentSession, "openGadget" | "connectionDrops">;
+
+/** The chat as the Workshop recorded it when the turn ended. */
+export type VerifierChat = Pick<AgentTurnResult, "history" | "compactions" | "usage">;
 
 function truncate(value: string): string {
   return value.length > EVIDENCE_LIMIT ? `${value.slice(0, EVIDENCE_LIMIT)}...` : value;
@@ -32,16 +40,35 @@ export function resolveGadget(
   return match.id;
 }
 
+/** A reply's non-empty lines, trimmed, without the code fences agents often wrap answers in. */
+export function replyLines(reply: string): string[] {
+  return reply.split("\n").map(line => line.trim())
+    .filter(line => line !== "" && !line.startsWith("```"));
+}
+
 /** Runs independent functional checks against the agent's provisional Gadget branch. */
 export class EvalVerifier {
   readonly workpieces: readonly WorkpieceSummary[];
+  /** This turn's chat messages, oldest first: what the agent said and did, and the cards it made. */
+  readonly messages: readonly AiChatMessage[];
+  /** What the agent said in chat during this turn, oldest first. Empty when it only acted. */
+  readonly replies: readonly string[];
+  readonly chat: VerifierChat;
   readonly #session: VerifierSession;
   readonly #checks: EvalCheck[] = [];
   readonly #pending: Promise<void>[] = [];
+  #hostFailure: ViewHostError | undefined;
 
-  constructor(session: VerifierSession, workpieces: readonly WorkpieceSummary[]) {
+  constructor(
+      session: VerifierSession, workpieces: readonly WorkpieceSummary[],
+      messages: readonly AiChatMessage[] = [],
+      chat: VerifierChat = { history: [], compactions: [], usage: {} }) {
     this.#session = session;
     this.workpieces = workpieces;
+    this.messages = messages;
+    this.replies = messages.flatMap(message =>
+      message.type === "message" && message.author.type === "agent" ? [message.message] : []);
+    this.chat = chat;
   }
 
   async check(id: string, body: () => Promise<EvalCheckOutcome>): Promise<void> {
@@ -66,13 +93,33 @@ export class EvalVerifier {
     }
   }
 
+  /** Runs `html`, an `<inline-html>` view of this chat, as the Workshop runs it (see RenderedView). */
+  openView(html: string): Promise<RenderedView> {
+    return RenderedView.open(html);
+  }
+
+  /**
+   * Runs `verify` and returns its checks. Throws instead when a check failed while the Workshop
+   * connection dropped, or when the browser running a view failed, since such a failure says
+   * nothing about the agent's work.
+   */
   async collect(verify: (verifier: EvalVerifier) => Promise<void>): Promise<EvalCheck[]> {
+    const drops = this.#session.connectionDrops;
     try {
       await verify(this);
     } catch (error) {
+      this.#noteHostFailure(error);
       this.#checks.push({ id: VERIFIER_THREW, pass: false, evidence: truncate(String(error)) });
     }
     await Promise.all(this.#pending);
+    if (this.#hostFailure !== undefined) throw this.#hostFailure;
+    if (this.#checks.some(check => !check.pass)) {
+      // A check can see its RPC fail before the session counts the drop behind it.
+      await delay(0);
+      if (this.#session.connectionDrops !== drops) {
+        throw new Error("The Workshop connection dropped during verification");
+      }
+    }
     return this.#checks;
   }
 
@@ -84,7 +131,12 @@ export class EvalVerifier {
     try {
       this.#checks[index] = { id, ...await body() };
     } catch (error) {
+      this.#noteHostFailure(error);
       this.#checks[index] = { id, pass: false, evidence: truncate(String(error)) };
     }
+  }
+
+  #noteHostFailure(error: unknown): void {
+    if (error instanceof ViewHostError) this.#hostFailure ??= error;
   }
 }
