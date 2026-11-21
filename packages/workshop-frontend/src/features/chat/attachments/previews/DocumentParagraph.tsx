@@ -3,15 +3,16 @@ import type { DocxInline, DocxParagraph, DocxTabStop, DocxUnsupportedKind } from
 import { DocumentImage } from "./DocumentImage";
 import { PX_PER_PT, borderStyle, pt, runStyle } from "./documentStyles";
 import { FormattedMessage } from "react-intl";
+import { t } from "../../../../i18n/moduleIntl";
 
 const UNSUPPORTED_LABELS: Readonly<Record<DocxUnsupportedKind, string>> = {
-  textBox: "Text box",
-  chart: "Chart",
-  diagram: "Diagram",
-  equation: "Equation",
-  object: "Embedded object",
-  shape: "Shape",
-  picture: "Picture",
+  textBox: t({ id: "documentParagraph.textBox", defaultMessage: "Text box" }),
+  chart: t({ id: "documentParagraph.chart", defaultMessage: "Chart" }),
+  diagram: t({ id: "documentParagraph.diagram", defaultMessage: "Diagram" }),
+  equation: t({ id: "documentParagraph.equation", defaultMessage: "Equation" }),
+  object: t({ id: "documentParagraph.embeddedObject", defaultMessage: "Embedded object" }),
+  shape: t({ id: "documentParagraph.shape", defaultMessage: "Shape" }),
+  picture: t({ id: "documentParagraph.picture", defaultMessage: "Picture" }),
 };
 
 /** How far Word carries a paragraph's top and bottom borders past its text when it has no side borders. */

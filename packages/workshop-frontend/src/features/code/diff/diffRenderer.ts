@@ -15,6 +15,7 @@ import {
   MAX_INLINE_DIFF_LINE_LENGTH,
 } from './diffModel'
 import { diffOverview, type OverviewKind, type OverviewSegment } from './diffOverview'
+import { t } from '../../../i18n/moduleIntl'
 
 // The diff view's renderer: turns a DiffModel (see ./diffModel) into CodeMirror decorations
 // and gutter markers for one side of the view.
@@ -373,7 +374,7 @@ class DeletionZoneWidget extends WidgetType {
         button.type = 'button'
         button.className = 'gadgets-deleted-code-row gadgets-deleted-omitted-row'
         button.textContent =
-          `Show ${row.hidden} hidden deleted line${row.hidden === 1 ? '' : 's'}`
+          t({ id: 'diffRenderer.showHiddenDeletedLine', defaultMessage: 'Show {hidden} hidden deleted line{value}' }, { hidden: row.hidden, value: row.hidden === 1 ? '' : 's' })
         button.addEventListener('click', () => this.onExpand(this.run.key))
         zone.append(button)
         continue

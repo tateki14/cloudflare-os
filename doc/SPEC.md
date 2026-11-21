@@ -163,18 +163,23 @@ git push origin work
 - `src/i18n/testIntlProvider.tsx` — テスト用`<TestIntlProvider>`（`locale="en"`, `messages={{}}`, `MISSING_TRANSLATION`のみ無視するonError）。`messages`が空だと`defaultMessage`（＝元の英語）がそのまま描画されるため、既存テストの英語文字列アサーションを無改修で通せる
 - `src/i18n/testSetup.tsx` — vitestの`setupFiles`（`vite.config.ts`）。`react-dom/client`の`createRoot`をモックし、すべての`root.render()`を`<TestIntlProvider>`で包む。upstreamのテストはIntlProviderなしで`createRoot`するため、テストファイルを改修せずに通す（マージのたびに競合しないようにするため）
 - `main.tsx`で`<IntlProvider locale="ja" messages={jaMessages}>`をルートに1回だけ適用（`<ThemeProvider>`と同じ階層）
+- `src/i18n/moduleIntl.ts` — React外(モジュールスコープの定数、フックを持たないヘルパー)用の`t()`。`createIntl`で`ja.json`を読み、`import.meta.env.MODE === 'test'`のときは`TestIntlProvider`と同じく英語の`defaultMessage`を返す。ロケールはja固定のため、モジュール読み込み時に評価してもコンポーネントと同じ表示になる
 
 ### 変換ルール
 
 - メッセージID: `${ファイル名camelCase}.${内容を表す短い説明}`
 - JSXテキスト → `<FormattedMessage id defaultMessage>`、属性値・toast等の非JSX文字列 → `useIntl().formatMessage({id, defaultMessage})`
 - 動的な値はICUプレースホルダ（`{name}`等）、複数形は`{count, plural, other {...}}`（日本語はCLDR上`other`のみで足りる）
-- モジュールスコープの定数（フック不可）は`{id, defaultMessage}`ディスクリプタを保持し、呼び出し元のコンポーネントから`formatMessage`を渡す
+- モジュールスコープの定数・フックを持たないヘルパーは、文字列リテラルをその場で`t({id, defaultMessage})`に置き換える（型はstringのままなので参照側は変更不要）。テストが英語の戻り値を検証している純粋関数は、`formatMessage`を省略可能な引数で受け取り、省略時は`createIntl({locale: 'en'})`の英語を返す形でもよい(`ChatInterface`のツール表示、`blueprintProposal.ts`)
+- upstreamがテストから参照している英語文字列のexport(`Activity.tsx`の`PENDING_*_COPY`等)はJSXに変えず文字列のまま残し、表示側でdescriptor(`PENDING_*_MESSAGE`)を使う
+- 次の文字列は英語のまま残す: エージェント(LLM)に送るプロンプトやログ(`snapshotFixPrompt`、`Console logs:`)、サーバーのエラー文字列との照合用(`otClient.ts`、`rpcErrors.ts`)、iframeのGatekeeperアプリに返すエラー、メディアクエリ・`in window`判定・中断理由などのプログラム用文字列、フォント名(`*Styles.ts`)、エラー報告用のブラウザ名(`errorReporting.ts`)
+- aria-labelで要素を探すコード(`AttachmentViewer`のフォーカス復帰など)は、探す側も同じ翻訳済み文言を使う
 - `@cloudflare/kumo`（デザインシステム）の内蔵デフォルト文言（ダイアログの閉じるボタン等）はソース上に文字列が現れず見落としやすいため、明示的にラベルpropを渡す
 
 ### 既知の未対応・対象外
 
-- `components/format/formats.ts`の`GENERIC_OUTPUT.noun`/`.plural`（"App"/"Apps"フォールバック）は`formatOf()`の呼び出し箇所が多いため未対応
+- `components/format/formats.ts`の`GENERIC_OUTPUT.noun`（"App"フォールバック）は未対応(`.plural`は`t()`で翻訳済み)
+- `features/chat/agents/agentList.test.ts`の`formatLastRun`テストは、OSの既定ロケールが日本語(24時間表記)だと失敗する。日本語化とは無関係の既存の環境依存
 - 各Gatekeeperカードの名称・説明（GitHub/Slack等）や、ワークスペースの`Docs`/`Sheets`/`Slides`等のフォーマット名はバックエンド（各`gatekeeper-*`パッケージ・ブループリント宣言）由来のため対象外
 - "Gatekeepers"・"Workshop"はプロダクト機能名として意図的に英語のまま残している
 
@@ -182,7 +187,18 @@ git push origin work
 
 `work`へ`merge main`した際、upstream側で追加された新しいJSXテキストはそのままでは英語表示になる（`ja.json`に対応IDがないだけでビルド・テスト自体は通ってしまう）。取り込み後は上記の変換ルールに従って新規文字列をラップし、`ja.json`に翻訳を追加すること。カバレッジは「全`.tsx`から`id: '...'`/`id="..."`パターンを正規表現で抽出し`ja.json`のキー集合との差分を取る」小さなNodeスクリプトで機械的にチェックできる（差分ゼロを確認してからコミットする）。
 
-2026-11-21のupstream取り込み（371コミット）では、upstreamと日本語化の両方が変更したファイル（74ファイル）で大量に競合したため、それらはupstream版を丸ごと採用した。該当ファイルは英語表示に戻っているため、上記ルールで再翻訳が必要。また`package.json`の競合で`react-intl`依存が消えるので、取り込み後は残っているか確認すること。
+2026-11-21のupstream取り込み（371コミット）では、upstreamと日本語化の両方が変更したファイル（74ファイル）で大量に競合したため、それらはupstream版を丸ごと採用した。また`package.json`の競合で`react-intl`依存が消えるので、取り込み後は残っているか確認すること。
+
+同日、英語に戻ったファイルを次の手順で再翻訳した(同じ状況になったときの手順):
+
+1. 旧翻訳の差分(取り込み前の`work`とマージベースの差)を、`git merge-file --ours`で現在のupstream版に3-wayで当て直す。競合した箇所はupstream側が残る。テストファイルは`testSetup.tsx`で対応する方針なので対象外
+2. 型チェックで、競合で落ちた`react-intl`のimportや`const { formatMessage } = useIntl()`、引数の変わったヘルパーを直す
+3. 残った英語は、TypeScriptのAST(リポジトリ内のtypescript 5.9。7.xはJS APIがない)でJSXテキスト・文言用の属性・トースト・モジュール定数を検出して機械的にラップし、旧ソースから作った「英語→既存ID」の対応表で既存の訳を再利用する。新しいIDだけ訳を書く
+4. `ja.json`の全訳をICUパーサーで検証する(構文エラーと、英語の原文にないプレースホルダーの混入がないこと)
+
+### 検証結果（2026-11-21）
+
+`tsc`(両tsconfig)、`vitest run`(2225件中、上記のロケール依存の1件を除き成功)、本番ビルドが通ることを確認。使用中のメッセージID 約2,400件すべてに`ja.json`の訳があり、ICU検証で問題0件。ブラウザでの実画面確認は未実施。
 
 ### 検証結果（2026-08-12）
 

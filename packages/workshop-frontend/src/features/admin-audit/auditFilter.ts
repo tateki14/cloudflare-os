@@ -6,6 +6,7 @@ import {
   type AdminAuditKind,
   type AdminAuditRecord,
 } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /** A method an audit record can name, which the Audit tab can filter by. */
 export type AuditMethod = AdminAuditRecord['method']
@@ -47,9 +48,9 @@ export type AuditFilter = {
  * views' calls to it, so their methods are one group that names each once.
  */
 export const AUDIT_METHOD_GROUPS: { label: string; methods: readonly AuditMethod[] }[] = [
-  { label: 'Inspection calls', methods: [...new Set([...ADMIN_WORKSPACE_METHODS, ...ADMIN_USER_METHODS])] },
-  { label: 'Workspace writes', methods: ADMIN_WRITE_ACTIONS },
-  { label: 'Settings changes', methods: ADMIN_SETTING_METHODS },
+  { label: t({ id: 'auditFilter.inspectionCalls', defaultMessage: 'Inspection calls' }), methods: [...new Set([...ADMIN_WORKSPACE_METHODS, ...ADMIN_USER_METHODS])] },
+  { label: t({ id: 'auditFilter.workspaceWrites', defaultMessage: 'Workspace writes' }), methods: ADMIN_WRITE_ACTIONS },
+  { label: t({ id: 'auditFilter.settingsChanges', defaultMessage: 'Settings changes' }), methods: ADMIN_SETTING_METHODS },
 ]
 
 const isAuditMethod = (value: unknown): value is AuditMethod =>

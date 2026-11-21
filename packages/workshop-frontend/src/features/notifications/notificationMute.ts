@@ -1,4 +1,5 @@
 import type { NotificationMute } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /**
  * How a workspace's mute reads while it lasts ("Muted until Oct 16, 2026, 5:00 PM"), or undefined if
@@ -7,7 +8,7 @@ import type { NotificationMute } from '@gadgets/workshop-shared/api'
  */
 export const describeMute = (mute: NotificationMute | undefined): string | undefined => {
   if (!mute) return undefined
-  if ('indefinite' in mute) return 'Muted'
+  if ('indefinite' in mute) return t({ id: 'notificationMute.muted', defaultMessage: 'Muted' })
   if (mute.until.getTime() <= Date.now()) return undefined
-  return `Muted until ${mute.until.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`
+  return t({ id: 'notificationMute.mutedUntil', defaultMessage: 'Muted until {value}' }, { value: mute.until.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) })
 }

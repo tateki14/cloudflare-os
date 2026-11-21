@@ -12,6 +12,7 @@ import {
   type FileChangeStatus, type LeafKind,
 } from './workpieceTree'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 // The code view's file browser: a Changes list (the files that differ from the review base, flat,
 // with status dots) above the Files tree (the workpiece's whole displayed tree; see
@@ -416,9 +417,9 @@ const LEAF_ICONS: Record<LeafKind, Icon> = {
 
 const LEAF_KIND_LABELS: Record<LeafKind, string | undefined> = {
   file: undefined,
-  executable: 'Executable',
-  symlink: 'Symbolic link (not viewable)',
-  submodule: 'Submodule (not viewable)',
+  executable: t({ id: 'fileBrowser.executable', defaultMessage: 'Executable' }),
+  symlink: t({ id: 'fileBrowser.symbolicLinkNotViewable', defaultMessage: 'Symbolic link (not viewable)' }),
+  submodule: t({ id: 'fileBrowser.submoduleNotViewable', defaultMessage: 'Submodule (not viewable)' }),
 }
 
 interface FileRowProps {

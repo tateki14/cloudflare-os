@@ -6,12 +6,13 @@ import { SlideImage } from "./SlideImage";
 import { SlideTable } from "./SlideTable";
 import { SlideText } from "./SlideText";
 import { boundsStyle, fillBackground, strokeProps } from "./slideStyles";
+import { t } from "../../../../i18n/moduleIntl";
 
 const UNSUPPORTED_LABELS: Record<SlideUnsupportedKind, string> = {
-  chart: "Chart",
+  chart: t({ id: "slideShapeView.chart", defaultMessage: "Chart" }),
   diagram: "SmartArt",
-  object: "Embedded object",
-  picture: "Picture",
+  object: t({ id: "slideShapeView.embeddedObject", defaultMessage: "Embedded object" }),
+  picture: t({ id: "slideShapeView.picture", defaultMessage: "Picture" }),
 };
 
 const ANCHOR = { top: "flex-start", middle: "center", bottom: "flex-end" } as const;

@@ -21,19 +21,19 @@ import {
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
 import type { GatewayTestState } from './useGatewayTests'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 /** Each mode's name and what it does to a model, as the Models tab words them. */
 export const MODES: Record<GatewayModelMode, { label: string; meaning: string }> = {
-  enabled: { label: 'Enabled', meaning: 'Offered in model pickers.' },
+  enabled: { label: t({ id: 'gatewayModelRow.enabled', defaultMessage: 'Enabled' }), meaning: t({ id: 'gatewayModelRow.offeredInModelPickers', defaultMessage: 'Offered in model pickers.' }) },
   hidden: {
-    label: 'Hidden',
-    meaning: 'Not offered in model pickers, but still works where it is already in use.',
+    label: t({ id: 'gatewayModelRow.hidden', defaultMessage: 'Hidden' }),
+    meaning: t({ id: 'gatewayModelRow.notOfferedInModelPickersBut', defaultMessage: 'Not offered in model pickers, but still works where it is already in use.' }),
   },
   disabled: {
-    label: 'Disabled',
+    label: t({ id: 'gatewayModelRow.disabled', defaultMessage: 'Disabled' }),
     meaning:
-      'Not offered in model pickers, and stops working, including in the chats and gadgets that ' +
-      'already use it.',
+      t({ id: 'gatewayModelRow.notOfferedInModelPickersAnd', defaultMessage: 'Not offered in model pickers, and stops working, including in the chats and gadgets that already use it.' }),
   },
 }
 
@@ -48,12 +48,12 @@ const tokenCount = (tokens: number) => `${tokens.toLocaleString()} tokens`
 // What is stated of an added model, each fact as its row words it. Empty where nothing is.
 const statedFacts = ({ imageInput, reasoningLevels }: GatewayModelCapabilities = {}): string[] => {
   const facts: string[] = []
-  if (imageInput !== undefined) facts.push(imageInput ? 'takes images' : 'takes no images')
+  if (imageInput !== undefined) facts.push(imageInput ? t({ id: 'gatewayModelRow.takesImages', defaultMessage: 'takes images' }) : t({ id: 'gatewayModelRow.takesNoImages', defaultMessage: 'takes no images' }))
   if (reasoningLevels !== undefined) {
     const levels = reasoningLevels.map((level) => REASONING_LEVEL_LABELS[level]).join(', ')
     // A list with no level above Off states a model that does no reasoning.
     facts.push(
-      reasoningLevels.some((level) => level !== 'off') ? `reasoning levels ${levels}` : 'no reasoning')
+      reasoningLevels.some((level) => level !== 'off') ? t({ id: 'gatewayModelRow.reasoningLevels', defaultMessage: 'reasoning levels {levels}' }, { levels }) : t({ id: 'gatewayModelRow.noReasoning', defaultMessage: 'no reasoning' }))
   }
   return facts
 }

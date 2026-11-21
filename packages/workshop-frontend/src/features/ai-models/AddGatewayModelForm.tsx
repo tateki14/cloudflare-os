@@ -15,26 +15,22 @@ import type { ModelSuggestion } from './modelsDev'
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
 import { useGatewayTests } from './useGatewayTests'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
-const TOKEN_LIMIT_ERROR = 'Enter a positive whole number of tokens'
+const TOKEN_LIMIT_ERROR = t({ id: 'addGatewayModelForm.enterAPositiveWholeNumberOf', defaultMessage: 'Enter a positive whole number of tokens' })
 const BEHAVES_LIKE_HELP =
-  'The model chosen here lends the new one its thinking format and, where they are not stated ' +
-  'here, its reasoning levels and its image input, until this version knows the new model ' +
-  'itself. From then on the choice is not used. The name, the limits and the cost are never ' +
-  'borrowed.'
+  t({ id: 'addGatewayModelForm.theModelChosenHereLendsThe', defaultMessage: 'The model chosen here lends the new one its thinking format and, where they are not stated here, its reasoning levels and its image input, until this version knows the new model itself. From then on the choice is not used. The name, the limits and the cost are never borrowed.' })
 // What a capability field shows while nothing is stated in it.
-const NOT_STATED = 'Not stated'
+const NOT_STATED = t({ id: 'addGatewayModelForm.notStated', defaultMessage: 'Not stated' })
 const REASONING_LEVELS_HELP =
-  'The levels the model can be asked for. Pick only Off for a model that does no reasoning.'
+  t({ id: 'addGatewayModelForm.theLevelsTheModelCanBe', defaultMessage: 'The levels the model can be asked for. Pick only Off for a model that does no reasoning.' })
 const MODEL_ID = {
-  label: 'Model ID',
+  label: t({ id: 'addGatewayModelForm.modelId', defaultMessage: 'Model ID' }),
   description:
-    'The model’s name in the provider’s API. Chats and preferences refer to the model by it.',
+    t({ id: 'addGatewayModelForm.theModelsNameInTheProviders', defaultMessage: 'The model’s name in the provider’s API. Chats and preferences refer to the model by it.' }),
 }
 const TEST_HELP =
-  'Test sends the model described here one request with no reasoning level set and one at each ' +
-  'reasoning level it would list once added. Each request can use up to 2,048 output tokens, ' +
-  'and nothing is added.'
+  t({ id: 'addGatewayModelForm.testSendsTheModelDescribedHere', defaultMessage: 'Test sends the model described here one request with no reasoning level set and one at each reasoning level it would list once added. Each request can use up to 2,048 output tokens, and nothing is added.' })
 
 /**
  * The form an admin describes a new gateway model with. It checks only what the server would

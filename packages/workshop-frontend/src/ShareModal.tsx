@@ -31,6 +31,7 @@ import { useVendorBranding, type VendorBranding } from './useVendorBranding'
 import { ShareSnapshotPreview } from './ShareSnapshotPreview'
 import { getStoredSelectedModel } from './modelSelection'
 import { logRpcFailure } from './rpcErrors'
+import { t } from './i18n/moduleIntl'
 
 /**
  * What a share dialog hands out: the workspace, whose members edit every gadget and use chat
@@ -44,7 +45,7 @@ export type ShareTarget =
 // verify their own access to its connections, or only a view of its static snapshot ("view"; see
 // CollaboratorGrant), which verifies nothing. The workspace's dialog hands out only the workspace.
 type GadgetAccess = 'use' | 'view'
-const ACCESS_LABELS: Record<GadgetAccess, string> = { use: 'Can use', view: 'Can view' }
+const ACCESS_LABELS: Record<GadgetAccess, string> = { use: t({ id: 'shareModal.canUse', defaultMessage: 'Can use' }), view: t({ id: 'shareModal.canView', defaultMessage: 'Can view' }) }
 
 function grantFor(gadgetId: WorkpieceId | undefined, access: GadgetAccess): CollaboratorGrant {
   if (gadgetId === undefined) return 'workspace'
@@ -846,10 +847,10 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
           const { reason } = outcome
           failed.push({
             ...recipient,
-            error: reason instanceof Error ? reason.message : 'Failed to add collaborator.',
+            error: reason instanceof Error ? reason.message : formatMessage({ id: 'shareModal.failedToAddCollaborator', defaultMessage: 'Failed to add collaborator.' }),
           })
         } else if (outcome.value === null) {
-          failed.push({ ...recipient, error: 'No account found for that username or email.' })
+          failed.push({ ...recipient, error: formatMessage({ id: 'shareModal.noAccountFound', defaultMessage: 'No account found for that username or email.' }) })
         } else {
           added.push(outcome.value.profile)
           if (gadgetId !== undefined && inviteAccess === 'view' &&

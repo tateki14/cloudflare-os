@@ -650,12 +650,12 @@ function getToolCallSummary(
     case "writeFile":
       return { verb: formatMessage({ id: "chatInterface.toolVerbWrote", defaultMessage: "Wrote" }), target: tc.input.filename };
     case "editFile":
-      return { verb: "Edited", target: tc.input.filename };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbEdited", defaultMessage: "Edited" }), target: tc.input.filename };
     case "grep":
-      return { verb: "Searched", target: tc.input.path ?? tc.input.workpiece };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbSearched", defaultMessage: "Searched" }), target: tc.input.path ?? tc.input.workpiece };
     case "describeBinding":
       return {
-        verb: "Inspected",
+        verb: formatMessage({ id: "chatInterface.toolVerbInspected", defaultMessage: "Inspected" }),
         target: tc.input.gadget === undefined
           ? `${String(tc.input.name)} binding`
           : `${String(tc.input.name)} binding of ${tc.input.gadget}`,
@@ -725,9 +725,9 @@ function getToolCallSummary(
         target: tc.input.vendorId,
       };
     case "requestConnection":
-      return { verb: "Requested connection", target: tc.input.vendorId };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbRequestedConnection", defaultMessage: "Requested connection" }), target: tc.input.vendorId };
     case "createExternalResource":
-      return { verb: "Created", target: tc.input.title };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbCreatedExternal", defaultMessage: "Created" }), target: tc.input.title };
   }
   // Compile-time exhaustiveness check.
   const _exhaustive: never = tc;

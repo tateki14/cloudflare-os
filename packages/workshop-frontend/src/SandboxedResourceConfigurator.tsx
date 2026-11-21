@@ -6,6 +6,7 @@ import { ResourceConfiguratorFrame, ResourceConfiguratorHost, ResourceConfigurat
 import { createRateLimitedCapability } from './rateLimitedCapability'
 import { useTheme } from './ThemeContext'
 import { forwardTrustedFrameError } from './errorReporting'
+import { t } from './i18n/moduleIntl'
 
 // Upper bound on the height a frame may claim. A taller form than the window shows is scrolled with
 // the modal, the iframe clipped to its scroll area or the window; the bound only stops a broken
@@ -45,7 +46,7 @@ class ResourceConfiguratorHostImpl extends RpcTarget implements ResourceConfigur
       maxCallsPerMinute: 120,
       maxPendingCalls: 32,
       onRateLimit: 'reject',
-      label: 'Resource configurator',
+      label: t({ id: 'sandboxedResourceConfigurator.iframeTitle', defaultMessage: 'Resource configurator' }),
     }).capability
   }
 

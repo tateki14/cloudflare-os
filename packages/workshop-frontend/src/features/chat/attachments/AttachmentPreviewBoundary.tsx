@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { AttachmentPreviewError } from "./attachmentPreviewers";
+import { t } from "../../../i18n/moduleIntl";
 
 type Props = {
   /** Drawn in place of a preview that failed, with what to tell the person about it. */
@@ -18,9 +19,7 @@ export class AttachmentPreviewBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: unknown): State {
     return {
-      message: error instanceof AttachmentPreviewError
-        ? error.message
-        : "This file couldn’t be previewed.",
+      message: error instanceof AttachmentPreviewError ? error.message : t({ id: "attachmentPreviewBoundary.thisFileCouldntBePreviewed", defaultMessage: "This file couldn’t be previewed." }),
     };
   }
 

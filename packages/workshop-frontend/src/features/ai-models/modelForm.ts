@@ -5,32 +5,33 @@ import {
   type BuiltInReasoning,
   type ReasoningLevel,
 } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /** Each provider's name as the model forms and lists show it. */
 export const PROVIDER_LABELS: Record<AiModelProvider, string> = {
-  anthropic: 'Anthropic',
+  anthropic: t({ id: 'modelForm.anthropic', defaultMessage: 'Anthropic' }),
   openai: 'OpenAI',
-  google: 'Google',
-  cloudflare: 'Cloudflare Workers AI',
-  ollama: 'Ollama',
-  'cloudflare-auto-router': 'AI Gateway Auto Router',
+  google: t({ id: 'modelForm.google', defaultMessage: 'Google' }),
+  cloudflare: t({ id: 'modelForm.cloudflareWorkersAi', defaultMessage: 'Cloudflare Workers AI' }),
+  ollama: t({ id: 'modelForm.ollama', defaultMessage: 'Ollama' }),
+  'cloudflare-auto-router': t({ id: 'modelForm.aiGatewayAutoRouter', defaultMessage: 'AI Gateway Auto Router' }),
 }
 
 /** Each reasoning level's name as the Models tab shows it. */
 export const REASONING_LEVEL_LABELS: Record<ReasoningLevel, string> = {
   off: 'Off',
-  minimal: 'Minimal',
+  minimal: t({ id: 'modelForm.minimal', defaultMessage: 'Minimal' }),
   low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  xhigh: 'Extra high',
+  medium: t({ id: 'modelForm.medium', defaultMessage: 'Medium' }),
+  high: t({ id: 'modelForm.high', defaultMessage: 'High' }),
+  xhigh: t({ id: 'modelForm.extraHigh', defaultMessage: 'Extra high' }),
   max: 'Max',
 }
 
 /** What a model is asked for while no reasoning level is set for it, as the Models tab words it. */
 export const builtInReasoningLabel = (builtIn: BuiltInReasoning): string => {
-  if (builtIn === null) return 'no level sent'
-  return builtIn === 'adaptive' ? 'Provider default' : REASONING_LEVEL_LABELS[builtIn]
+  if (builtIn === null) return t({ id: 'modelForm.noLevelSent', defaultMessage: 'no level sent' })
+  return builtIn === 'adaptive' ? t({ id: 'modelForm.providerDefault', defaultMessage: 'Provider default' }) : REASONING_LEVEL_LABELS[builtIn]
 }
 
 /** Parse a token-limit field: undefined when blank, null when not a positive whole number. */
@@ -82,7 +83,7 @@ export const allowedModelSuggestions = (
   for (const provider of providers) {
     const names = AUTO_ROUTER_NAMES[provider]
     if (!names) continue
-    add({ name: names.every, description: `Every ${PROVIDER_LABELS[provider]} model` })
+    add({ name: names.every, description: t({ id: 'modelForm.everyModel', defaultMessage: 'Every {value} model' }, { value: PROVIDER_LABELS[provider] }) })
     if (names.prefix === undefined) continue
     for (const model of models) {
       const name = `${names.prefix}${model.id}`

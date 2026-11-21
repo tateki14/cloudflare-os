@@ -64,7 +64,7 @@ export const AuditValue = ({ value, label }: { value: string | undefined; label:
           className="mt-1"
           aria-expanded={expanded}
           aria-controls={valueId}
-          aria-label={`${expanded ? 'Show less' : 'Show all'} of ${label}`}
+          aria-label={expanded ? formatMessage({ id: 'auditValue.showLessOf', defaultMessage: 'Show less of {label}' }, { label }) : formatMessage({ id: 'auditValue.showAllOf', defaultMessage: 'Show all of {label}' }, { label })}
           onClick={() => setExpanded((open) => !open)}
         >
           {expanded ? formatMessage({ id: 'auditValue.showLess', defaultMessage: 'Show less' }) : formatMessage({ id: 'auditValue.showAll', defaultMessage: 'Show all' })}

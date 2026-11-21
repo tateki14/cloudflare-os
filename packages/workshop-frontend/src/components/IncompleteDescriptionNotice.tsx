@@ -1,12 +1,13 @@
 import { Warning } from '@phosphor-icons/react'
 import type { ActionLogEntry } from '@gadgets/workshop-shared/api'
+import { t } from '../i18n/moduleIntl'
 
 /**
  * What an approver is told when the gatekeeper did not mark an action's description complete:
  * the text is a summary, truncated, or leaves out bytes that cannot be shown.
  */
 export const INCOMPLETE_DESCRIPTION_COPY =
-  "This description is incomplete: part of what this action will send isn't shown."
+  t({ id: 'incompleteDescriptionNotice.thisDescriptionIsIncompletePartOf', defaultMessage: 'This description is incomplete: part of what this action will send isn\'t shown.' })
 
 /**
  * True when a pending entry should carry the notice: an action its gatekeeper did not mark

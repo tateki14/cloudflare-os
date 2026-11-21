@@ -1,4 +1,5 @@
 import type { BlueprintPublicInfo } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /** One blueprint that a gadget can be updated from. */
 export type BlueprintChoice = {
@@ -10,7 +11,7 @@ export type BlueprintChoice = {
 }
 
 /** What to call a blueprint, which may have been published with no title. */
-export const titleOf = (title: string) => title || 'Untitled blueprint'
+export const titleOf = (title: string) => title || t({ id: 'blueprintChoices.untitledBlueprint', defaultMessage: 'Untitled blueprint' })
 
 export const toBlueprintChoice = ({ id, metadata }: BlueprintPublicInfo): BlueprintChoice => ({
   id,

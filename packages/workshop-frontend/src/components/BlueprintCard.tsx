@@ -11,6 +11,7 @@ import {
   BlueprintMetadata,
 } from "@gadgets/workshop-shared/api";
 import { VendorDescription } from "@gadgets/workshop-shared/gatekeeper";
+import { t } from "../i18n/moduleIntl";
 
 const gradients = [
   "from-[#4A154B] to-[#7C3085]",
@@ -52,10 +53,10 @@ export function uniqueBindingBadges(
         b.gatekeeperName.charAt(0).toUpperCase() + b.gatekeeperName.slice(1);
     } else if (b.type === "aiModel") {
       key = "aiModel";
-      label = "AI Model";
+      label = t({ id: "blueprintCard.aiModelLabel", defaultMessage: "AI Model" });
     } else {
       key = "agentSpawner";
-      label = "Agent";
+      label = t({ id: "blueprintCard.agentLabel", defaultMessage: "Agent" });
     }
     if (!seen.has(key)) {
       seen.add(key);

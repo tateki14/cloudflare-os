@@ -13,12 +13,12 @@ import {
 } from './modelForm'
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 const POOL_DOCS = 'https://developers.cloudflare.com/ai-gateway/features/auto-router/#models'
 
 const malformedError = (name: string) =>
-  `“${name}” is not a gateway model name. Name each model as provider/model, like ` +
-  'anthropic/claude-sonnet-5.5, or a provider’s every model, like anthropic/*'
+  t({ id: 'allowedModelsField.isNotAGatewayModelName', defaultMessage: '“{name}” is not a gateway model name. Name each model as provider/model, like anthropic/claude-sonnet-5.5, or a provider’s every model, like anthropic/*' }, { name: name })
 
 const commas = (text: string) => text.split(',').length - 1
 

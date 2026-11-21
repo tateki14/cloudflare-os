@@ -1,5 +1,9 @@
 import type { AiChatMessage, BlueprintMerge } from '@gadgets/workshop-shared/api'
+import { createIntl, type IntlShape } from 'react-intl'
 import { titleOf } from './blueprintChoices'
+
+// For callers without an intl context (tests): renders the English default messages.
+const englishFormatMessage: IntlShape['formatMessage'] = createIntl({ locale: 'en', onError: () => {} }).formatMessage
 
 /**
  * The blueprint proposals this message records that a person applied (see
@@ -55,21 +59,25 @@ export type BlueprintProposalDetails = {
 
 const shortCommit = (commitId: string) => commitId.slice(0, 7)
 
-const METHODS: Record<BlueprintMerge['kind'], string> = {
-  follow: 'Follow only: the release is recorded, no file changes',
-  fastForward: 'Fast-forward: the files are replaced by the release’s',
-  merge: 'Three-way merge',
+const METHODS: Record<BlueprintMerge['kind'], { id: string; defaultMessage: string }> = {
+  follow: { id: 'blueprintProposal.methodFollow', defaultMessage: 'Follow only: the release is recorded, no file changes' },
+  fastForward: { id: 'blueprintProposal.methodFastForward', defaultMessage: 'Fast-forward: the files are replaced by the release’s' },
+  merge: { id: 'blueprintProposal.methodMerge', defaultMessage: 'Three-way merge' },
 }
 
-const CONFLICTS_NOTE =
-  'Each file with conflicts holds conflict markers where the two sides disagree, to be ' +
-  'resolved before accepting. A file that one side deleted and the other changed has no ' +
-  'markers: it holds the changed version.'
+const CONFLICTS_NOTE = {
+  id: 'blueprintProposal.conflictsNote',
+  defaultMessage: 'Each file with conflicts holds conflict markers where the two sides disagree, to be ' +
+    'resolved before accepting. A file that one side deleted and the other changed has no ' +
+    'markers: it holds the changed version.',
+}
 
-const UNVERIFIED_BASE_NOTE =
-  'The gadget and the blueprint share no history, so the merge base is a guess at what the ' +
-  'gadget was built from. A change of the gadget’s that the guess happens to include looks ' +
-  'like something the blueprint removed, and is undone without a conflict being reported.'
+const UNVERIFIED_BASE_NOTE = {
+  id: 'blueprintProposal.unverifiedBaseNote',
+  defaultMessage: 'The gadget and the blueprint share no history, so the merge base is a guess at what the ' +
+    'gadget was built from. A change of the gadget’s that the guess happens to include looks ' +
+    'like something the blueprint removed, and is undone without a conflict being reported.',
+}
 
 /**
  * Describes a proposal to merge a blueprint's release into a gadget. Its `kind` says what it does
@@ -82,62 +90,61 @@ const UNVERIFIED_BASE_NOTE =
 export const describeBlueprintProposal = (
   merge: BlueprintMerge,
   { reviewed, decided }: { reviewed: boolean; decided: boolean },
+  formatMessage: IntlShape['formatMessage'] = englishFormatMessage,
 ): BlueprintProposalDescription => {
   const combined = merge.kind === 'merge'
   const changesFiles = merge.kind !== 'follow'
   const conflicted = merge.conflictPaths.length > 0
 
   const summary = merge.kind === 'follow'
-    ? 'This gadget already has everything in this version, so nothing in it changes. ' +
-      'Accepting means it gets its future updates from this blueprint.'
-    : 'This gadget hasn’t been changed since it was last updated, so it simply becomes this version.'
+    ? formatMessage({ id: 'blueprintProposal.summaryFollow', defaultMessage: 'This gadget already has everything in this version, so nothing in it changes. Accepting means it gets its future updates from this blueprint.' })
+    : formatMessage({ id: 'blueprintProposal.summaryFastForward', defaultMessage: 'This gadget hasn’t been changed since it was last updated, so it simply becomes this version.' })
 
   const missingBindings = Object.entries(merge.missingBindings ?? {})
     .map(([name, { title, description }]) => ({ name, title: title || name, description }))
     .toSorted((a, b) => a.name.localeCompare(b.name))
 
   const notes = [
-    ...(conflicted ? [CONFLICTS_NOTE] : []),
-    ...(merge.unverifiedBase ? [UNVERIFIED_BASE_NOTE] : []),
+    ...(conflicted ? [formatMessage(CONFLICTS_NOTE)] : []),
+    ...(merge.unverifiedBase ? [formatMessage(UNVERIFIED_BASE_NOTE)] : []),
   ]
 
   return {
-    heading: `${titleOf(merge.title)}, version ${merge.version}`,
+    heading: formatMessage({ id: 'blueprintProposal.heading', defaultMessage: '{title}, version {version}' }, { title: titleOf(merge.title), version: merge.version }),
     ...(combined ? {
       customizations:
-        'You’ve customized this gadget beyond what was in the original blueprint. ' + (
+        formatMessage({ id: 'blueprintProposal.customized', defaultMessage: 'You’ve customized this gadget beyond what was in the original blueprint.' }) + ' ' + (
           reviewed
             ? decided
-              ? 'An agent was asked to make sure your customizations are compatible with the new version.'
-              : 'An agent is now making sure your customizations are compatible with the new version.'
+              ? formatMessage({ id: 'blueprintProposal.agentWasAsked', defaultMessage: 'An agent was asked to make sure your customizations are compatible with the new version.' })
+              : formatMessage({ id: 'blueprintProposal.agentIsChecking', defaultMessage: 'An agent is now making sure your customizations are compatible with the new version.' })
             : conflicted
-              ? 'Some of your customizations clash with the new version, and no agent is ' +
-                'checking them.' + (decided ? '' : ' Ask in this chat to have them sorted out before accepting.')
-              : 'No agent is checking that your customizations are compatible with the new version.'
+              ? formatMessage({ id: 'blueprintProposal.customizationsClash', defaultMessage: 'Some of your customizations clash with the new version, and no agent is checking them.' }) +
+                (decided ? '' : ' ' + formatMessage({ id: 'blueprintProposal.askToSortOut', defaultMessage: 'Ask in this chat to have them sorted out before accepting.' }))
+              : formatMessage({ id: 'blueprintProposal.noAgentChecking', defaultMessage: 'No agent is checking that your customizations are compatible with the new version.' })
         ),
     } : { summary }),
     // A guessed base can only have misled a merge that changed something.
     ...(merge.unverifiedBase && changesFiles ? {
       warning: {
-        title: 'Some of your changes may have been undone',
+        title: formatMessage({ id: 'blueprintProposal.warningTitle', defaultMessage: 'Some of your changes may have been undone' }),
         description:
-          'This gadget’s history doesn’t connect to the blueprint’s, so the update may have ' +
-          'quietly undone changes made to this gadget.' +
-          (decided ? '' : ' Check the result carefully before accepting.'),
+          formatMessage({ id: 'blueprintProposal.warningDescription', defaultMessage: 'This gadget’s history doesn’t connect to the blueprint’s, so the update may have quietly undone changes made to this gadget.' }) +
+          (decided ? '' : ' ' + formatMessage({ id: 'blueprintProposal.warningCheck', defaultMessage: 'Check the result carefully before accepting.' })),
       },
     } : {}),
     ...(decided ? {} : {
       nextStep: changesFiles
-        ? 'Nothing changes until you accept. Try this version in the preview first.'
-        : 'Nothing changes until you accept.',
+        ? formatMessage({ id: 'blueprintProposal.nextStepPreview', defaultMessage: 'Nothing changes until you accept. Try this version in the preview first.' })
+        : formatMessage({ id: 'blueprintProposal.nextStep', defaultMessage: 'Nothing changes until you accept.' }),
     }),
     missingBindings,
     // The agent that reviews a merge is asked to set these up. No other proposal starts one.
     ...(missingBindings.length > 0 && !(combined && reviewed) && !decided
-      ? { missingBindingsHint: 'Ask in this chat to have them set up.' }
+      ? { missingBindingsHint: formatMessage({ id: 'blueprintProposal.missingBindingsHint', defaultMessage: 'Ask in this chat to have them set up.' }) }
       : {}),
     details: {
-      method: METHODS[merge.kind],
+      method: formatMessage(METHODS[merge.kind]),
       ...(merge.baseCommit === undefined ? {} : { baseCommit: shortCommit(merge.baseCommit) }),
       releaseCommit: shortCommit(merge.commitId),
       conflictPaths: merge.conflictPaths,

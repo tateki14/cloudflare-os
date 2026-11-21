@@ -1,6 +1,7 @@
 import { Switch, Tooltip } from '@cloudflare/kumo'
 import { rpcFailureDescription } from '../rpcErrors'
 import { useIntl } from 'react-intl'
+import { t } from '../i18n/moduleIntl'
 
 interface HookToggleProps {
   /** The hook's title, which names the switch; whether it is on is the switch's own state. */
@@ -43,7 +44,7 @@ export function HookToggle({ hookTitle, enabled, pending = false, onToggle, size
 
 /** The toast for a hook that could not be enabled or disabled, saying why when the error does. */
 export const hookToggleFailureToast = (enabled: boolean, error: unknown) => ({
-  title: `Failed to ${enabled ? 'enable' : 'disable'} hook`,
+  title: t({ id: 'hookToggle.failedToHook', defaultMessage: 'Failed to {value} hook' }, { value: enabled ? t({ id: 'hookToggle.enable', defaultMessage: 'enable' }) : t({ id: 'hookToggle.disable', defaultMessage: 'disable' }) }),
   description: rpcFailureDescription(error),
   variant: 'error' as const,
 })

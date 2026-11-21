@@ -25,6 +25,7 @@ import { toBlueprintChoice, type BlueprintChoice } from './blueprintChoices'
 import { parseBlueprintReference } from './blueprintReference'
 import { hasNewerRelease } from './useBlueprintUpdateAvailable'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 type UpdateFromBlueprintDialogProps = {
   /** The gadget to update. `upstream` is the blueprint it follows, which the dialog offers first. */
@@ -62,10 +63,10 @@ type Outcome =
   | { kind: 'failed'; blueprint: BlueprintChoice; allowUnrelated: boolean; message: string }
 
 const REFERENCE_MESSAGES: Partial<Record<ReferenceLookup['status'], string>> = {
-  invalid: 'That is not a blueprint ID or link.',
-  loading: 'Looking up that blueprint…',
-  notFound: 'No blueprint was found with that ID.',
-  failed: 'That blueprint could not be looked up.',
+  invalid: t({ id: 'updateFromBlueprintDialog.thatIsNotABlueprintId', defaultMessage: 'That is not a blueprint ID or link.' }),
+  loading: t({ id: 'updateFromBlueprintDialog.lookingUpThatBlueprint', defaultMessage: 'Looking up that blueprint…' }),
+  notFound: t({ id: 'updateFromBlueprintDialog.noBlueprintWasFoundWithThat', defaultMessage: 'No blueprint was found with that ID.' }),
+  failed: t({ id: 'updateFromBlueprintDialog.thatBlueprintCouldNotBeLooked', defaultMessage: 'That blueprint could not be looked up.' }),
 }
 
 const DIALOG_CLASS =
@@ -75,15 +76,12 @@ const BODY_TEXT = 'm-0 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-s
 
 // The merge is recorded as a minimal diff, which is slow to find between files that share little.
 const APPLYING_NOTE =
-  'Working out the update. This can take a few minutes for a blueprint that has little in ' +
-  'common with the gadget.'
+  t({ id: 'updateFromBlueprintDialog.workingOutTheUpdateThisCan', defaultMessage: 'Working out the update. This can take a few minutes for a blueprint that has little in common with the gadget.' })
 
 // A merge is only as good as the base it is worked out from, which is the newest version the
 // gadget and the blueprint have in common. With none, the confirm step's warning applies.
 const SWITCH_NOTE =
-  'The new blueprint must be derived from the same base as this gadget, such as a remix of the ' +
-  'blueprint the gadget was made from. If the two share no history, you are warned before ' +
-  'anything is merged. Once you accept the update, the gadget follows the new blueprint.'
+  t({ id: 'updateFromBlueprintDialog.theNewBlueprintMustBeDerived', defaultMessage: 'The new blueprint must be derived from the same base as this gadget, such as a remix of the blueprint the gadget was made from. If the two share no history, you are warned before anything is merged. Once you accept the update, the gadget follows the new blueprint.' })
 
 const describeChoice = (choice: BlueprintChoice, status: string | null) => (
   <>
@@ -305,8 +303,7 @@ export const UpdateFromBlueprintDialog = ({
             size="sm"
             title={formatMessage({ id: 'updateFromBlueprintDialog.thisUpdateCantBeMerged', defaultMessage: 'This update can\'t be merged' })}
             description={
-              `This gadget and ${outcome.blueprint.title} have an earlier version in common, but ` +
-              'its files are not available to merge against.'
+              formatMessage({ id: 'updateFromBlueprintDialog.earlierVersionFilesUnavailable', defaultMessage: 'This gadget and {title} have an earlier version in common, but its files are not available to merge against.' }, { title: outcome.blueprint.title })
             }
           />
         )

@@ -6,6 +6,7 @@ import { assertOpenXml } from "./assertOpenXml";
 import { readOffice } from "./officeReader";
 import { SlideFrame } from "./SlideFrame";
 import { FormattedMessage } from "react-intl";
+import { t } from "../../../../i18n/moduleIntl";
 
 /** Slides are drawn no wider than this, however wide the viewer. */
 const MAX_SLIDE_WIDTH = 960;
@@ -32,8 +33,8 @@ const omissions = (deck: SlideDeck): string | null => {
     const names = listFormat.format(deck.unsupported.map((kind) => UNSUPPORTED_NAMES[kind]));
     parts.push(`${names[0].toUpperCase()}${names.slice(1)} aren’t drawn.`);
   }
-  if (deck.truncated) parts.push(`Only the first ${deck.slides.length} slides are shown.`);
-  return parts.length > 0 ? `${parts.join(" ")} Download the file to see everything.` : null;
+  if (deck.truncated) parts.push(t({ id: "slidesPreview.onlyTheFirstSlidesAreShown", defaultMessage: "Only the first {count} slides are shown." }, { count: deck.slides.length }));
+  return parts.length > 0 ? `${parts.join(" ")} ${t({ id: "slidesPreview.downloadToSeeEverything", defaultMessage: "Download the file to see everything." })}` : null;
 };
 
 /** A PowerPoint deck, each slide drawn as the file lays it out. */

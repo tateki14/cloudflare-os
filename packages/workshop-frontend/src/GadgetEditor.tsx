@@ -85,6 +85,7 @@ import { MENU_CONTENT, MENU_ITEM, MENU_ITEM_DANGER, MENU_POSITIONER_STYLE } from
 import { isImeComposing } from './keyboardEvent'
 import { ChatTokenIndex } from './features/chat/agents/chatTokenIndex'
 import { FullscreenExitHint } from './components/FullscreenExitHint'
+import { t } from './i18n/moduleIntl'
 
 const NO_GADGETS: ReadonlySet<WorkpieceId> = new Set()
 
@@ -193,11 +194,11 @@ function formatHeaderCost(cost: number) {
 // a document blueprint), falling back to "App" when it declares no format. A worktree has no app
 // and no bindings, so it gets only Code.
 function rightTabs(summary: WorkpieceSummary | undefined): { value: RightTab; label: string }[] {
-  if (summary?.type === 'worktree') return [{ value: 'code', label: 'Code' }]
+  if (summary?.type === 'worktree') return [{ value: 'code', label: t({ id: 'gadgetEditor.tabCode', defaultMessage: 'Code' }) }]
   return [
     { value: 'app', label: formatOf(summary?.output).noun },
-    { value: 'code', label: 'Code' },
-    { value: 'connections', label: 'Connections' },
+    { value: 'code', label: t({ id: 'gadgetEditor.tabCode', defaultMessage: 'Code' }) },
+    { value: 'connections', label: t({ id: 'gadgetEditor.tabConnections', defaultMessage: 'Connections' }) },
   ]
 }
 

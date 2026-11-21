@@ -2,13 +2,14 @@ import { Button, Loader } from "@cloudflare/kumo";
 import { Hourglass, Microphone } from "@phosphor-icons/react";
 import type { DictationStatus } from "./useComposerDictation";
 import { useIntl } from "react-intl";
+import { t } from "../../../i18n/moduleIntl";
 
 const announcements: Record<DictationStatus, string> = {
   idle: "",
-  starting: "Starting voice typing…",
-  downloading: "Downloading the voice typing language pack…",
-  listening: "Listening… Stop adds what you said to your message, and Escape discards it.",
-  finishing: "Finishing voice typing…",
+  starting: t({ id: "composerDictationButton.startingVoiceTyping", defaultMessage: "Starting voice typing…" }),
+  downloading: t({ id: "composerDictationButton.downloadingTheVoiceTypingLanguagePack", defaultMessage: "Downloading the voice typing language pack…" }),
+  listening: t({ id: "composerDictationButton.listeningStopAddsWhatYouSaid", defaultMessage: "Listening… Stop adds what you said to your message, and Escape discards it." }),
+  finishing: t({ id: "composerDictationButton.finishingVoiceTyping", defaultMessage: "Finishing voice typing…" }),
 };
 
 export const ComposerDictationButton = ({ status, disabled, onToggle, onCancel }: {

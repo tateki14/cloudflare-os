@@ -15,6 +15,7 @@ import { targetUserOf, type AuditFilter } from './auditFilter'
 import { AuditValue } from './AuditValue'
 import { KindBadge } from './KindBadge'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 /** How many columns an AuditLogRow fills, for the table's empty and detail rows. */
 export const AUDIT_LOG_COLUMNS = 6
@@ -37,18 +38,17 @@ const NUMBER = new Intl.NumberFormat('en')
 
 const changeName = (change: AdminSettingChange) => {
   const order = ORDER_SETTING_NAMES.get(change.setting)
-  const setting = order === undefined ? change.setting : `Order of ${order}`
+  const setting = order === undefined ? change.setting : t({ id: 'auditLogRow.orderOf', defaultMessage: 'Order of {order}' }, { order: order })
   if (change.key !== undefined) return `${setting} · ${change.key}`
   if (order !== undefined) return setting
   const ordered = ORDERED_SETTING_NAMES.get(change.setting)
-  return ordered === undefined ? change.setting : `Order of ${ordered}`
+  return ordered === undefined ? change.setting : t({ id: 'auditLogRow.orderOf2', defaultMessage: 'Order of {ordered}' }, { ordered: ordered })
 }
 
 // Where an excerpt starts and how long the values it was cut from are, in words.
 const excerptLabel = ({ offset, beforeLength, afterLength }: NonNullable<AdminSettingChange['excerpt']>) => {
   const length = (characters: number | undefined) => characters === undefined ? '—' : NUMBER.format(characters)
-  return `Excerpt from character ${NUMBER.format(offset + 1)} · ` +
-    `${length(beforeLength)} → ${length(afterLength)} characters`
+  return t({ id: 'auditLogRow.excerptFromCharacterCharacters', defaultMessage: 'Excerpt from character {value} · {value2} → {value3} characters' }, { value: NUMBER.format(offset + 1), value2: length(beforeLength), value3: length(afterLength) })
 }
 
 const SettingChanges = ({ changes }: { changes: AdminSettingChange[] }) => {
@@ -105,7 +105,7 @@ const WorkspaceDetail = ({ record, onFilterBy }: {
 }) => {
   const { formatMessage } = useIntl()
   return (
-  <Detail term="Workspace">
+  <Detail term={formatMessage({ id: 'auditLogRow.termWorkspace', defaultMessage: 'Workspace' })}>
     <Button
       variant="ghost"
       size="sm"
@@ -122,10 +122,11 @@ const WorkspaceDetail = ({ record, onFilterBy }: {
 
 // A record's arguments by name, left out when it has none.
 const ArgumentsDetail = ({ args }: { args: AdminAccessRecord['args'] }) => {
+  const { formatMessage } = useIntl()
   const entries = Object.entries(args)
   if (entries.length === 0) return null
   return (
-    <Detail term="Arguments">
+    <Detail term={formatMessage({ id: 'auditLogRow.termArguments', defaultMessage: 'Arguments' })}>
       <span className="font-mono text-xs">
         {entries.map(([name, value]) => `${name}: ${String(value)}`).join(' · ')}
       </span>
@@ -142,14 +143,14 @@ const AccessDetails = ({ record, onFilterBy }: {
   <dl className="space-y-2">
     {record.kind === 'workspace'
       ? <WorkspaceDetail record={record} onFilterBy={onFilterBy} />
-      : <Detail term="Account">{record.userId || formatMessage({ id: 'auditLogRow.unknown', defaultMessage: 'Unknown' })}</Detail>}
-    <Detail term="Reason">{record.reason}</Detail>
-    <Detail term="Access">
+      : <Detail term={formatMessage({ id: 'auditLogRow.termAccount', defaultMessage: 'Account' })}>{record.userId || formatMessage({ id: 'auditLogRow.unknown', defaultMessage: 'Unknown' })}</Detail>}
+    <Detail term={formatMessage({ id: 'auditLogRow.termReason', defaultMessage: 'Reason' })}>{record.reason}</Detail>
+    <Detail term={formatMessage({ id: 'auditLogRow.termAccess', defaultMessage: 'Access' })}>
       {ACCESS_LEVEL_NAMES[record.access]}
       {record.refused && <> <FormattedMessage id="auditLogRow.refused" defaultMessage="· refused: {value}" values={{ value: REFUSAL_NAMES[record.refused] }} /></>}
     </Detail>
     <ArgumentsDetail args={record.args} />
-    <Detail term="Via">{VIA_NAMES[record.via]}</Detail>
+    <Detail term={formatMessage({ id: 'auditLogRow.termVia', defaultMessage: 'Via' })}>{VIA_NAMES[record.via]}</Detail>
   </dl>
 )
 }
@@ -157,14 +158,17 @@ const AccessDetails = ({ record, onFilterBy }: {
 const WriteDetails = ({ record, onFilterBy }: {
   record: AdminWriteRecord
   onFilterBy: (filter: AuditFilter) => void
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <dl className="space-y-2">
     <WorkspaceDetail record={record} onFilterBy={onFilterBy} />
-    <Detail term="Reason">{record.reason}</Detail>
+    <Detail term={formatMessage({ id: 'auditLogRow.termReason', defaultMessage: 'Reason' })}>{record.reason}</Detail>
     <ArgumentsDetail args={record.args} />
-    <Detail term="Via">{VIA_NAMES[record.via]}</Detail>
+    <Detail term={formatMessage({ id: 'auditLogRow.termVia', defaultMessage: 'Via' })}>{VIA_NAMES[record.via]}</Detail>
   </dl>
-)
+  )
+}
 
 /**
  * One record of the Audit tab's log: a summary row (time, admin, action, kind, target user),
@@ -256,7 +260,7 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
               ? <WriteDetails record={record} onFilterBy={onFilterBy} />
               : (
                 <div className="space-y-4">
-                  <dl><Detail term="Via">{VIA_NAMES[record.via]}</Detail></dl>
+                  <dl><Detail term={formatMessage({ id: 'auditLogRow.termVia', defaultMessage: 'Via' })}>{VIA_NAMES[record.via]}</Detail></dl>
                   <SettingChanges changes={record.changes} />
                 </div>
               ))}

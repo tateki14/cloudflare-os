@@ -3,6 +3,7 @@ import type { ActionField } from '@gadgets/workshop-shared/gatekeeper'
 import type { ActionLogEntry } from '@gadgets/workshop-shared/api'
 import { formatAttachmentSize } from '../features/chat/attachmentFormatting'
 import { FormattedMessage } from 'react-intl'
+import { t } from '../i18n/moduleIntl'
 
 /** The typed values an entry's gatekeeper attached to its description; hooks carry none. */
 export function entryFields(entry: ActionLogEntry): ActionField[] {
@@ -14,7 +15,7 @@ export function fieldCountLabel(count: number): string {
   return `${count} field${count === 1 ? '' : 's'}`
 }
 
-const SYNTAX_LABELS = { markdown: 'Markdown', html: 'HTML', sql: 'SQL' } as const
+const SYNTAX_LABELS = { markdown: t({ id: 'actionFields.markdown', defaultMessage: 'Markdown' }), html: 'HTML', sql: 'SQL' } as const
 
 const captionClass = 'text-[11.5px] leading-4 tracking-[-0.1px] text-kumo-inactive'
 // Values keep every space and tab as sent: the kit marks a list item or file name complete with
@@ -73,7 +74,7 @@ const FieldValue = ({ field, uncapped }: { field: ActionField, uncapped?: boolea
             captions={[
               ...(syntax ? [syntax] : []),
               // A CR renders as nothing, so each CRLF would otherwise read as a plain line break.
-              ...(field.value.includes('\r\n') ? ['CRLF line breaks'] : []),
+              ...(field.value.includes('\r\n') ? [t({ id: 'actionFields.crlfLineBreaks', defaultMessage: 'CRLF line breaks' })] : []),
             ]}
           />
         </>

@@ -76,7 +76,7 @@ export const BlueprintProposalNotice = ({
 }: BlueprintProposalNoticeProps) => {
   const { formatMessage } = useIntl()
   const description = describeBlueprintProposal(
-    merge, { reviewed, decided: status !== 'pending' })
+    merge, { reviewed, decided: status !== 'pending' }, formatMessage)
 
   return (
     <section

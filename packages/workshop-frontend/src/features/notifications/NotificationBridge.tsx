@@ -217,7 +217,9 @@ export const NotificationBridge = ({
         let completed = kind === "taskCompleted";
         addToast.current({
           id,
-          title: `${chatTitle || "Task"} ${completed ? "completed" : "needs permission"}`,
+          title: completed
+            ? formatMessage({ id: "notificationBridge.taskCompleted", defaultMessage: "{title} completed" }, { title: chatTitle || formatMessage({ id: "notificationBridge.task", defaultMessage: "Task" }) })
+            : formatMessage({ id: "notificationBridge.taskNeedsPermission", defaultMessage: "{title} needs permission" }, { title: chatTitle || formatMessage({ id: "notificationBridge.task", defaultMessage: "Task" }) }),
           variant: completed ? "success" : "info",
           actions: [{
             children: formatMessage({ id: "notificationBridge.openTask", defaultMessage: "Open task" }),

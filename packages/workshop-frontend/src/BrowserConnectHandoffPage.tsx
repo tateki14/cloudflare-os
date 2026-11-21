@@ -5,6 +5,7 @@ import { useConnectionLost, useRpcStub } from './RpcContext'
 import { useAuth } from './useAuth'
 import { readPopupHandoff, ticketFromHandoffFragment } from './connectHandoff'
 import { useIntl } from 'react-intl'
+import { t } from './i18n/moduleIntl'
 
 /**
  * What the page tells the user once the outcome is known: a heading and one line of detail.
@@ -14,14 +15,14 @@ import { useIntl } from 'react-intl'
 type Outcome = { title: string; detail: string; failed?: true }
 
 const INVALID: Outcome = {
-  title: "This link isn't valid",
-  detail: 'Reload the Workshop and start the connection again.',
+  title: t({ id: 'browserConnectHandoffPage.thisLinkIsntValid', defaultMessage: 'This link isn\'t valid' }),
+  detail: t({ id: 'browserConnectHandoffPage.reloadTheWorkshopAndStartThe', defaultMessage: 'Reload the Workshop and start the connection again.' }),
 }
 const SIGNED_OUT: Outcome = {
-  title: "You're signed out",
-  detail: 'Sign in to the Workshop and start the connection again.',
+  title: t({ id: 'browserConnectHandoffPage.youreSignedOut', defaultMessage: 'You\'re signed out' }),
+  detail: t({ id: 'browserConnectHandoffPage.signInToTheWorkshopAnd', defaultMessage: 'Sign in to the Workshop and start the connection again.' }),
 }
-const CLOSE_HINT = 'You can close this window.'
+const CLOSE_HINT = t({ id: 'browserConnectHandoffPage.youCanCloseThisWindow', defaultMessage: 'You can close this window.' })
 
 /**
  * The page a finished connect / sign-in popup lands on (HANDOFF_PATH), with the single-use ticket

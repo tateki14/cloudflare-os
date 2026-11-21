@@ -1,4 +1,5 @@
 import type { ActionLogEntry, AiChatMessage } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /**
  * Where a pending request was asked for, as far as the client can tell.
@@ -51,7 +52,7 @@ export interface PendingChangeGroup {
 }
 
 /** A connection whose entries carry no usable title. */
-const UNTITLED_RESOURCE = 'Unavailable connection'
+const UNTITLED_RESOURCE = t({ id: 'pendingChangeGroups.unavailableConnection', defaultMessage: 'Unavailable connection' })
 
 /**
  * The ids of the requests the open chat has a message for.

@@ -9,6 +9,7 @@ import { formatFullTimestamp } from '../../utils/formatTimestamp'
 import { DurationSetting } from '../../components/DurationSetting'
 import { probeRouterTag } from './probeRouterTag'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 type AdminUpdatesPanelProps = {
   admin: RpcStub<AdminApi>
@@ -19,10 +20,10 @@ type AdminUpdatesPanelProps = {
 }
 
 const CARD = 'bg-kumo-elevated border border-kumo-line rounded-xl p-6'
-const CHECKS_LABEL = 'Check for updates automatically'
-const CHECK_INTERVAL_LABEL = 'Check for updates every (minutes)'
-const MINIMUM_AGE_LABEL = 'Minimum release age (hours)'
-const SNOOZE_LABEL = 'Hide a closed notice for (hours)'
+const CHECKS_LABEL = t({ id: 'adminUpdatesPanel.checkForUpdatesAutomatically', defaultMessage: 'Check for updates automatically' })
+const CHECK_INTERVAL_LABEL = t({ id: 'adminUpdatesPanel.checkForUpdatesEveryMinutes', defaultMessage: 'Check for updates every (minutes)' })
+const MINIMUM_AGE_LABEL = t({ id: 'adminUpdatesPanel.minimumReleaseAgeHours', defaultMessage: 'Minimum release age (hours)' })
+const SNOOZE_LABEL = t({ id: 'adminUpdatesPanel.hideAClosedNoticeForHours', defaultMessage: 'Hide a closed notice for (hours)' })
 
 // The link comes from the service that installed this deployment; anything but a web URL (a
 // `javascript:` one, say) is not rendered as a link.
@@ -44,14 +45,14 @@ const workerList = (workers: string[]): string =>
 
 const updateAvailability = (status: DeploymentUpdateStatus): string => {
   if (status.updateAvailable) return 'Yes'
-  return status.checkedAt === undefined ? 'Not known until a check succeeds' : 'No'
+  return status.checkedAt === undefined ? t({ id: 'adminUpdatesPanel.notKnownUntilACheckSucceeds', defaultMessage: 'Not known until a check succeeds' }) : 'No'
 }
 
 // What a check found, announced since the rows it changes are not a live region.
 const checkOutcome = (status: DeploymentUpdateStatus): string =>
   status.updateAvailable && status.latestReleaseId !== undefined
-    ? `Update available: release ${status.latestReleaseId}`
-    : 'No update available: this deployment runs the newest release'
+    ? t({ id: 'adminUpdatesPanel.updateAvailableRelease', defaultMessage: 'Update available: release {latestReleaseId}' }, { latestReleaseId: status.latestReleaseId })
+    : t({ id: 'adminUpdatesPanel.noUpdateAvailableThisDeploymentRuns', defaultMessage: 'No update available: this deployment runs the newest release' })
 
 /** The admin Updates tab: which release this deployment runs, the newest one, and a way to update. */
 export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPanelProps) => {

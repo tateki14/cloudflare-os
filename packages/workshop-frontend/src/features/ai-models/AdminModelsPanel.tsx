@@ -27,12 +27,13 @@ import { PROVIDER_LABELS, REASONING_LEVEL_LABELS, allowedModelSuggestions } from
 import { fetchModelsDev, suggestModels } from './modelsDev'
 import { useGatewayTests } from './useGatewayTests'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 const CARD = 'rounded-xl border border-kumo-line bg-kumo-elevated p-6'
 const GROUP_HEADING = 'mb-2 text-sm font-semibold text-kumo-default'
-const USER_MODELS_LABEL = 'Users may add their own models'
-const MODELS_DEV_LABEL = 'Suggest models from models.dev'
-const DEFAULT_REASONING_LABEL = 'Default reasoning level'
+const USER_MODELS_LABEL = t({ id: 'adminModelsPanel.usersMayAddTheirOwnModels', defaultMessage: 'Users may add their own models' })
+const MODELS_DEV_LABEL = t({ id: 'adminModelsPanel.suggestModelsFromModelsDev', defaultMessage: 'Suggest models from models.dev' })
+const DEFAULT_REASONING_LABEL = t({ id: 'adminModelsPanel.defaultReasoningLevel', defaultMessage: 'Default reasoning level' })
 
 // The default-level select's value while the deployment sets no level.
 const BUILT_IN = 'built-in'

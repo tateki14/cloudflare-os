@@ -11,6 +11,7 @@ import type { AuditFilter } from './auditFilter'
 import { AuditLog } from './AuditLog'
 import type { AuditSettings } from './auditSettings'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 type AdminAuditPanelProps = {
   admin: RpcStub<AdminApi>
@@ -27,8 +28,8 @@ type AdminAuditPanelProps = {
 }
 
 const CARD = 'bg-kumo-elevated border border-kumo-line rounded-xl p-6'
-const ACCESS_LABEL = 'Inspection access'
-const RETENTION_LABEL = 'Keep audit records for (days)'
+const ACCESS_LABEL = t({ id: 'adminAuditPanel.inspectionAccess', defaultMessage: 'Inspection access' })
+const RETENTION_LABEL = t({ id: 'adminAuditPanel.keepAuditRecordsForDays', defaultMessage: 'Keep audit records for (days)' })
 const STATS_DAYS = 7
 
 const NUMBER = new Intl.NumberFormat('en')
@@ -129,25 +130,13 @@ const StatsCards = ({ stats, onFilterBy }: {
 
 const accessHelp = ({ chosen, effective, max }: AuditSettings['adminWorkspaceAccess']): string[] => {
   const help = [
-    'Whether an admin may inspect a workspace or a user’s account. Metadata shows a workspace’s ' +
-      'structure and withholds chat messages, messages queued for an agent, attachments, file ' +
-      'contents, commit messages, the arguments of calls queued for an agent, the configuration ' +
-      'an agent suggested for a connection, which blueprint a gadget follows, the ids of the ' +
-      'blueprints a workspace publishes, and the descriptions and fields of actions, ' +
-      'observations and hooks. Titles, file names, commit authors, share links’ notes, blueprint ' +
-      'descriptions, and the names and hashes of attachments stay, and can echo content. Of a ' +
-      'user’s account, Metadata withholds what each connected account’s gatekeeper says of it ' +
-      '(its names, avatar and what it grants) and the ids of the user’s blueprints. Off refuses ' +
-      'inspection, and reaches views already open within about a minute.',
+    t({ id: 'adminAuditPanel.whetherAnAdminMayInspectA', defaultMessage: 'Whether an admin may inspect a workspace or a user’s account. Metadata shows a workspace’s structure and withholds chat messages, messages queued for an agent, attachments, file contents, commit messages, the arguments of calls queued for an agent, the configuration an agent suggested for a connection, which blueprint a gadget follows, the ids of the blueprints a workspace publishes, and the descriptions and fields of actions, observations and hooks. Titles, file names, commit authors, share links’ notes, blueprint descriptions, and the names and hashes of attachments stay, and can echo content. Of a user’s account, Metadata withholds what each connected account’s gatekeeper says of it (its names, avatar and what it grants) and the ids of the user’s blueprints. Off refuses inspection, and reaches views already open within about a minute.' }),
   ]
   if (max === 'off') {
-    help.push('This deployment’s ADMIN_WORKSPACE_ACCESS_MAX allows no inspection (a value that is ' +
-      'not a level counts as off).')
+    help.push(t({ id: 'adminAuditPanel.maxAllowsNoInspection', defaultMessage: 'This deployment’s ADMIN_WORKSPACE_ACCESS_MAX allows no inspection (a value that is not a level counts as off).' }))
   }
   if (chosen !== effective) {
-    help.push(`The level set here is ${ACCESS_LEVEL_NAMES[chosen]}, which that maximum limits to ` +
-      `${ACCESS_LEVEL_NAMES[effective]}. Choose ${ACCESS_LEVEL_NAMES[effective]} to set it here, ` +
-      'so that a higher maximum does not raise it.')
+    help.push(t({ id: 'adminAuditPanel.levelLimitedByMax', defaultMessage: 'The level set here is {chosen}, which that maximum limits to {effective}. Choose {effective} to set it here, so that a higher maximum does not raise it.' }, { chosen: ACCESS_LEVEL_NAMES[chosen], effective: ACCESS_LEVEL_NAMES[effective] }))
   }
   return help
 }

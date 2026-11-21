@@ -6,22 +6,23 @@ import { MENU_CONTENT, MENU_ITEM, MENU_POSITIONER_STYLE } from '../../components
 import { logRpcFailure } from '../../rpcErrors'
 import { describeMute } from './notificationMute'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 const hoursFromNow = (hours: number): NotificationMute =>
   ({ until: new Date(Date.now() + hours * 60 * 60_000) })
 
 // Each choice computes its mute when picked; "end of day" is the user's next local midnight.
 const MUTE_CHOICES: [label: string, mute: () => NotificationMute][] = [
-  ['For 1 hour', () => hoursFromNow(1)],
-  ['For 3 hours', () => hoursFromNow(3)],
-  ['Until end of day', () => {
+  [t({ id: 'workspaceNotificationsMenu.for1Hour', defaultMessage: 'For 1 hour' }), () => hoursFromNow(1)],
+  [t({ id: 'workspaceNotificationsMenu.for3Hours', defaultMessage: 'For 3 hours' }), () => hoursFromNow(3)],
+  [t({ id: 'workspaceNotificationsMenu.untilEndOfDay', defaultMessage: 'Until end of day' }), () => {
     const midnight = new Date()
     midnight.setHours(24, 0, 0, 0)
     return { until: midnight }
   }],
-  ['For 1 day', () => hoursFromNow(24)],
-  ['For 3 days', () => hoursFromNow(3 * 24)],
-  ['Until I turn it back on', () => ({ indefinite: true })],
+  [t({ id: 'workspaceNotificationsMenu.for1Day', defaultMessage: 'For 1 day' }), () => hoursFromNow(24)],
+  [t({ id: 'workspaceNotificationsMenu.for3Days', defaultMessage: 'For 3 days' }), () => hoursFromNow(3 * 24)],
+  [t({ id: 'workspaceNotificationsMenu.untilITurnItBackOn', defaultMessage: 'Until I turn it back on' }), () => ({ indefinite: true })],
 ]
 
 /**

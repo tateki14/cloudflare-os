@@ -1,12 +1,12 @@
 import { ShieldWarning } from '@phosphor-icons/react'
+import { t } from '../i18n/moduleIntl'
 
 /**
  * What an approver is told before approving an action in a workspace that has read restricted
  * data: the kernel does not check the action for that data, the approver does.
  */
 export const RESTRICTED_APPROVAL_COPY =
-  'This workspace has read sensitive data. Read the full request below before approving — you ' +
-  'are responsible for making sure it contains none of that data.'
+  t({ id: 'restrictedApprovalNotice.thisWorkspaceHasReadSensitiveData', defaultMessage: 'This workspace has read sensitive data. Read the full request below before approving — you are responsible for making sure it contains none of that data.' })
 
 /**
  * Shown above a pending action's description on every approve surface (Activity review pane,

@@ -6,6 +6,7 @@ import { couldBeAutoApproved, isAutoApproved, type AutoApprovalRules } from './a
 import type { PendingChange } from './pendingChangeGroups'
 import type { ActionOutcome } from './useActionOutcomes'
 import { useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 /** Which way a bulk run resolves the requests it is given. */
 export type BulkDecision = 'approve' | 'deny'
@@ -45,7 +46,7 @@ export interface BulkFailure {
  * longer the workspace they authorised it over.
  */
 const RESTRICTED_STOP =
-  'This workspace has read sensitive data, so the rest are reviewed on their own.'
+  t({ id: 'useBulkResolve.thisWorkspaceHasReadSensitiveData', defaultMessage: 'This workspace has read sensitive data, so the rest are reviewed on their own.' })
 
 /**
  * How long a run waits for the drain to take a request a rule covers.
@@ -269,15 +270,17 @@ async function waitUntilGone(stillPending: () => boolean, ms: number): Promise<v
 
 /** How a finished or in-flight run describes itself. */
 export function describeBulkProgress({ decision, done, total }: BulkProgress): string {
-  return decision === 'approve' ? `Applying ${done + 1} of ${total}…` : `Discarding ${done + 1} of ${total}…`
+  return decision === 'approve' ? t({ id: 'useBulkResolve.applyingOf', defaultMessage: 'Applying {value} of {total}…' }, { value: done + 1, total: total }) : t({ id: 'useBulkResolve.discardingOf', defaultMessage: 'Discarding {value} of {total}…' }, { value: done + 1, total: total })
 }
 
 /** How a stopped run describes what it managed before it stopped. */
 export function describeBulkFailure(
   { decision, applied, total, title, reason }: BulkFailure,
 ): string {
-  const verb = decision === 'approve' ? 'Applied' : 'Discarded'
-  const got = `${verb} ${applied} of ${total}.`
-  if (title === undefined) return `${got} ${reason ?? 'The run stopped.'}`
-  return `${got} "${title}" failed${reason ? `: ${reason}` : '.'}`
+  const verb = decision === 'approve' ? t({ id: 'useBulkResolve.applied', defaultMessage: 'Applied' }) : t({ id: 'useBulkResolve.discarded', defaultMessage: 'Discarded' })
+  const got = t({ id: 'useBulkResolve.gotOf', defaultMessage: '{verb} {applied} of {total}.' }, { verb, applied, total })
+  if (title === undefined) return `${got} ${reason ?? t({ id: 'useBulkResolve.theRunStopped', defaultMessage: 'The run stopped.' })}`
+  return reason
+    ? `${got} ${t({ id: 'useBulkResolve.failedWithReason', defaultMessage: '"{title}" failed: {reason}' }, { title, reason })}`
+    : `${got} ${t({ id: 'useBulkResolve.failed', defaultMessage: '"{title}" failed.' }, { title })}`
 }

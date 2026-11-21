@@ -30,6 +30,7 @@ import {
 } from './gatekeeperAppNavigation'
 import GatekeeperUserPickerDialog from './features/gatekeeper-sharing/GatekeeperUserPickerDialog'
 import { useIntl } from 'react-intl'
+import { t } from './i18n/moduleIntl'
 
 // The content-pane rect, in viewport coordinates, that the app pins its page to while the iframe
 // is full-viewport.
@@ -154,7 +155,7 @@ class GatekeeperAppHostImpl extends RpcTarget implements GatekeeperAppNavigation
       maxCallsPerMinute: 600,
       maxPendingCalls: 128,
       onRateLimit: 'throttle',
-      label: 'Gatekeeper app',
+      label: t({ id: 'sandboxedGatekeeperApp.iframeTitle', defaultMessage: 'Gatekeeper app' }),
     })
     this.#ui = ui
     this.#disposeRateLimiter = dispose

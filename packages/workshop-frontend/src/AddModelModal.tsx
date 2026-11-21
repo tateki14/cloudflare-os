@@ -10,6 +10,7 @@ import {
 } from './features/ai-models/extraHeaders'
 import { PROVIDER_LABELS, parseTokenLimit } from './features/ai-models/modelForm'
 import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
+import { t } from './i18n/moduleIntl'
 
 /**
  * Whether the modal adds a model from scratch, edits a stored one, or adds a model based on a
@@ -39,7 +40,7 @@ const API_TOKEN_PLACEHOLDERS: Record<AiModelProvider, string> = {
   anthropic: 'sk-ant-...',
   openai: 'sk-...',
   google: 'AIza...',
-  cloudflare: 'Cloudflare API token',
+  cloudflare: t({ id: 'addModelModal.cloudflareApiToken', defaultMessage: 'Cloudflare API token' }),
   ollama: '(optional)',
   // Never shown: Auto Router's one model is the deployment's (see AiGatewayInfo.enabledProviders).
   'cloudflare-auto-router': '',

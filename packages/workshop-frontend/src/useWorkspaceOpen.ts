@@ -16,6 +16,7 @@ import {
   classifyWorkspaceOpenFailure,
   type WorkspaceOpenFailureKind,
 } from './components/WorkspaceOpenErrorPage'
+import { t } from './i18n/moduleIntl'
 
 const OBSERVER_CANCELLED = 'OBSERVER_CONFIG_CANCELLED'
 const REOPEN_BACKOFF_MS = 1_000
@@ -54,7 +55,7 @@ class ObserverConfigTarget extends RpcTarget implements ObserverConfigCallback {
 export function observerOpenFailureMessage(caught: unknown, subject: 'workspace' | 'gadget'): string | null {
   const message = caught instanceof Error ? caught.message : ''
   if (message.includes(OBSERVER_CANCELLED)) {
-    return `To open this ${subject}, you must choose connected accounts for the services it uses.`
+    return t({ id: 'useWorkspaceOpen.toOpenThisYouMustChoose', defaultMessage: 'To open this {subject}, you must choose connected accounts for the services it uses.' }, { subject: subject })
   }
   if (message.includes('permitted to observe') ||
       message.includes('no longer connected') ||

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useIntl } from "react-intl";
+import { t } from "../../../i18n/moduleIntl";
 
 type RecognitionResultEvent = Event & {
   resultIndex: number;
@@ -39,20 +40,20 @@ const getLocalRecognitionConstructor = () => {
 // The browser's language first, then English (US) for locales with no on-device language pack.
 const candidateLanguages = () => [...new Set([navigator.language, "en-US"].filter(Boolean))];
 
-const recognitionUnavailable = "Voice typing is unavailable. You can still type your message.";
-const downloadFailed = "Couldn’t download the voice typing language pack. Try again later.";
+const recognitionUnavailable = t({ id: "useComposerDictation.voiceTypingIsUnavailableYouCan", defaultMessage: "Voice typing is unavailable. You can still type your message." });
+const downloadFailed = t({ id: "useComposerDictation.couldntDownloadTheVoiceTypingLanguage", defaultMessage: "Couldn’t download the voice typing language pack. Try again later." });
 
 const recognitionError = (error: string) => {
   switch (error) {
     case "aborted": return null;
     case "not-allowed":
     case "service-not-allowed":
-      return "Voice typing was blocked. Check your browser’s microphone permissions.";
-    case "audio-capture": return "Voice typing couldn’t access a microphone.";
-    case "no-speech": return "No speech detected. Try voice typing again.";
+      return t({ id: "useComposerDictation.blocked", defaultMessage: "Voice typing was blocked. Check your browser’s microphone permissions." });
+    case "audio-capture": return t({ id: "useComposerDictation.noMicrophone", defaultMessage: "Voice typing couldn’t access a microphone." });
+    case "no-speech": return t({ id: "useComposerDictation.noSpeech", defaultMessage: "No speech detected. Try voice typing again." });
     case "language-not-supported":
     case "language-unavailable":
-      return "Voice typing needs a supported language pack installed in your browser.";
+      return t({ id: "useComposerDictation.needsLanguagePack", defaultMessage: "Voice typing needs a supported language pack installed in your browser." });
     default: return recognitionUnavailable;
   }
 };

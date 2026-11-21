@@ -67,7 +67,7 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
           value={filter.method ?? null}
           onValueChange={(method) => onFilterChange({ ...filter, method: (method as AuditMethod | null) ?? undefined })}
         >
-          <Combobox.TriggerInput placeholder={formatMessage({ id: 'auditFilters.searchActions', defaultMessage: 'Search actions…' })} clearLabel="Any action" />
+          <Combobox.TriggerInput placeholder={formatMessage({ id: 'auditFilters.searchActions', defaultMessage: 'Search actions…' })} clearLabel={formatMessage({ id: 'auditFilters.anyAction', defaultMessage: 'Any action' })} />
           <Combobox.Content>
             <Combobox.Empty><FormattedMessage id="auditFilters.noActionMatches" defaultMessage="No action matches." /></Combobox.Empty>
             <Combobox.List>

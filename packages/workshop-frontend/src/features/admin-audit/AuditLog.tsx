@@ -10,6 +10,7 @@ import { AUDIT_LOG_COLUMNS, AuditLogRow } from './AuditLogRow'
 import { ColumnResizeHandle } from './ColumnResizeHandle'
 import { useColumnWidths } from './useColumnWidths'
 import { FormattedMessage, useIntl } from 'react-intl'
+import { t } from '../../i18n/moduleIntl'
 
 /** How many records one page of the Audit tab's log shows. */
 export const AUDIT_PAGE_SIZE = 50
@@ -21,7 +22,7 @@ export const AUDIT_COLUMN_WIDTHS_KEY = 'gadgets:workshop:adminAuditColumnWidths'
 // before any is resized, in pixels. Action is not among them: it takes the width left over, at
 // least ACTION_MIN_WIDTH, so that it is the column a narrow log cuts, never a name.
 const RESIZABLE_COLUMNS = {
-  time: 'Time', admin: 'Admin', kind: 'Kind', target: 'Target user',
+  time: t({ id: 'auditLog.time', defaultMessage: 'Time' }), admin: t({ id: 'auditLog.admin', defaultMessage: 'Admin' }), kind: 'Kind', target: t({ id: 'auditLog.targetUser', defaultMessage: 'Target user' }),
 } as const
 type ResizableColumn = keyof typeof RESIZABLE_COLUMNS
 // Sized so that, with Action at its least, the log fits the Audit tab at a 1440 px window, and a

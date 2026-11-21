@@ -1,3 +1,4 @@
+import { t } from '../../i18n/moduleIntl'
 /**
  * One row of the extra-headers editor. `id` keeps React keys stable while rows are removed.
  *
@@ -29,15 +30,15 @@ export const validateHeaderRows = (rows: readonly HeaderRow[]): Record<number, s
   for (const row of rows) {
     const name = row.name.trim()
     if (!name) {
-      if (row.value?.trim()) errors[row.id] = 'Please enter a header name'
+      if (row.value?.trim()) errors[row.id] = t({ id: 'extraHeaders.pleaseEnterAHeaderName', defaultMessage: 'Please enter a header name' })
       continue
     }
     const key = name.toLowerCase()
     if (!HEADER_NAME.test(name)) {
-      errors[row.id] = 'Header names may not contain spaces or special characters like ":"'
+      errors[row.id] = t({ id: 'extraHeaders.headerNamesMayNotContainSpaces', defaultMessage: 'Header names may not contain spaces or special characters like ":"' })
     } else if (seen.has(key)) {
       // Header names are case-insensitive, so both rows would collapse into one header.
-      errors[row.id] = `Header "${name}" is already specified`
+      errors[row.id] = t({ id: 'extraHeaders.headerIsAlreadySpecified', defaultMessage: 'Header "{name}" is already specified' }, { name: name })
     }
     seen.add(key)
   }

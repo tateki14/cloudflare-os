@@ -18,6 +18,7 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react'
 import type { BlueprintOutput, OutputIcon } from '@gadgets/workshop-shared/api'
+import { t } from '../../i18n/moduleIntl'
 
 /** The glyph for each key in the shared `OUTPUT_ICONS` vocabulary. */
 export const FORMAT_ICONS = {
@@ -59,7 +60,7 @@ const WIREFRAME_FOR_ICON: Record<OutputIcon, FormatWireframe> = {
 export const GENERIC_OUTPUT: BlueprintOutput = {
   id: 'app',
   noun: 'App',
-  plural: 'Apps',
+  plural: t({ id: 'formats.apps', defaultMessage: 'Apps' }),
   icon: 'appWindow',
 }
 

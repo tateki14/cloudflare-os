@@ -11,8 +11,9 @@ import type { AttachmentContentLoader, AttachmentFile } from "./attachmentFile";
 import { looksLikeText, previewFormat } from "./previewFormat";
 import { saveAttachment } from "./saveAttachment";
 import { FormattedMessage, useIntl } from "react-intl";
+import { t } from "../../../i18n/moduleIntl";
 
-const displayName = (attachment: AttachmentFile) => attachment.name ?? "Attached file";
+const displayName = (attachment: AttachmentFile) => attachment.name ?? t({ id: "attachmentViewer.attachedFile", defaultMessage: "Attached file" });
 
 /** "PDF · 1.2 MB": the extension when the name has one, since MIME types read poorly. */
 const describeAttachment = (attachment: AttachmentFile): string => {
@@ -20,7 +21,7 @@ const describeAttachment = (attachment: AttachmentFile): string => {
   const extension = attachment.name && dot > 0 ? attachment.name.slice(dot + 1) : "";
   const type = extension && extension.length <= 5
     ? extension.toUpperCase()
-    : attachment.mimeType || "Unknown type";
+    : attachment.mimeType || t({ id: "attachmentViewer.unknownType", defaultMessage: "Unknown type" });
   const size = formatAttachmentSize(attachment.size);
   return size ? `${type} · ${size}` : type;
 };
@@ -113,7 +114,10 @@ export const AttachmentViewer = ({
     // dialog: it moves to the button that goes back.
     const atEnd = index + offset === 0 || index + offset === attachments.length - 1;
     if (atEnd && navigationRef.current?.contains(document.activeElement)) {
-      refocusRef.current = `${offset > 0 ? "Previous" : "Next"} attachment`;
+      // The label of the button to refocus, as it is rendered.
+      refocusRef.current = offset > 0
+        ? formatMessage({ id: "attachmentViewer.previousAttachment", defaultMessage: "Previous attachment" })
+        : formatMessage({ id: "attachmentViewer.nextAttachment", defaultMessage: "Next attachment" });
     }
   };
   useEffect(() => {
