@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import BrowserConnectHandoffPage from './BrowserConnectHandoffPage'
 import { NATIVE_AUTH_KEY, nativeAuthRelay } from './features/native-app/authPopup'
+import { useIntl } from 'react-intl'
 
 // The external browser never receives the native WebView's authToken or flow nonce. It returns
 // only the ticket and correlation id; the initiating WebView redeems them over its own session.
 const ConnectHandoffPage = () => {
+  const { formatMessage } = useIntl()
   const [relay] = useState(() => {
     try { return nativeAuthRelay(window.location.hash, sessionStorage.getItem(NATIVE_AUTH_KEY), Date.now()) }
     catch { return null }
@@ -20,7 +22,7 @@ const ConnectHandoffPage = () => {
   }, [relay])
   return relay ? (
     <div className="flex min-h-full items-center justify-center bg-kumo-base p-6 text-center text-kumo-default">
-      <p role="status">{relay.record ? 'Opening sign-in…' : 'Returning to Cloudflare OS…'}</p>
+      <p role="status">{relay.record ? formatMessage({ id: 'connectHandoffPage.openingSignIn', defaultMessage: 'Opening sign-in…' }) : formatMessage({ id: 'connectHandoffPage.returningToCloudflareOs', defaultMessage: 'Returning to Cloudflare OS…' })}</p>
     </div>
   ) : <BrowserConnectHandoffPage />
 }

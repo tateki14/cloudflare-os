@@ -6,6 +6,7 @@ import { attachmentKind } from "./attachmentKind";
 import { previewFormat } from "./previewFormat";
 import { useAttachmentThumbnail } from "./useAttachmentThumbnail";
 import { useObjectUrl } from "./useObjectUrl";
+import { useIntl } from "react-intl";
 
 // The composer's card (ComposerAttachmentCard.tsx): a message's attachments look the way they did
 // when they were attached.
@@ -37,6 +38,7 @@ export const ChatAttachmentCard = ({
   loadContent: () => Promise<Uint8Array>;
   onOpen: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const name = attachment.name ?? "Attached file";
   const kind = attachmentKind(attachment.mimeType, attachment.name);
   const imageUrl = useObjectUrl(
@@ -66,7 +68,7 @@ export const ChatAttachmentCard = ({
           <AttachmentCardFace name={name} kind={kind} thumbnail={thumbnail} loading={loading} />
         )}
         <span aria-hidden="true" className={OUTLINE_CLASS} />
-        <button type="button" onClick={onOpen} aria-label={`Preview ${name}`} className={OPEN_BUTTON_CLASS} />
+        <button type="button" onClick={onOpen} aria-label={formatMessage({ id: "chatAttachmentCard.preview", defaultMessage: "Preview {name}" }, { name: name })} className={OPEN_BUTTON_CLASS} />
       </div>
     </Tooltip>
   );

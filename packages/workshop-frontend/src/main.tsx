@@ -1,11 +1,13 @@
 import { StrictMode, useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
+import { IntlProvider } from 'react-intl'
 import { RpcPromise, RpcStub, newWebSocketRpcSession } from 'capnweb'
 import { PublicApi, ServerConfig } from '@gadgets/workshop-shared/api'
 import { RpcContext } from './RpcContext'
 import { ServerConfigContext, ServerConfigErrorContext } from './ServerConfigContext'
 import { ThemeProvider } from './ThemeContext'
+import jaMessages from './i18n/messages/ja.json'
 import { createRouter } from './router'
 import AnnouncementBanner from './components/AnnouncementBanner'
 import { applyAccentColor, applyStoredThemeMode } from './theme'
@@ -257,20 +259,22 @@ function AppWithConnection() {
       socketVersion?.stub === rpcState.stub ? socketVersion.version : undefined, reconnectNow);
 
   return (
-    <ThemeProvider>
-      <RpcContext.Provider value={rpcState}>
-        <ServerConfigErrorContext.Provider value={serverConfigError}>
-          <ServerConfigContext.Provider value={serverConfig}>
-            <div className="app-viewport flex min-w-0 flex-col overflow-hidden">
-              <AnnouncementBanner />
-              <div className="h-full min-h-0 flex-1">
-                <RouterProvider router={router} />
+    <IntlProvider locale="ja" messages={jaMessages}>
+      <ThemeProvider>
+        <RpcContext.Provider value={rpcState}>
+          <ServerConfigErrorContext.Provider value={serverConfigError}>
+            <ServerConfigContext.Provider value={serverConfig}>
+              <div className="app-viewport flex min-w-0 flex-col overflow-hidden">
+                <AnnouncementBanner />
+                <div className="h-full min-h-0 flex-1">
+                  <RouterProvider router={router} />
+                </div>
               </div>
-            </div>
-          </ServerConfigContext.Provider>
-        </ServerConfigErrorContext.Provider>
-      </RpcContext.Provider>
-    </ThemeProvider>
+            </ServerConfigContext.Provider>
+          </ServerConfigErrorContext.Provider>
+        </RpcContext.Provider>
+      </ThemeProvider>
+    </IntlProvider>
   );
 }
 

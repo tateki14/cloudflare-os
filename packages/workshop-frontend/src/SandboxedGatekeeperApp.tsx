@@ -29,6 +29,7 @@ import {
   type GatekeeperAppWorkspaceTarget,
 } from './gatekeeperAppNavigation'
 import GatekeeperUserPickerDialog from './features/gatekeeper-sharing/GatekeeperUserPickerDialog'
+import { useIntl } from 'react-intl'
 
 // The content-pane rect, in viewport coordinates, that the app pins its page to while the iframe
 // is full-viewport.
@@ -347,6 +348,7 @@ export default function SandboxedGatekeeperApp({ frame, gatekeeperVendorId, path
 }) {
   const navigate = useNavigate()
   const { authenticatedApi } = useAuthenticatedApi()
+  const { formatMessage } = useIntl()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const sessionRef = useRef<{ [Symbol.dispose]?(): void } | null>(null)
   const hostRef = useRef<GatekeeperAppHostControls | null>(null)
@@ -544,7 +546,7 @@ export default function SandboxedGatekeeperApp({ frame, gatekeeperVendorId, path
         // allow-same-origin (the frame stays an opaque origin), and the app's CSP keeps connect-src 'none'.
         sandbox="allow-scripts allow-modals"
         allow="clipboard-write"
-        title="Gatekeeper app"
+        title={formatMessage({ id: 'sandboxedGatekeeperApp.iframeTitle', defaultMessage: 'Gatekeeper app' })}
         style={iframeStyleForOverlay(overlay)}
       />
       {userPicker && (

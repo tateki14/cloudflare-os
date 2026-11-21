@@ -2,6 +2,7 @@ import { Dialog } from '@cloudflare/kumo'
 import { X } from '@phosphor-icons/react'
 import { WorkshopButton, WorkshopIconButton } from '../../components/WorkshopControls'
 import type { UnresolvedConflict } from './mergeConflicts'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type UnresolvedConflictsDialogProps = {
   /** The files that still hold conflict markers. Never empty. */
@@ -25,7 +26,9 @@ export const UnresolvedConflictsDialog = ({
   conflicts,
   onCancel,
   onAcceptAnyway,
-}: UnresolvedConflictsDialogProps) => (
+}: UnresolvedConflictsDialogProps) => {
+  const { formatMessage } = useIntl()
+  return (
   <Dialog.Root open onOpenChange={nextOpen => { if (!nextOpen) onCancel() }}>
     <Dialog
       className="!z-[1000] !top-[20%] !w-[min(440px,calc(100vw-32px))] !-translate-y-0 overflow-hidden bg-kumo-base p-0"
@@ -34,17 +37,15 @@ export const UnresolvedConflictsDialog = ({
       <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
         <div className="min-w-0">
           <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-            This draft still has merge conflicts
+            <FormattedMessage id="unresolvedConflictsDialog.thisDraftStillHasMergeConflicts" defaultMessage="This draft still has merge conflicts" />
           </Dialog.Title>
           <Dialog.Description className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-            {conflicts.length === 1 ? 'A file still has' : `${conflicts.length} files still have`}{' '}
-            conflict markers, which accepting would make part of the gadget. Resolve them in the
-            code, or ask the agent to, then accept again.
+            <FormattedMessage id="unresolvedConflictsDialog.conflictMarkersWhichAcceptingWouldMake" defaultMessage="{value} conflict markers, which accepting would make part of the gadget. Resolve them in the code, or ask the agent to, then accept again." values={{ value: conflicts.length === 1 ? formatMessage({ id: 'unresolvedConflictsDialog.aFileStillHas', defaultMessage: 'A file still has' }) : formatMessage({ id: 'unresolvedConflictsDialog.filesStillHave', defaultMessage: '{length} files still have' }, { length: conflicts.length }) }} />
           </Dialog.Description>
         </div>
         <Dialog.Close
           render={props => (
-            <WorkshopIconButton {...props} className="!h-7 !w-7" aria-label="Close">
+            <WorkshopIconButton {...props} className="!h-7 !w-7" aria-label={formatMessage({ id: 'unresolvedConflictsDialog.close', defaultMessage: 'Close' })}>
               <X size={16} />
             </WorkshopIconButton>
           )}
@@ -65,12 +66,13 @@ export const UnresolvedConflictsDialog = ({
 
       <div className="flex items-center justify-end gap-2 border-t border-kumo-line bg-kumo-base px-5 py-3">
         <WorkshopButton className="!h-9" onClick={onAcceptAnyway}>
-          Accept anyway
+          <FormattedMessage id="unresolvedConflictsDialog.acceptAnyway" defaultMessage="Accept anyway" />
         </WorkshopButton>
         <WorkshopButton tone="primary" className="!h-9" onClick={onCancel}>
-          Keep resolving
+          <FormattedMessage id="unresolvedConflictsDialog.keepResolving" defaultMessage="Keep resolving" />
         </WorkshopButton>
       </div>
     </Dialog>
   </Dialog.Root>
 )
+}

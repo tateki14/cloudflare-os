@@ -5,6 +5,7 @@ import { attachmentKind } from "../../attachments/attachmentKind";
 import { previewFormat } from "../../attachments/previewFormat";
 import { useAttachmentThumbnail } from "../../attachments/useAttachmentThumbnail";
 import type { ComposerAttachment } from "./useComposerAttachments";
+import { FormattedMessage, useIntl } from "react-intl";
 
 // Everything visual about an attachment card lives in this file; the tray only lays cards out.
 const CARD_CLASS =
@@ -38,6 +39,7 @@ export const ComposerAttachmentCard = ({
   onOpen: () => void;
   onRemove: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const name = attachment.name ?? "Attached file";
   const kind = attachmentKind(attachment.mimeType, attachment.name);
   const failed = attachment.uploadState === "error";
@@ -54,7 +56,7 @@ export const ComposerAttachmentCard = ({
         {uploading ? (
           <>
             <SkeletonLine minWidth={100} maxWidth={100} className="h-full w-full" />
-            <span className="sr-only">Uploading {name}</span>
+            <span className="sr-only"><FormattedMessage id="composerAttachmentCard.uploading" defaultMessage="Uploading {name}" values={{ name: name }} /></span>
           </>
         ) : attachment.previewUrl && !failed ? (
           <img src={attachment.previewUrl} alt={name} className="h-full w-full object-contain" />
@@ -63,7 +65,7 @@ export const ComposerAttachmentCard = ({
             <div className="flex flex-col gap-1">
               <WarningIcon size={16} className="text-kumo-danger" />
               <span className="text-[11px] font-medium leading-[14px] text-kumo-danger sm:text-[12px] sm:leading-4">
-                Upload failed
+                <FormattedMessage id="composerAttachmentCard.uploadFailed" defaultMessage="Upload failed" />
               </span>
             </div>
             <span className="line-clamp-1 break-words text-[11px] font-medium leading-[14px] text-kumo-subtle sm:line-clamp-2 sm:text-[12px] sm:leading-4">
@@ -78,14 +80,14 @@ export const ComposerAttachmentCard = ({
         {!uploading && (
           <button
             type="button"
-            aria-label={`Preview ${name}`}
+            aria-label={formatMessage({ id: "composerAttachmentCard.preview", defaultMessage: "Preview {name}" }, { name: name })}
             onClick={onOpen}
             className={OPEN_BUTTON_CLASS}
           />
         )}
         <button
           type="button"
-          aria-label={`Remove ${name}`}
+          aria-label={formatMessage({ id: "composerAttachmentCard.remove", defaultMessage: "Remove {name}" }, { name: name })}
           disabled={disabled}
           onClick={onRemove}
           className={REMOVE_BUTTON_CLASS}

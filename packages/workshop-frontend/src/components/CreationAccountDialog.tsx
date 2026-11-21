@@ -14,6 +14,7 @@ import { AccountChooser } from '../gatekeeper-modal/AccountChooser'
 import ResourceConfiguratorHost from '../ResourceConfiguratorHost'
 import { disposeConfiguratorFrame } from '../disposeConfiguratorFrame'
 import { WorkshopButton } from './WorkshopControls'
+import { FormattedMessage, useIntl } from 'react-intl';
 
 /** The type to make a resource of, and the configuration its configurator opens on, if any. */
 export type CreationTarget = {
@@ -49,6 +50,7 @@ export const CreationAccountDialog = ({
   onSubmit: (creation: CreationApproval) => void | Promise<void>
   onCancel: () => void
 }) => {
+  const { formatMessage } = useIntl();
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
   const [accounts, setAccounts] = useState<AccountEvent[]>([])
@@ -87,7 +89,7 @@ export const CreationAccountDialog = ({
     subscription.catch(err => {
       if (cancelled) return
       console.error('Failed to subscribe to connected accounts:', err)
-      toasts.add({ title: 'Failed to load your connected accounts', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'creationAccountDialog.failedToLoadYourConnectedAccounts', defaultMessage: 'Failed to load your connected accounts' }), variant: 'error' })
     })
     return () => {
       cancelled = true
@@ -104,7 +106,7 @@ export const CreationAccountDialog = ({
     } catch (err) {
       if (err instanceof AuthPopupCancelledError) return
       console.error('Failed to start connection flow:', err)
-      toasts.add({ title: err instanceof Error ? err.message : 'Could not complete connection flow', variant: 'error' })
+      toasts.add({ title: err instanceof Error ? err.message : formatMessage({ id: 'creationAccountDialog.couldNotCompleteConnectionFlow', defaultMessage: 'Could not complete connection flow' }), variant: 'error' })
     } finally {
       setStarting(null)
     }
@@ -168,7 +170,7 @@ export const CreationAccountDialog = ({
     } catch (err) {
       if (submitAttempt.current !== attempt) return
       console.error('Failed to read the creation settings:', err)
-      toasts.add({ title: 'Failed to read the creation settings', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'creationAccountDialog.failedToReadTheCreationSettings', defaultMessage: 'Failed to read the creation settings' }), variant: 'error' })
       setSubmitting(false)
       return
     }
@@ -241,7 +243,7 @@ export const CreationAccountDialog = ({
         </div>
 
         <div className="flex shrink-0 justify-end gap-2 border-t border-kumo-line px-6 py-4">
-          <WorkshopButton onClick={onCancel} disabled={sending}>Cancel</WorkshopButton>
+          <WorkshopButton onClick={onCancel} disabled={sending}><FormattedMessage id="creationAccountDialog.cancel" defaultMessage="Cancel" /></WorkshopButton>
           <WorkshopButton
             tone="primary"
             loading={submitting || sending}

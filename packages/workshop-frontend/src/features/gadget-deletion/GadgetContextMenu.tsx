@@ -3,6 +3,7 @@ import { DropdownMenu } from '@cloudflare/kumo'
 import { ContextMenu } from '@cloudflare/kumo/primitives/context-menu'
 import { Trash } from '@phosphor-icons/react'
 import { MENU_POSITIONER_STYLE } from '../../components/menuStyles'
+import { FormattedMessage } from 'react-intl'
 
 /**
  * The right-click (or long-press) menu of a gadget wherever the workspace lists one. `trigger` is
@@ -19,7 +20,7 @@ export const GadgetContextMenu = ({
     <ContextMenu.Trigger render={trigger} />
     <DropdownMenu.Content style={MENU_POSITIONER_STYLE}>
       <DropdownMenu.Item icon={Trash} variant="danger" onClick={onDelete}>
-        Delete
+        <FormattedMessage id="gadgetContextMenu.delete" defaultMessage="Delete" />
       </DropdownMenu.Item>
     </DropdownMenu.Content>
   </ContextMenu.Root>

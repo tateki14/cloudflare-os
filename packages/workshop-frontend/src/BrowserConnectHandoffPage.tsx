@@ -4,6 +4,7 @@ import type { AuthenticatedApi, PublicApi } from '@gadgets/workshop-shared/api'
 import { useConnectionLost, useRpcStub } from './RpcContext'
 import { useAuth } from './useAuth'
 import { readPopupHandoff, ticketFromHandoffFragment } from './connectHandoff'
+import { useIntl } from 'react-intl'
 
 /**
  * What the page tells the user once the outcome is known: a heading and one line of detail.
@@ -48,6 +49,7 @@ const CLOSE_HINT = 'You can close this window.'
  * ticket is reported on, so the server's message is shown verbatim.
  */
 export default function BrowserConnectHandoffPage() {
+  const { formatMessage } = useIntl()
   const rpcStub = useRpcStub()
   const connectionLost = useConnectionLost()
   const { authenticatedApi, isLoading } = useAuth(rpcStub)
@@ -77,12 +79,12 @@ export default function BrowserConnectHandoffPage() {
       if (isLoading || authenticatedApi === null) return
       api = authenticatedApi
       redeem = () => authenticatedApi.completeConnectHandoff(ticket, handoff.nonce)
-      done = { title: 'Connected', detail: CLOSE_HINT }
+      done = { title: formatMessage({ id: 'browserConnectHandoffPage.connected', defaultMessage: 'Connected' }), detail: CLOSE_HINT }
       failed = 'Could not complete the connection'
     } else {
       api = rpcStub
       redeem = () => rpcStub.confirmLogin(ticket, handoff.nonce)
-      done = { title: 'Signed in', detail: CLOSE_HINT }
+      done = { title: formatMessage({ id: 'browserConnectHandoffPage.signedIn', defaultMessage: 'Signed in' }), detail: CLOSE_HINT }
       failed = 'Could not sign in'
     }
     if (sentWithRef.current === api) return

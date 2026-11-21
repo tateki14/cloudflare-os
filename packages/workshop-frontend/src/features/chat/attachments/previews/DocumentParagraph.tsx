@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "rea
 import type { DocxInline, DocxParagraph, DocxTabStop, DocxUnsupportedKind } from "@gadgets/office-content/docx-document";
 import { DocumentImage } from "./DocumentImage";
 import { PX_PER_PT, borderStyle, pt, runStyle } from "./documentStyles";
+import { FormattedMessage } from "react-intl";
 
 const UNSUPPORTED_LABELS: Readonly<Record<DocxUnsupportedKind, string>> = {
   textBox: "Text box",
@@ -69,7 +70,7 @@ const renderInline = (inline: DocxInline, paragraph: DocxParagraph, key: number)
     case "unsupported":
       return (
         <span key={key} className="mx-0.5 inline-block rounded border border-kumo-line bg-kumo-elevated px-1.5 font-sans text-[11px] leading-5 text-kumo-subtle">
-          {UNSUPPORTED_LABELS[inline.what]} not shown
+          <FormattedMessage id="documentParagraph.notShown" defaultMessage="{value} not shown" values={{ value: UNSUPPORTED_LABELS[inline.what] }} />
         </span>
       );
   }

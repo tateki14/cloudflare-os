@@ -1,3 +1,4 @@
+import { FormattedMessage, useIntl } from 'react-intl'
 import { classifyRpcError, logRpcFailure, rpcFailureDescription } from "../rpcErrors";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -52,7 +53,8 @@ function HomePage() {
 }
 
 export function HomePageContent({ prompt }: HomeSearch) {
-  useDocumentTitle("Home");
+  const { formatMessage } = useIntl();
+  useDocumentTitle(formatMessage({ id: "homePage.documentTitle", defaultMessage: "Home" }));
 
   const { authenticatedApi, currentUser, isCurrentUserConfirmed } = useAuthenticatedApi();
   // Whose remembered models to show: nobody's until the server has confirmed who is signed in.
@@ -91,13 +93,16 @@ export function HomePageContent({ prompt }: HomeSearch) {
         // Toast unless it's a connection error (reconnect refetches); a do-reset here already
         // survived the Worker's same-colo retry, so the user should hear about it.
         if (classifyRpcError(err) !== "connection") {
-          toasts.add({ title: "Couldn't load AI models", variant: "error" });
+          toasts.add({
+            title: formatMessage({ id: "homePage.toastCouldNotLoadModels", defaultMessage: "Couldn't load AI models" }),
+            variant: "error",
+          });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [authenticatedApi]);
+  }, [authenticatedApi, formatMessage]);
 
   const handleModelChange = useCallback((value: string | null) => {
     setSelectedModel(value);
@@ -152,7 +157,7 @@ export function HomePageContent({ prompt }: HomeSearch) {
         }
         if (!transient) {
           toasts.add({
-            title: "Failed to create workspace",
+            title: formatMessage({ id: "routesIndex.failedToCreateWorkspace", defaultMessage: "Failed to create workspace" }),
             description: rpcFailureDescription(err),
             variant: "error",
           });
@@ -160,7 +165,7 @@ export function HomePageContent({ prompt }: HomeSearch) {
         throw err;
       }
     },
-    [ensureProvisionalGadget, navigate, toasts],
+    [ensureProvisionalGadget, navigate, toasts, formatMessage],
   );
 
   const getOverseer = useCallback((): RpcStub<Overseer> => {
@@ -199,10 +204,13 @@ export function HomePageContent({ prompt }: HomeSearch) {
         {/* Hero */}
         <header className="text-center">
           <h1 className="text-3xl font-semibold tracking-tight leading-tight text-kumo-default sm:text-4xl">
-            What are we working on?
+            <FormattedMessage id="homePage.heading" defaultMessage="What are we working on?" />
           </h1>
           <p className="mx-auto mt-3 max-w-md text-[14px] leading-5 tracking-[-0.25px] text-kumo-subtle">
-            Ask a question, create an output, or create an app that works with your tools and data.
+            <FormattedMessage
+              id="homePage.description"
+              defaultMessage="Ask a question, create an output, or create an app that works with your tools and data."
+            />
           </p>
         </header>
 

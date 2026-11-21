@@ -10,6 +10,7 @@ import { FullscreenExitHint } from './components/FullscreenExitHint'
 import { logRpcFailure } from './rpcErrors'
 import { GadgetUseTitle } from './GadgetUseTitle'
 import { SnapshotRefreshButton } from './SnapshotRefreshButton'
+import { useIntl } from 'react-intl'
 
 type Props = {
   overseer: RpcStub<Overseer>
@@ -37,6 +38,7 @@ const PREVIEW_SCALE = 0.6
 export const ShareSnapshotPreview = ({
   overseer, gadgetId, gadgetTitle, workspaceTitle, ownerName, fullscreen, onFullscreenChange,
 }: Props) => {
+  const { formatMessage } = useIntl()
   // A stub is wrapped in an object because useState would call a bare (callable) stub.
   // `refreshedAt` is set by a refresh, which breaks the old copy's connections, to reconnect.
   const [snapshot, setSnapshot] = useState<
@@ -127,11 +129,11 @@ export const ShareSnapshotPreview = ({
           <div className="flex flex-shrink-0 items-center gap-0.5">
             <SnapshotRefreshButton onRefresh={refresh} />
             {/* The recipient's export menu, as it is for a snapshot. */}
-            <GadgetExportMenu gadget={ready.stub} gadgetTitle={gadgetTitle} label="Export snapshot" />
-            <Tooltip content="Full screen" asChild>
+            <GadgetExportMenu gadget={ready.stub} gadgetTitle={gadgetTitle} label={formatMessage({ id: 'shareSnapshotPreview.exportSnapshot', defaultMessage: 'Export snapshot' })} />
+            <Tooltip content={formatMessage({ id: 'shareSnapshotPreview.fullScreen', defaultMessage: 'Full screen' })} asChild>
               <WorkshopIconButton
                 ref={fullscreenButtonRef}
-                aria-label="Enter full screen"
+                aria-label={formatMessage({ id: 'shareSnapshotPreview.enterFullScreen', defaultMessage: 'Enter full screen' })}
                 onClick={() => onFullscreenChange(true)}
               >
                 <ArrowsOutSimple size={17} />
@@ -148,7 +150,7 @@ export const ShareSnapshotPreview = ({
         tabIndex={fullscreen ? -1 : undefined}
         role={fullscreen ? 'dialog' : undefined}
         aria-modal={fullscreen ? true : undefined}
-        aria-label={fullscreen ? 'Snapshot full screen' : undefined}
+        aria-label={fullscreen ? formatMessage({ id: 'shareSnapshotPreview.snapshotFullScreen', defaultMessage: 'Snapshot full screen' }) : undefined}
         className={fullscreen
           ? 'visual-viewport-fixed z-20 bg-kumo-base outline-none'
           : 'relative aspect-video overflow-hidden bg-kumo-base'}
@@ -172,14 +174,14 @@ export const ShareSnapshotPreview = ({
           </div>
         ) : (
           <p className="grid h-full place-items-center px-6 text-center text-[12px] leading-4 tracking-[-0.15px] text-kumo-subtle">
-            {snapshot === 'failed' ? 'Couldn’t load a preview.' : 'Taking a snapshot…'}
+            {snapshot === 'failed' ? formatMessage({ id: 'shareSnapshotPreview.couldntLoadAPreview', defaultMessage: 'Couldn’t load a preview.' }) : formatMessage({ id: 'shareSnapshotPreview.takingASnapshot', defaultMessage: 'Taking a snapshot…' })}
           </p>
         )}
         {fullscreen && <FullscreenExitHint />}
         {/* Escape isn't on a touch keyboard, and Back would leave the workspace. */}
         {fullscreen && (
           <WorkshopIconButton
-            aria-label="Exit full screen"
+            aria-label={formatMessage({ id: 'shareSnapshotPreview.exitFullScreen', defaultMessage: 'Exit full screen' })}
             className="absolute right-3 top-3 z-10 border border-kumo-line bg-kumo-base/90 shadow-md backdrop-blur-sm"
             onClick={() => onFullscreenChange(false)}
           >

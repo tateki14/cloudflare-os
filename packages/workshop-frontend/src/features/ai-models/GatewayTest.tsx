@@ -2,6 +2,7 @@ import { Button } from '@cloudflare/kumo'
 import type { GatewayModelLevelTest, GatewayModelTest } from '@gadgets/workshop-shared/api'
 import { REASONING_LEVEL_LABELS } from './modelForm'
 import type { GatewayTestState } from './useGatewayTests'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * The button that runs a gateway test. A test in flight leaves it enabled, because a browser takes
@@ -15,19 +16,22 @@ export const GatewayTestButton = ({ name, testing, onTest, size = 'sm' }: {
   onTest: () => void
   /** A row's button is small. One beside a form's submit button is that button's size. */
   size?: 'sm' | 'base'
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <Button
     type="button"
     variant="secondary"
     size={size}
     className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-    aria-label={testing ? `Testing ${name}…` : `Test ${name}`}
+    aria-label={testing ? formatMessage({ id: 'gatewayTest.testing2', defaultMessage: 'Testing {name}…' }, { name: name }) : formatMessage({ id: 'gatewayTest.test2', defaultMessage: 'Test {name}' }, { name: name })}
     aria-disabled={testing}
     onClick={() => onTest()}
   >
-    {testing ? 'Testing…' : 'Test'}
+    {testing ? formatMessage({ id: 'gatewayTest.testing', defaultMessage: 'Testing…' }) : formatMessage({ id: 'gatewayTest.test', defaultMessage: 'Test' })}
   </Button>
 )
+}
 
 const STATUS_REGION = 'break-words text-xs leading-4'
 
@@ -38,15 +42,15 @@ const resultColor = (result: GatewayModelTest) =>
 // pass names; a pass of the Auto Router model names the gateway model that answered.
 const resultWording = (result: GatewayModelTest, subject: 'provider' | 'model') => {
   if (!result.ok) {
-    return <>Failed{result.status !== undefined && ` (${result.status})`}:{' '}{result.message}</>
+    return <><FormattedMessage id="gatewayTest.failed" defaultMessage="Failed" />{result.status !== undefined && ` (${result.status})`}:{' '}{result.message}</>
   }
   const via = result.routedModel !== undefined && (
     <> via <span className="font-mono">{result.routedModel}</span></>
   )
   return subject === 'provider' ? (
-    <><span className="font-mono">{result.model}</span> answered through the gateway{via}.</>
+    <><FormattedMessage id="gatewayTest.answeredThroughTheGateway" defaultMessage="<span>{model}</span> answered through the gateway{via}." values={{ model: result.model, span: (chunks) => <span className="font-mono">{chunks}</span>, via: via }} /></>
   ) : (
-    <>Answered through the gateway{via}.</>
+    <><FormattedMessage id="gatewayTest.answeredThroughTheGateway2" defaultMessage="Answered through the gateway{via}." values={{ via: via }} /></>
   )
 }
 
@@ -57,15 +61,13 @@ const unauthorized = (result: GatewayModelTest) =>
 
 const UnauthorizedHint = () => (
   <p className="mt-1 text-kumo-subtle">
-    The gateway may hold no key or credits for this provider, or{' '}
-    <code className="font-mono">CF_AI_GATEWAY_API_TOKEN</code> may not be allowed to run
-    models.
+    <FormattedMessage id="gatewayTest.theGatewayMayHoldNoKey" defaultMessage="The gateway may hold no key or credits for this provider, or <code>CF_AI_GATEWAY_API_TOKEN</code> may not be allowed to run models." values={{ code: (chunks) => <code className="font-mono">{chunks}</code> }} />
   </p>
 )
 
 const NotRun = ({ reason }: { reason: string | undefined }) => (
   <p className="mt-2 text-kumo-danger">
-    Couldn’t run the test{reason === undefined ? '.' : `: ${reason}`}
+    <FormattedMessage id="gatewayTest.couldntRunTheTest" defaultMessage="Couldn’t run the test{value}" values={{ value: reason === undefined ? '.' : `: ${reason}` }} />
   </p>
 )
 
@@ -101,7 +103,9 @@ export const GatewayTestStatus = ({ test, subject }: {
 export const GatewayLevelTestsStatus = ({ test }: {
   /** Where the last test stands. Absent until one is run. */
   test: GatewayTestState<GatewayModelLevelTest[]> | undefined
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <div role="status" className={STATUS_REGION}>
     {test?.state === 'answered' && (
       <>
@@ -109,9 +113,7 @@ export const GatewayLevelTestsStatus = ({ test }: {
           {test.result.map((result) => (
             <li key={result.reasoning ?? 'none'} className={resultColor(result)}>
               <span className="font-medium text-kumo-default">
-                {result.reasoning === null
-                  ? 'No level set'
-                  : REASONING_LEVEL_LABELS[result.reasoning]}
+                {result.reasoning === null ? formatMessage({ id: 'gatewayTest.noLevelSet', defaultMessage: 'No level set' }) : REASONING_LEVEL_LABELS[result.reasoning]}
               </span>
               : {resultWording(result, 'model')}
             </li>
@@ -123,3 +125,4 @@ export const GatewayLevelTestsStatus = ({ test }: {
     {test?.state === 'not-run' && <NotRun reason={test.reason} />}
   </div>
 )
+}

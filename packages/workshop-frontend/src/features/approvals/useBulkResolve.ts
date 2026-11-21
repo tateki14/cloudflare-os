@@ -5,6 +5,7 @@ import { rpcFailureDescription } from '../../rpcErrors'
 import { couldBeAutoApproved, isAutoApproved, type AutoApprovalRules } from './autoApprovalRules'
 import type { PendingChange } from './pendingChangeGroups'
 import type { ActionOutcome } from './useActionOutcomes'
+import { useIntl } from 'react-intl'
 
 /** Which way a bulk run resolves the requests it is given. */
 export type BulkDecision = 'approve' | 'deny'
@@ -151,6 +152,7 @@ export function useBulkResolve(
   overseer: RpcStub<Overseer>,
   inputs: BulkInputs,
 ): BulkResolve {
+  const { formatMessage } = useIntl()
   const { pending, pendingReady, rules, rulesReady, outcome } = inputs
   const [progress, setProgress] = useState<BulkProgress | null>(null)
   const [failure, setFailure] = useState<BulkFailure | null>(null)
@@ -181,9 +183,7 @@ export function useBulkResolve(
       live.current.outcome(entry.id) === (decision === 'approve' ? 'rejected' : 'approved')
     const stopForOpposed = (entry: PendingChange) => setFailure({
       decision, applied, total,
-      reason: decision === 'approve'
-        ? `"${entry.description.title}" was denied elsewhere, so the rest were left alone.`
-        : `"${entry.description.title}" was applied before it could be discarded, so the rest were left alone.`,
+      reason: decision === 'approve' ? formatMessage({ id: 'useBulkResolve.wasDeniedElsewhereSoTheRest', defaultMessage: '"{title}" was denied elsewhere, so the rest were left alone.' }, { title: entry.description.title }) : formatMessage({ id: 'useBulkResolve.wasAppliedBeforeItCouldBe', defaultMessage: '"{title}" was applied before it could be discarded, so the rest were left alone.' }, { title: entry.description.title }),
     })
     // Whether the drain may take this request. With the rule list unreadable, anything a rule
     // could cover counts, since the rule that covers it may be one this client never got to read.

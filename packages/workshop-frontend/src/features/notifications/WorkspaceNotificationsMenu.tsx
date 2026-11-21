@@ -5,6 +5,7 @@ import { useAuthenticatedApi } from '../../AuthContext'
 import { MENU_CONTENT, MENU_ITEM, MENU_POSITIONER_STYLE } from '../../components/menuStyles'
 import { logRpcFailure } from '../../rpcErrors'
 import { describeMute } from './notificationMute'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const hoursFromNow = (hours: number): NotificationMute =>
   ({ until: new Date(Date.now() + hours * 60 * 60_000) })
@@ -33,6 +34,7 @@ export const WorkspaceNotificationsMenu = ({ workspaceId, mute, onMuteChange }: 
   mute?: NotificationMute
   onMuteChange: (mute: NotificationMute | undefined) => void
 }) => {
+  const { formatMessage } = useIntl()
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
 
@@ -42,14 +44,14 @@ export const WorkspaceNotificationsMenu = ({ workspaceId, mute, onMuteChange }: 
       onMuteChange(next)
     } catch (error) {
       logRpcFailure('Failed to update workspace notifications:', error)
-      toasts.add({ title: 'Failed to update notifications', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workspaceNotificationsMenu.failedToUpdateNotifications', defaultMessage: 'Failed to update notifications' }), variant: 'error' })
     }
   }
 
   if (describeMute(mute)) {
     return (
       <DropdownMenu.Item onClick={() => setMute(undefined)} className={MENU_ITEM}>
-        <Bell size={13} /> Unmute notifications
+        <Bell size={13} /> <FormattedMessage id="workspaceNotificationsMenu.unmuteNotifications" defaultMessage="Unmute notifications" />
       </DropdownMenu.Item>
     )
   }
@@ -57,12 +59,12 @@ export const WorkspaceNotificationsMenu = ({ workspaceId, mute, onMuteChange }: 
   return (
     <DropdownMenu.Sub>
       <DropdownMenu.SubTrigger className={MENU_ITEM}>
-        <BellSlash size={13} /> Mute notifications
+        <BellSlash size={13} /> <FormattedMessage id="workspaceNotificationsMenu.muteNotifications" defaultMessage="Mute notifications" />
       </DropdownMenu.SubTrigger>
       <DropdownMenu.SubContent className={MENU_CONTENT} style={MENU_POSITIONER_STYLE}>
         <DropdownMenu.Group>
           <DropdownMenu.Label className="!px-2.5 !py-1.5 text-[12px] text-kumo-subtle">
-            Still notifies when a task needs your permission
+            <FormattedMessage id="workspaceNotificationsMenu.stillNotifiesWhenATaskNeeds" defaultMessage="Still notifies when a task needs your permission" />
           </DropdownMenu.Label>
           {MUTE_CHOICES.map(([label, choose]) => (
             <DropdownMenu.Item key={label} onClick={() => setMute(choose())} className={MENU_ITEM}>

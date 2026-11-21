@@ -1,5 +1,6 @@
 import { LinkBreak, Lock, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import { useEffect, useId, useRef } from 'react'
+import { FormattedMessage } from 'react-intl'
 import {
   getOpenWorkspaceErrorCode,
   OPEN_WORKSPACE_ERROR_CODES,
@@ -11,26 +12,34 @@ export type WorkspaceOpenFailureKind =
 
 const CONTENT = {
   'access-denied': {
-    title: "You don't have access to this workspace",
-    message: 'Ask the workspace owner to grant you access, then try again.',
+    titleMessageId: 'workspaceOpenErrorPage.accessDeniedTitle',
+    titleDefaultMessage: "You don't have access to this workspace",
+    messageMessageId: 'workspaceOpenErrorPage.accessDeniedMessage',
+    messageDefaultMessage: 'Ask the workspace owner to grant you access, then try again.',
     Icon: Lock,
     retryable: true,
   },
   'not-found': {
-    title: 'Workspace not found',
-    message: 'The link may be incorrect, or the workspace may have been deleted.',
+    titleMessageId: 'workspaceOpenErrorPage.notFoundTitle',
+    titleDefaultMessage: 'Workspace not found',
+    messageMessageId: 'workspaceOpenErrorPage.notFoundMessage',
+    messageDefaultMessage: 'The link may be incorrect, or the workspace may have been deleted.',
     Icon: MagnifyingGlass,
     retryable: false,
   },
   'share-links-disabled': {
-    title: 'Share links are turned off for this workspace',
-    message: 'Ask the workspace owner to add you directly, then try again.',
+    titleMessageId: 'workspaceOpenErrorPage.shareLinksDisabledTitle',
+    titleDefaultMessage: 'Share links are turned off for this workspace',
+    messageMessageId: 'workspaceOpenErrorPage.shareLinksDisabledMessage',
+    messageDefaultMessage: 'Ask the workspace owner to add you directly, then try again.',
     Icon: LinkBreak,
     retryable: true,
   },
   unexpected: {
-    title: "We couldn't load this workspace",
-    message: 'Try again. If the problem continues, return to your workspaces.',
+    titleMessageId: 'workspaceOpenErrorPage.unexpectedTitle',
+    titleDefaultMessage: "We couldn't load this workspace",
+    messageMessageId: 'workspaceOpenErrorPage.unexpectedMessage',
+    messageDefaultMessage: 'Try again. If the problem continues, return to your workspaces.',
     Icon: WarningCircle,
     retryable: true,
   },
@@ -56,7 +65,7 @@ type Props = {
 }
 
 export default function WorkspaceOpenErrorPage({ kind, onRetry, onGoToWorkspaces }: Props) {
-  const { title, message, Icon, retryable } = CONTENT[kind]
+  const { titleMessageId, titleDefaultMessage, messageMessageId, messageDefaultMessage, Icon, retryable } = CONTENT[kind]
   const titleId = useId()
   const descriptionId = useId()
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -83,13 +92,13 @@ export default function WorkspaceOpenErrorPage({ kind, onRetry, onGoToWorkspaces
           tabIndex={-1}
           className="mt-5 text-[20px] leading-7 font-semibold tracking-[-0.35px] text-kumo-default outline-none"
         >
-          {title}
+          <FormattedMessage id={titleMessageId} defaultMessage={titleDefaultMessage} />
         </h1>
         <p
           id={descriptionId}
           className="mt-2 text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-subtle"
         >
-          {message}
+          <FormattedMessage id={messageMessageId} defaultMessage={messageDefaultMessage} />
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <WorkshopButton
@@ -97,11 +106,11 @@ export default function WorkspaceOpenErrorPage({ kind, onRetry, onGoToWorkspaces
             className="!h-9"
             onClick={onGoToWorkspaces}
           >
-            Go to workspaces
+            <FormattedMessage id="workspaceOpenErrorPage.goToWorkspaces" defaultMessage="Go to workspaces" />
           </WorkshopButton>
           {retryable && (
             <WorkshopButton tone="primary" onClick={onRetry}>
-              Try again
+              <FormattedMessage id="workspaceOpenErrorPage.tryAgain" defaultMessage="Try again" />
             </WorkshopButton>
           )}
         </div>

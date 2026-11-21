@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import type { ChatAttachmentRef } from "@gadgets/workshop-shared/api";
 import { ChatAttachmentCard } from "./ChatAttachmentCard";
 import { useAttachmentContents } from "./useAttachmentContents";
+import { useIntl } from "react-intl";
 
 const AttachmentViewer = lazy(() =>
   import("./AttachmentViewer").then(m => ({ default: m.AttachmentViewer })));
@@ -15,6 +16,7 @@ export const ChatAttachmentGrid = ({
   /** Fetches the bytes of an attachment the message does not carry inline. */
   loadContent: (attachment: ChatAttachmentRef) => Promise<Uint8Array>;
 }) => {
+  const { formatMessage } = useIntl();
   const [openId, setOpenId] = useState<string | null>(null);
   const { content, forgetFailures } = useAttachmentContents(async (id) => {
     const attachment = attachments.find((candidate) => candidate.id === id);
@@ -25,7 +27,7 @@ export const ChatAttachmentGrid = ({
   return (
     <>
       <ul
-        aria-label="Attachments"
+        aria-label={formatMessage({ id: "chatAttachmentGrid.attachments", defaultMessage: "Attachments" })}
         className="m-0 mb-1.5 flex max-w-[min(680px,78%)] list-none flex-wrap justify-end gap-2 p-0"
       >
         {attachments.map((attachment) => (

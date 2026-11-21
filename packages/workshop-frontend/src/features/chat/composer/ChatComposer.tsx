@@ -1,3 +1,4 @@
+import { FormattedMessage, useIntl } from 'react-intl'
 import { getResourceTypeId } from "@gadgets/workshop-shared/gatekeeper";
 import {
   useState,
@@ -174,6 +175,7 @@ export const ChatComposer = ({
    * pre-approval catalog and proactively offer to pre-approve its actions. */
 }) => {
   const toasts = useKumoToastManager();
+  const { formatMessage } = useIntl();
   const {
     attachments: pendingAttachments,
     addFiles,
@@ -398,8 +400,8 @@ export const ChatComposer = ({
       returnToDraft();
     },
     onReady: () => toasts.add({
-      title: "Voice typing is ready",
-      description: "Select the microphone to start.",
+      title: formatMessage({ id: "chatComposer.voiceTypingIsReady", defaultMessage: "Voice typing is ready" }),
+      description: formatMessage({ id: "chatComposer.selectTheMicrophoneToStart", defaultMessage: "Select the microphone to start." }),
       variant: "success",
     }),
     onError: (title) => toasts.add({ title, variant: "error" }),
@@ -545,15 +547,24 @@ export const ChatComposer = ({
 
     if (!draft.text.trim() && !draft.command && readyAttachments.length === 0) return;
     if (hasUploadingAttachment) {
-      toasts.add({ title: "Please wait for attachment uploads to finish", variant: "error" });
+      toasts.add({
+        title: formatMessage({ id: "chatInterface.toastWaitForUploads", defaultMessage: "Please wait for attachment uploads to finish" }),
+        variant: "error",
+      });
       return;
     }
     if (hasFailedAttachment) {
-      toasts.add({ title: "Remove failed attachment uploads before sending", variant: "error" });
+      toasts.add({
+        title: formatMessage({ id: "chatInterface.toastRemoveFailedUploads", defaultMessage: "Remove failed attachment uploads before sending" }),
+        variant: "error",
+      });
       return;
     }
     if (isCreatingResource) {
-      toasts.add({ title: "Please wait for the resource connection to finish", variant: "error" });
+      toasts.add({
+        title: formatMessage({ id: "chatInterface.toastWaitForResourceConnection", defaultMessage: "Please wait for the resource connection to finish" }),
+        variant: "error",
+      });
       return;
     }
 
@@ -566,7 +577,10 @@ export const ChatComposer = ({
         hasAttachments: readyAttachments.length > 0,
       });
       if (!submissionResult.ok) {
-        toasts.add({ title: "Slash commands cannot include resources or attachments", variant: "error" });
+        toasts.add({
+          title: formatMessage({ id: "chatInterface.toastSlashCommandsNoResources", defaultMessage: "Slash commands cannot include resources or attachments" }),
+          variant: "error",
+        });
         return;
       }
       const { message, capsules: capsuleSpecifiers, formats: formatRefs } =
@@ -795,7 +809,9 @@ export const ChatComposer = ({
               <span className={`grid h-7 w-7 place-items-center rounded-full ${canAttachMore ? "bg-kumo-brand/12 text-kumo-brand" : "bg-kumo-warning/15 text-kumo-warning"}`}>
                 <FileIcon size={16} weight="duotone" />
               </span>
-              {canAttachMore ? "Drop files to attach" : "Messages are limited to 5 attachments"}
+              {canAttachMore
+                ? <FormattedMessage id="chatInterface.dropFilesToAttach" defaultMessage="Drop files to attach" />
+                : <FormattedMessage id="chatInterface.messagesLimitedToAttachments" defaultMessage="Messages are limited to 5 attachments" />}
             </div>
           </div>
         )}
@@ -804,8 +820,14 @@ export const ChatComposer = ({
           <div className="px-4 pt-2 text-xs text-kumo-warning">
             {/* Composers without a chatKey (new-chat, home page) have no thread to check. */}
             {chatKey != null
-              ? "Connection hiccup — your message may not have been sent. Check the thread, then try again; if it keeps failing, reload the page."
-              : "Connection hiccup — your message may not have been sent. Try again; if it keeps failing, reload the page."}
+              ? <FormattedMessage
+                  id="chatInterface.connectionHiccupWithThread"
+                  defaultMessage="Connection hiccup — your message may not have been sent. Check the thread, then try again; if it keeps failing, reload the page."
+                />
+              : <FormattedMessage
+                  id="chatInterface.connectionHiccup"
+                  defaultMessage="Connection hiccup — your message may not have been sent. Try again; if it keeps failing, reload the page."
+                />}
           </div>
         )}
         <ComposerAttachmentTray
@@ -820,7 +842,13 @@ export const ChatComposer = ({
           <div className="sr-only" aria-live="polite">
             {slashCommandPicker.status ||
               (selectedSlashCommand
-                ? `Slash command /${selectedSlashCommand.choice.name} from ${selectedSlashCommand.choice.providerLabel} is ready to send`
+                ? formatMessage(
+                    {
+                      id: "chatInterface.slashCommandReadyToSend",
+                      defaultMessage: "Slash command /{name} from {provider} is ready to send",
+                    },
+                    { name: selectedSlashCommand.choice.name, provider: selectedSlashCommand.choice.providerLabel },
+                  )
                 : "")}
           </div>
           <div ref={wrapperRef} className={styles.capsuleInputWrapper}>
@@ -889,13 +917,9 @@ export const ChatComposer = ({
               }}
               disabled={isBlocked}
               placeholder={
-                isBlocked
-                  ? blockedReason
-                  : isAgentActive
-                    ? "Message the agent while it works…"
-                    : newChat
-                      ? "Start a new conversation…"
-                      : "Ask a follow-up…"
+                isBlocked ? blockedReason : isAgentActive ? formatMessage({ id: "chatComposer.messageTheAgentWhileItWorks", defaultMessage: "Message the agent while it works…" }) : newChat
+                      ? formatMessage({ id: "chatInterface.startNewConversation", defaultMessage: "Start a new conversation…" })
+                      : formatMessage({ id: "chatInterface.askFollowUp", defaultMessage: "Ask a follow-up…" })
               }
               autoFocus={autoFocus}
               rows={minRows}
@@ -1058,7 +1082,7 @@ export const ChatComposer = ({
                   <button
                     type="button"
                     className="group flex h-10 w-10 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg text-kumo-inactive transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-tint hover:text-kumo-subtle focus-visible:bg-kumo-tint focus-visible:text-kumo-subtle focus-visible:outline-none active:scale-[0.96] data-[popup-open]:bg-kumo-tint data-[popup-open]:text-kumo-subtle sm:h-8 sm:w-8"
-                    aria-label="More chat options"
+                    aria-label={formatMessage({ id: "chatInterface.openChatOptions", defaultMessage: "More chat options" })}
                   >
                     <DotsThree size={18} weight="bold" />
                   </button>
@@ -1082,7 +1106,9 @@ export const ChatComposer = ({
                       <Brain size={14} />
                     </span>
                     <span className="flex-1">
-                      {showThinkingTraces ? "Hide thinking" : "Show thinking"}
+                      {showThinkingTraces
+                        ? <FormattedMessage id="chatInterface.hideThinking" defaultMessage="Hide thinking" />
+                        : <FormattedMessage id="chatInterface.showThinking" defaultMessage="Show thinking" />}
                     </span>
                   </DropdownMenu.Item>
                 )}
@@ -1105,7 +1131,7 @@ export const ChatComposer = ({
                   disabled={isSending || isStopping}
                   tone={canSteer ? "ghost" : "primary"}
                   className="!h-10 !w-10 sm:!h-8 sm:!w-8"
-                  aria-label="Stop agent"
+                  aria-label={formatMessage({ id: "chatInterface.stopAgent", defaultMessage: "Stop agent" })}
                 >
                   <svg
                     width="14"
@@ -1123,7 +1149,7 @@ export const ChatComposer = ({
                   disabled={!canSend && !canSteer}
                   tone="primary"
                   className="!h-10 !w-10 disabled:cursor-not-allowed disabled:opacity-30 sm:!h-8 sm:!w-8"
-                  aria-label="Send message"
+                  aria-label={formatMessage({ id: "chatInterface.sendMessage", defaultMessage: "Send message" })}
                 >
                   {/* Arrow-up icon */}
                   <svg

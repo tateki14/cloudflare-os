@@ -9,6 +9,7 @@ import { GatewayTestButton, GatewayTestStatus } from './GatewayTest'
 import { MoveButtons, rowMove, type RowMove } from './MoveButtons'
 import { PROVIDER_LABELS } from './modelForm'
 import { useGatewayTests, type GatewayTestState } from './useGatewayTests'
+import { FormattedMessage } from 'react-intl'
 
 const ProviderRow = ({ entry, busy, test, move, onEnabledChange, onTest }: {
   entry: AdminGatewayProvider
@@ -32,7 +33,7 @@ const ProviderRow = ({ entry, busy, test, move, onEnabledChange, onTest }: {
           <p className="text-sm font-medium text-kumo-default">{label}</p>
           {locked && (
             <p id={lockedNote} className="mt-0.5 text-xs text-kumo-subtle">
-              Set by <code className="font-mono">CF_AI_GATEWAY_PROVIDERS</code>
+              <FormattedMessage id="gatewayProviders.setByCfAiGatewayProviders" defaultMessage="Set by <code>CF_AI_GATEWAY_PROVIDERS</code>" values={{ code: (chunks) => <code className="font-mono">{chunks}</code> }} />
             </p>
           )}
         </div>
@@ -54,8 +55,7 @@ const ProviderRow = ({ entry, busy, test, move, onEnabledChange, onTest }: {
           size="sm"
           description={
             <>
-              Needs <code className="font-mono">CF_AI_GATEWAY_API_TOKEN</code>: requests to this
-              provider fail until the deployment sets it.
+              <FormattedMessage id="gatewayProviders.needsCfAiGatewayApiToken" defaultMessage="Needs <code>CF_AI_GATEWAY_API_TOKEN</code>: requests to this provider fail until the deployment sets it." values={{ code: (chunks) => <code className="font-mono">{chunks}</code> }} />
             </>
           }
         />
@@ -90,12 +90,7 @@ export const GatewayProviders = ({ providers, busy, onEnabledChange, onOrderChan
   return (
     <>
       <p className="mb-2 text-sm text-kumo-subtle">
-        The providers whose models this deployment can offer through its AI Gateway. The ones
-        listed in <code className="font-mono text-xs">CF_AI_GATEWAY_PROVIDERS</code> are always on;
-        the others can be turned on here. Provider keys or credits are stored in the gateway, where
-        this page cannot see them, so use Test to find out whether a provider answers. The model
-        pickers list the providers in this order, and a new user or chat gets the first enabled
-        model.
+        <FormattedMessage id="gatewayProviders.theProvidersWhoseModelsThisDeployment" defaultMessage="The providers whose models this deployment can offer through its AI Gateway. The ones listed in <code>CF_AI_GATEWAY_PROVIDERS</code> are always on; the others can be turned on here. Provider keys or credits are stored in the gateway, where this page cannot see them, so use Test to find out whether a provider answers. The model pickers list the providers in this order, and a new user or chat gets the first enabled model." values={{ code: (chunks) => <code className="font-mono text-xs">{chunks}</code> }} />
       </p>
       <ul className="flex flex-col gap-2">
         {providers.map((entry, index) => (

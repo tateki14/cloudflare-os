@@ -6,6 +6,7 @@ import type { AiChatMessage, Overseer } from '@gadgets/workshop-shared/api'
 import { ResolveButton } from '../../components/ResolveButton'
 import { RestrictedApprovalNotice } from '../../components/RestrictedApprovalNotice'
 import { rpcFailureDescription } from '../../rpcErrors'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** An agent's request to fetch a URL that its restricted workspace would otherwise refuse. */
 export const WebFetchRequestCard = ({ overseer, request, pendingRequestIds }: {
@@ -14,6 +15,7 @@ export const WebFetchRequestCard = ({ overseer, request, pendingRequestIds }: {
   /** Every pending web fetch request in the chat, oldest first, for "Approve all". */
   pendingRequestIds: string[]
 }) => {
+  const { formatMessage } = useIntl()
   const [deciding, setDeciding] = useState(false)
   const toasts = useKumoToastManager()
   const noticeId = useId()
@@ -31,7 +33,7 @@ export const WebFetchRequestCard = ({ overseer, request, pendingRequestIds }: {
       }
     } catch (err) {
       toasts.add({
-        title: approve ? 'Failed to approve the web fetch' : 'Failed to deny the web fetch',
+        title: approve ? formatMessage({ id: 'webFetchRequestCard.failedToApproveTheWebFetch', defaultMessage: 'Failed to approve the web fetch' }) : formatMessage({ id: 'webFetchRequestCard.failedToDenyTheWebFetch', defaultMessage: 'Failed to deny the web fetch' }),
         description: rpcFailureDescription(err),
         variant: 'error',
       })
@@ -49,12 +51,12 @@ export const WebFetchRequestCard = ({ overseer, request, pendingRequestIds }: {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="font-medium text-kumo-default">Fetch a web page</span>
+              <span className="font-medium text-kumo-default"><FormattedMessage id="webFetchRequestCard.fetchAWebPage" defaultMessage="Fetch a web page" /></span>
               {request.state === 'approved' && (
-                <span className="text-[12px] font-medium text-kumo-success">Approved</span>
+                <span className="text-[12px] font-medium text-kumo-success"><FormattedMessage id="webFetchRequestCard.approved" defaultMessage="Approved" /></span>
               )}
               {request.state === 'denied' && (
-                <span className="text-[12px] font-medium text-kumo-danger">Denied</span>
+                <span className="text-[12px] font-medium text-kumo-danger"><FormattedMessage id="webFetchRequestCard.denied" defaultMessage="Denied" /></span>
               )}
             </div>
             <p id={urlId} className="m-0 mt-1 break-all font-mono text-[12px] leading-[18px] text-kumo-default">
@@ -88,7 +90,7 @@ export const WebFetchRequestCard = ({ overseer, request, pendingRequestIds }: {
               onClick={() => void decide(true, pendingRequestIds)}
               disabled={deciding}
             >
-              Approve all {pendingRequestIds.length}
+              <FormattedMessage id="webFetchRequestCard.approveAll" defaultMessage="Approve all {length}" values={{ length: pendingRequestIds.length }} />
             </Button>
           </div>
         )}

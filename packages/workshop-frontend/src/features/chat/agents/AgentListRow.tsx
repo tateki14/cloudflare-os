@@ -8,6 +8,7 @@ import { formatLastRun, formatRunAge, hasPendingChanges, needsReview } from './a
 import { UnreadBadge } from '../../notifications/UnreadBadge'
 import { RunApprovalPopover } from './RunApprovalPopover'
 import { RunUnreadMenu } from './RunUnreadMenu'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const countRuns = (count: number) => `${count} ${count === 1 ? 'run' : 'runs'}`
 
@@ -27,6 +28,7 @@ const RunRow = ({
   overseer: RpcStub<Overseer>
   onOpen: () => void
 }) => {
+  const { formatMessage } = useIntl()
   const hasApprovals = approvals.length > 0
   const changes = hasPendingChanges(run)
   const rowRef = useRef<HTMLButtonElement>(null)
@@ -47,11 +49,11 @@ const RunRow = ({
     <Button
       size="xs"
       variant="secondary"
-      aria-label={`Review ${run.title}`}
+      aria-label={formatMessage({ id: 'agentListRow.review2', defaultMessage: 'Review {title}' }, { title: run.title })}
       className="flex-shrink-0"
       onClick={hasApprovals ? undefined : onOpen}
     >
-      Review
+      <FormattedMessage id="agentListRow.review" defaultMessage="Review" />
     </Button>
   )
 
@@ -91,7 +93,7 @@ const RunRow = ({
           {review ? null : changes ? (
             // Unaccepted work is reviewed against its code, in the run, which is where the row goes.
             <span className="flex flex-shrink-0 items-center gap-1 text-[11.5px] leading-4 font-semibold text-kumo-warning">
-              Changes
+              <FormattedMessage id="agentListRow.changes" defaultMessage="Changes" />
               <ArrowRight size={10} weight="bold" aria-hidden="true" />
             </span>
           ) : activityLine ? (
@@ -233,7 +235,7 @@ export const AgentListRow = ({
             onClick={onOpenAgent}
             className="flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-left text-[11.5px] leading-4 font-medium text-kumo-brand transition-colors hover:text-kumo-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring"
           >
-            Open agent
+            <FormattedMessage id="agentListRow.openAgent" defaultMessage="Open agent" />
             <ArrowRight size={10} weight="bold" aria-hidden="true" />
           </button>
         </div>

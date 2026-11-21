@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Select, type PortalContainer } from '@cloudflare/kumo'
 import type { AiChatAuthorInfo } from '@gadgets/workshop-shared/api'
 import { ConnectionConfigField } from './ConnectionConfigField'
+import { useIntl } from 'react-intl'
 
 export interface AiModelConnectionConfigProps {
   chatModels: AiChatAuthorInfo[]
@@ -18,22 +19,23 @@ export function AiModelConnectionConfig({
   onSelectedModelIdChange,
   selectContainer,
 }: AiModelConnectionConfigProps) {
+  const { formatMessage } = useIntl()
   const groups = [
-    { label: 'Language models', models: chatModels },
-    { label: 'Decision models', models: decisionModels },
+    { label: formatMessage({ id: 'aiModelConnectionConfig.languageModels', defaultMessage: 'Language models' }), models: chatModels },
+    { label: formatMessage({ id: 'aiModelConnectionConfig.decisionModels', defaultMessage: 'Decision models' }), models: decisionModels },
   ].filter(group => group.models.length > 0)
 
   return (
     <section className="grid gap-3">
       <ConnectionConfigField
-        label="Model"
-        description="Language models write text. Decision models answer questions with probabilities."
+        label={formatMessage({ id: 'aiModelConnectionConfig.modelLabel', defaultMessage: 'Model' })}
+        description={formatMessage({ id: 'aiModelConnectionConfig.modelKindsDescription', defaultMessage: 'Language models write text. Decision models answer questions with probabilities.' })}
       >
         <Select
-          aria-label="Select an AI model"
+          aria-label={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
           className="w-full text-sm [&_button]:!h-9"
           container={selectContainer}
-          placeholder="Select an AI model"
+          placeholder={formatMessage({ id: 'aiModelConnectionConfig.selectAiModel', defaultMessage: 'Select an AI model' })}
           value={selectedModelId}
           onValueChange={(v) => onSelectedModelIdChange(v as string | undefined)}
           renderValue={(id) => [...chatModels, ...decisionModels].find((m) => m.id === id)?.name ?? id}

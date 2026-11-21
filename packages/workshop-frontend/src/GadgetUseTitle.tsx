@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Hexagon } from '@phosphor-icons/react'
 import SiteLogo from './components/SiteLogo'
+import { useIntl } from 'react-intl'
 
 type Props = {
   workspaceTitle: string
@@ -11,11 +12,13 @@ type Props = {
 }
 
 /** The top-bar title a "use" collaborator sees: the site logo, the workspace, and its owner. */
-export const GadgetUseTitle = ({ workspaceTitle, ownerName, withLogo }: Props) => (
+export const GadgetUseTitle = ({ workspaceTitle, ownerName, withLogo }: Props) => {
+  const { formatMessage } = useIntl()
+  return (
   <div className="flex items-center gap-2 min-w-0">
     {withLogo && (
       <>
-        <Link to="/" aria-label="Home" className="flex-shrink-0 hover:opacity-80 transition-opacity">
+        <Link to="/" aria-label={formatMessage({ id: 'gadgetUseTitle.home', defaultMessage: 'Home' })} className="flex-shrink-0 hover:opacity-80 transition-opacity">
           <SiteLogo size={22}>
             <Hexagon size={22} className="text-kumo-brand" weight="bold" />
           </SiteLogo>
@@ -39,3 +42,4 @@ export const GadgetUseTitle = ({ workspaceTitle, ownerName, withLogo }: Props) =
     </span>
   </div>
 )
+}

@@ -1,3 +1,4 @@
+import { useIntl } from 'react-intl'
 import { useEffect, useRef, useState } from "react";
 import type { RpcStub } from "capnweb";
 import type { GatekeeperClient } from "@gadgets/workshop-shared/api";
@@ -47,7 +48,7 @@ type AttachTarget =
   | { type: "position"; snapshot: ComposerDocumentSnapshot; position: number }
   | { type: "url"; source: ActiveResourceUrl };
 
-const PROMPT_CHANGED_MESSAGE = "The prompt changed before the resource could be added";
+const PROMPT_CHANGED_MESSAGE = { id: "chatInterface.toastPromptChangedBeforeResourceAdded", defaultMessage: "The prompt changed before the resource could be added" };
 
 type UseComposerResourcesOptions = {
   createCapsuleGatekeeper: (
@@ -137,6 +138,7 @@ export const useComposerResources = ({
   onSelectionRequest,
   onError,
 }: UseComposerResourcesOptions) => {
+  const { formatMessage } = useIntl();
   const [activeUrl, setActiveUrl] = useState<ActiveResourceUrl | null>(null);
   const [attachModal, setAttachModal] = useState<{
     prefill?: ComposerAttachModalPrefill;
@@ -216,7 +218,7 @@ export const useComposerResources = ({
     const snapshot = getDocumentSnapshot();
     const url = findResourceUrl(sourceText, snapshot.document);
     if (!url) {
-      onError(PROMPT_CHANGED_MESSAGE);
+      onError(formatMessage(PROMPT_CHANGED_MESSAGE));
       return;
     }
     attachTargetRef.current = { type: "url", source: { ...url, snapshot } };
@@ -235,7 +237,7 @@ export const useComposerResources = ({
       const gatekeeper = await createCapsuleGatekeeper(resolution.accountId, url);
       if (!gatekeeper) {
         if (operationRef.current !== operation) return;
-        onError("Failed to create resource connection", undefined, configure);
+        onError(formatMessage({ id: "chatInterface.toastFailedToCreateResourceConnection", defaultMessage: "Failed to create resource connection" }), undefined, configure);
         return;
       }
       let inserted = false;
@@ -250,7 +252,7 @@ export const useComposerResources = ({
           { gatekeeperId, description, vendorId: resolution.vendorId },
         );
         if (!result) {
-          onError(PROMPT_CHANGED_MESSAGE);
+          onError(formatMessage(PROMPT_CHANGED_MESSAGE));
           dismissUrl();
           return;
         }
@@ -265,7 +267,7 @@ export const useComposerResources = ({
     } catch (error) {
       if (operationRef.current !== operation) return;
       console.error("Failed to create capsule:", error);
-      onError("Failed to add resource", rpcFailureDescription(error), configure);
+      onError(formatMessage({ id: "chatInterface.toastFailedToAddResource", defaultMessage: "Failed to add resource" }), rpcFailureDescription(error), configure);
     } finally {
       if (operationRef.current === operation) setIsCreatingResource(false);
     }
@@ -334,7 +336,7 @@ export const useComposerResources = ({
         }, { allowPresentationChanges: true });
       closeAttachModal();
       if (!result) {
-        onError(PROMPT_CHANGED_MESSAGE);
+        onError(formatMessage(PROMPT_CHANGED_MESSAGE));
         return;
       }
       inserted = true;

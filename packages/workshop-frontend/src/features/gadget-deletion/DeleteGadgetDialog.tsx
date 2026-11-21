@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Dialog } from '@cloudflare/kumo'
 import type { GadgetSummary, WorkpieceId } from '@gadgets/workshop-shared/api'
+import { FormattedMessage } from 'react-intl'
 
 /**
  * Confirms deleting `gadget`. Mounted per request, it opens at once and calls `onClosed` once its
@@ -43,22 +44,21 @@ export const DeleteGadgetDialog = ({
     >
       <Dialog className="responsive-dialog overflow-y-auto p-8">
         <Dialog.Title className="text-lg font-semibold">
-          Delete “{gadget.title}”?
+          <FormattedMessage id="deleteGadgetDialog.delete" defaultMessage="Delete “{title}”?" values={{ title: gadget.title }} />
         </Dialog.Title>
         <Dialog.Description className="mt-2 text-kumo-subtle">
-          This permanently deletes the gadget, its data and its hooks. Its connections stay in the
-          workspace. This can’t be undone.
+          <FormattedMessage id="deleteGadgetDialog.thisPermanentlyDeletesTheGadgetIts" defaultMessage="This permanently deletes the gadget, its data and its hooks. Its connections stay in the workspace. This can’t be undone." />
         </Dialog.Description>
         <div className="mt-6 flex justify-end gap-2">
           <Dialog.Close
             render={props => (
               <Button variant="secondary" {...props} disabled={busy}>
-                Cancel
+                <FormattedMessage id="deleteGadgetDialog.cancel" defaultMessage="Cancel" />
               </Button>
             )}
           />
           <Button variant="destructive" loading={busy} onClick={() => { void confirm() }}>
-            Delete
+            <FormattedMessage id="deleteGadgetDialog.delete2" defaultMessage="Delete" />
           </Button>
         </div>
       </Dialog>

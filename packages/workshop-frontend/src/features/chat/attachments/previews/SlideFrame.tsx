@@ -4,6 +4,7 @@ import { SlideImage } from "./SlideImage";
 import { SlideShapeView } from "./SlideShapeView";
 import { scrollRoot } from "./scrollRoot";
 import { fillBackground } from "./slideStyles";
+import { useIntl } from "react-intl";
 
 /**
  * One slide: a placeholder of the right shape until it nears the viewport, then its contents,
@@ -15,6 +16,7 @@ export const SlideFrame = ({ slide, slideWidth, slideHeight, width }: {
   slideHeight: number;
   width: number;
 }) => {
+  const { formatMessage } = useIntl();
   const hostRef = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
 
@@ -36,7 +38,7 @@ export const SlideFrame = ({ slide, slideWidth, slideHeight, width }: {
     <div
       ref={hostRef}
       role="group"
-      aria-label={`Slide ${slide.number}`}
+      aria-label={formatMessage({ id: "slideFrame.slide", defaultMessage: "Slide {number}" }, { number: slide.number })}
       className="relative shrink-0 overflow-hidden bg-kumo-base shadow-sm ring-1 ring-kumo-line"
       style={{ width, height: Math.round(width * slideHeight / slideWidth) }}
     >

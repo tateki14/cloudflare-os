@@ -11,6 +11,7 @@ import {
   ancestorDirs, resolveRenamePath, type BrowserNode, type BrowserTree, type ChangedFile,
   type FileChangeStatus, type LeafKind,
 } from './workpieceTree'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 // The code view's file browser: a Changes list (the files that differ from the review base, flat,
 // with status dots) above the Files tree (the workpiece's whole displayed tree; see
@@ -102,6 +103,7 @@ export default function FileBrowser({
   onRequestClose,
   ref,
 }: FileBrowserProps) {
+  const { formatMessage } = useIntl()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [newFileName, setNewFileName] = useState('')
@@ -153,11 +155,11 @@ export default function FileBrowser({
   const handleCreateFile = () => {
     const path = newFileName.trim()
     if (!path) {
-      toasts.add({ title: 'Filename cannot be empty', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'fileBrowser.filenameCannotBeEmpty', defaultMessage: 'Filename cannot be empty' }), variant: 'error' })
       return
     }
     if (tree.leaves.has(path)) {
-      toasts.add({ title: 'A file with this name already exists', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'fileBrowser.aFileWithThisNameAlready', defaultMessage: 'A file with this name already exists' }), variant: 'error' })
       return
     }
     onFileCreate(path)
@@ -175,7 +177,7 @@ export default function FileBrowser({
     }
     const nextPath = resolveRenamePath(path, trimmed)
     if (nextPath === null) {
-      toasts.add({ title: 'Invalid file path', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'fileBrowser.invalidFilePath', defaultMessage: 'Invalid file path' }), variant: 'error' })
       return
     }
     if (nextPath === path) {
@@ -183,7 +185,7 @@ export default function FileBrowser({
       return
     }
     if (tree.leaves.has(nextPath)) {
-      toasts.add({ title: 'A file with this name already exists', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'fileBrowser.aFileWithThisNameAlready', defaultMessage: 'A file with this name already exists' }), variant: 'error' })
       return
     }
     onFileRename(path, nextPath)
@@ -192,7 +194,7 @@ export default function FileBrowser({
 
   const startDelete = (path: string) => {
     if (tree.leaves.size <= 1) {
-      toasts.add({ title: 'Cannot delete the last remaining file', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'fileBrowser.cannotDeleteTheLastRemainingFile', defaultMessage: 'Cannot delete the last remaining file' }), variant: 'error' })
       return
     }
     setDeletingFile(path)
@@ -260,14 +262,14 @@ export default function FileBrowser({
     <div className={`flex h-full w-[260px] flex-col border-r border-kumo-line bg-kumo-base ${className}`}>
       <div className="flex h-9 shrink-0 items-center justify-between gap-2 px-3 pt-3 pb-2">
         <span className={SECTION_HEADER_CLASS}>
-          {showChanges ? `Changes (${changes.length})` : 'Files'}
+          {showChanges ? formatMessage({ id: 'fileBrowser.changes', defaultMessage: 'Changes ({length})' }, { length: changes.length }) : formatMessage({ id: 'fileBrowser.files', defaultMessage: 'Files' })}
         </span>
         <div className="flex items-center gap-1">
           <WorkshopIconButton
             onClick={() => setIsCreateModalOpen(true)}
             disabled={editLocked}
-            aria-label="New file"
-            title={lockedHint ?? 'New file'}
+            aria-label={formatMessage({ id: 'fileBrowser.newFile', defaultMessage: 'New file' })}
+            title={lockedHint ?? formatMessage({ id: 'fileBrowser.newFile', defaultMessage: 'New file' })}
             className="!h-8 !w-8 text-kumo-subtle hover:bg-kumo-tint hover:text-kumo-default md:!h-6 md:!w-6"
           >
             <Plus size={14} weight="bold" />
@@ -275,7 +277,7 @@ export default function FileBrowser({
           {onRequestClose && (
             <WorkshopIconButton
               onClick={onRequestClose}
-              aria-label="Close files"
+              aria-label={formatMessage({ id: 'fileBrowser.closeFiles', defaultMessage: 'Close files' })}
               className="!h-8 !w-8 md:!hidden"
             >
               <X size={16} />
@@ -305,7 +307,7 @@ export default function FileBrowser({
               })}
             </div>
             <div className="mb-1 flex h-6 items-center px-1">
-              <span className={SECTION_HEADER_CLASS}>Files</span>
+              <span className={SECTION_HEADER_CLASS}><FormattedMessage id="fileBrowser.files" defaultMessage="Files" /></span>
             </div>
           </>
         )}
@@ -330,10 +332,10 @@ export default function FileBrowser({
           <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
             <div className="min-w-0">
               <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-                New file
+                <FormattedMessage id="fileBrowser.newFile" defaultMessage="New file" />
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-                Create a new file in this {workpieceNoun}. Include a directory to place it there.
+                <FormattedMessage id="fileBrowser.createANewFileInThis" defaultMessage="Create a new file in this {workpieceNoun}. Include a directory to place it there." values={{ workpieceNoun: workpieceNoun }} />
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -341,7 +343,7 @@ export default function FileBrowser({
                 <WorkshopIconButton
                   {...props}
                   className="!h-7 !w-7"
-                  aria-label="Close"
+                  aria-label={formatMessage({ id: 'fileBrowser.close', defaultMessage: 'Close' })}
                 >
                   <X size={16} />
                 </WorkshopIconButton>
@@ -353,7 +355,7 @@ export default function FileBrowser({
             <WorkshopInput
               autoFocus
               placeholder="src/filename.ts"
-              aria-label="Filename"
+              aria-label={formatMessage({ id: 'fileBrowser.filename', defaultMessage: 'Filename' })}
               value={newFileName}
               onChange={(e) => setNewFileName(e.target.value)}
               onKeyDown={(e) => {
@@ -377,7 +379,7 @@ export default function FileBrowser({
                   {...props}
                   className="!h-9"
                 >
-                  Cancel
+                  <FormattedMessage id="fileBrowser.cancel" defaultMessage="Cancel" />
                 </WorkshopButton>
               )}
             />
@@ -386,7 +388,7 @@ export default function FileBrowser({
               onClick={handleCreateFile}
               disabled={!newFileName.trim()}
             >
-              Create file
+              <FormattedMessage id="fileBrowser.createFile" defaultMessage="Create file" />
             </WorkshopButton>
           </div>
         </Dialog>
@@ -397,8 +399,8 @@ export default function FileBrowser({
         onOpenChange={(o) => {
           if (!o) setDeletingFile(null)
         }}
-        title="Delete file?"
-        description={<>This removes <span className="font-mono text-kumo-default">{deletingFile}</span> from the {workpieceNoun}. You can&apos;t undo this.</>}
+        title={formatMessage({ id: 'fileBrowser.deleteFile', defaultMessage: 'Delete file?' })}
+        description={<><FormattedMessage id="fileBrowser.thisRemovesFromTheYouCant" defaultMessage="This removes <span>{deletingFile}</span> from the {workpieceNoun}. You can't undo this." values={{ deletingFile: deletingFile, span: (chunks) => <span className="font-mono text-kumo-default">{chunks}</span>, workpieceNoun: workpieceNoun }} /></>}
         onConfirm={confirmDelete}
       />
     </div>
@@ -457,6 +459,7 @@ function FileRow({
   onRenameSubmit,
   onRenameCancel,
 }: FileRowProps) {
+  const { formatMessage } = useIntl()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [renameValue, setRenameValue] = useState(label)
   const openable = isOpenableKind(kind)
@@ -528,7 +531,7 @@ function FileRow({
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          aria-label={`Rename ${path}`}
+          aria-label={formatMessage({ id: 'fileBrowser.rename', defaultMessage: 'Rename {path}' }, { path: path })}
           className="min-w-0 flex-1 bg-transparent text-[16px] leading-5 text-kumo-default outline-none placeholder:text-kumo-inactive md:text-[13px] md:leading-[18px]"
         />
       ) : openable ? (
@@ -550,8 +553,8 @@ function FileRow({
           {isStreamingActive && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-kumo-success"
-              aria-label={`${path} is being edited`}
-              title="Agent is editing this file"
+              aria-label={formatMessage({ id: 'fileBrowser.isBeingEdited', defaultMessage: '{path} is being edited' }, { path: path })}
+              title={formatMessage({ id: 'fileBrowser.agentIsEditingThisFile', defaultMessage: 'Agent is editing this file' })}
             />
           )}
         </button>
@@ -577,7 +580,7 @@ function FileRow({
           <DropdownMenu.Trigger
             render={(
               <WorkshopIconButton
-                aria-label={`Actions for ${path}`}
+                aria-label={formatMessage({ id: 'fileBrowser.actionsFor', defaultMessage: 'Actions for {path}' }, { path: path })}
                 onClick={(event) => event.stopPropagation()}
                 className="!h-8 !w-8 text-kumo-inactive opacity-100 hover:bg-kumo-tint hover:text-kumo-default focus-visible:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 md:!h-5 md:!w-5 md:opacity-0"
               >
@@ -594,7 +597,7 @@ function FileRow({
               onClick={onDownload}
               className="!h-auto rounded-md !px-2.5 !py-1.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-default transition-colors data-highlighted:bg-kumo-tint"
             >
-              Download
+              <FormattedMessage id="fileBrowser.download" defaultMessage="Download" />
             </DropdownMenu.Item>
             {!editLocked && (
               <>
@@ -604,7 +607,7 @@ function FileRow({
                     onClick={onRename}
                     className="!h-auto rounded-md !px-2.5 !py-1.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-default transition-colors data-highlighted:bg-kumo-tint"
                   >
-                    Rename
+                    <FormattedMessage id="fileBrowser.rename2" defaultMessage="Rename" />
                   </DropdownMenu.Item>
                 )}
                 <DropdownMenu.Item
@@ -613,7 +616,7 @@ function FileRow({
                   onClick={onDelete}
                   className="!h-auto rounded-md !px-2.5 !py-1.5 text-[12px] leading-4 tracking-[-0.2px] transition-colors data-highlighted:bg-kumo-danger-tint"
                 >
-                  Delete
+                  <FormattedMessage id="fileBrowser.delete" defaultMessage="Delete" />
                 </DropdownMenu.Item>
               </>
             )}

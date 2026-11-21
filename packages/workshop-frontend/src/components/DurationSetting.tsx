@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button, Input } from '@cloudflare/kumo'
 import { useFieldErrorAlert } from '../hooks/useFieldErrorAlert'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 // The whole number typed into a field, or null unless it is one from `min` to `max`.
 const parseWholeNumber = (text: string, min: number, max: number): number | null => {
@@ -26,6 +27,7 @@ export const DurationSetting = ({ label, help, unit, min, max, value, onSave }: 
    */
   onSave: (value: number) => Promise<boolean>
 }) => {
+  const { formatMessage } = useIntl()
   // What is typed into the field, or null while the field shows the server's value.
   const [draft, setDraft] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -90,9 +92,9 @@ export const DurationSetting = ({ label, help, unit, min, max, value, onSave }: 
           size="sm"
           loading={saving}
           disabled={saving}
-          aria-label={`Save “${label}”`}
+          aria-label={formatMessage({ id: 'durationSetting.save2', defaultMessage: 'Save “{label}”' }, { label: label })}
         >
-          Save
+          <FormattedMessage id="durationSetting.save" defaultMessage="Save" />
         </Button>
       </div>
     </form>

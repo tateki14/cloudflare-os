@@ -8,9 +8,11 @@ import type { AuthenticatedApi } from "@gadgets/workshop-shared/api";
 import { useAuthenticatedApi } from "../../AuthContext";
 import { UnreadBadge } from "./UnreadBadge";
 import { useUnreadState } from "./UnreadStateBridge";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /** A live inbox of unread conversations. Previewing a thread never marks it read. */
 export const UnreadThreads = () => {
+  const { formatMessage } = useIntl();
   const unread = useUnreadState();
   const { authenticatedApi } = useAuthenticatedApi();
   const state = unread?.state;
@@ -38,9 +40,9 @@ export const UnreadThreads = () => {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col px-3 sm:px-10">
       <header className="flex flex-wrap items-center justify-between gap-4 px-3 pb-5 pt-6 sm:pt-10">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default">Unread threads</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-kumo-default"><FormattedMessage id="unreadThreads.unreadThreads" defaultMessage="Unread threads" /></h1>
           <p className="mt-1 text-[13px] leading-[18px] text-kumo-subtle">
-            New activity across your workspaces.
+            <FormattedMessage id="unreadThreads.newActivityAcrossYourWorkspaces" defaultMessage="New activity across your workspaces." />
           </p>
         </div>
         <Button size="sm" icon={<Check size={14} />} disabled={!chats.length}
@@ -50,25 +52,25 @@ export const UnreadThreads = () => {
             catch { /* The shared unread bridge presents the failure. */ }
             finally { setMarkingRead(false); }
           }}>
-          Mark all read
+          <FormattedMessage id="unreadThreads.markAllRead" defaultMessage="Mark all read" />
         </Button>
       </header>
       {inbox?.failed && (
         <div role="status" className="flex items-center gap-2 px-3 py-2 text-sm text-kumo-subtle">
-          Couldn’t refresh unread threads. Please try again.
-          <Button size="xs" variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button>
+          <FormattedMessage id="unreadThreads.couldntRefreshUnreadThreadsPleaseTry" defaultMessage="Couldn’t refresh unread threads. Please try again." />
+          <Button size="xs" variant="ghost" onClick={() => setRetry(value => value + 1)}><FormattedMessage id="unreadThreads.retry" defaultMessage="Retry" /></Button>
         </div>
       )}
       {!inbox ? (
-        <p role="status" className="px-3 py-8 text-sm text-kumo-subtle">Loading unread threads…</p>
+        <p role="status" className="px-3 py-8 text-sm text-kumo-subtle"><FormattedMessage id="unreadThreads.loadingUnreadThreads" defaultMessage="Loading unread threads…" /></p>
       ) : chats.length === 0 && !inbox.failed ? (
         <div role="status" className="flex flex-col items-center gap-3 px-3 py-16 text-center">
           <Chats size={32} className="text-kumo-inactive" />
-          <h2 className="text-base font-medium text-kumo-default">You’re all caught up</h2>
-          <p className="text-sm text-kumo-subtle">New activity will appear here.</p>
+          <h2 className="text-base font-medium text-kumo-default"><FormattedMessage id="unreadThreads.youreAllCaughtUp" defaultMessage="You’re all caught up" /></h2>
+          <p className="text-sm text-kumo-subtle"><FormattedMessage id="unreadThreads.newActivityWillAppearHere" defaultMessage="New activity will appear here." /></p>
         </div>
       ) : (
-        <ul aria-label="Unread threads" className="min-h-0 flex-1 divide-y divide-kumo-line overflow-y-auto pb-6">
+        <ul aria-label={formatMessage({ id: "unreadThreads.unreadThreads", defaultMessage: "Unread threads" })} className="min-h-0 flex-1 divide-y divide-kumo-line overflow-y-auto pb-6">
           {chats.map(chat => (
             <li key={`${chat.workspaceId}:${chat.chatId}`}>
               <Link to="/workspace/$id" params={{ id: chat.workspaceId }}

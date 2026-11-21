@@ -7,6 +7,7 @@ import type { AgentSummary } from './agentList'
 import { formatLastRun, hasPendingChanges, needsReview } from './agentList'
 import { PendingApprovalCard } from './PendingApprovalCard'
 import { RunUnreadMenu } from './RunUnreadMenu'
+import { useIntl } from 'react-intl'
 
 const RunRow = ({ run, now, activityLine, review, selected, workspaceId, overseer, onOpen }: {
   run: AiChatMetadata
@@ -17,7 +18,9 @@ const RunRow = ({ run, now, activityLine, review, selected, workspaceId, oversee
   workspaceId: string | undefined
   overseer: RpcStub<Overseer>
   onOpen: () => void
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <div className="group flex items-center gap-0.5">
     <button
       type="button"
@@ -45,7 +48,7 @@ const RunRow = ({ run, now, activityLine, review, selected, workspaceId, oversee
       )}
       {!activityLine && (review || hasPendingChanges(run)) && (
         <span className="flex-shrink-0 text-[11.5px] leading-4 font-medium text-kumo-warning">
-          {review ? 'Review' : 'Pending changes'}
+          {review ? formatMessage({ id: 'agentRunsPane.review', defaultMessage: 'Review' }) : formatMessage({ id: 'agentRunsPane.pendingChanges', defaultMessage: 'Pending changes' })}
         </span>
       )}
       <span className="w-[72px] flex-shrink-0 text-right text-[11.5px] leading-4 tabular-nums text-kumo-inactive">
@@ -55,6 +58,7 @@ const RunRow = ({ run, now, activityLine, review, selected, workspaceId, oversee
     <RunUnreadMenu workspaceId={workspaceId} run={run} overseer={overseer} />
   </div>
 )
+}
 
 /**
  * One agent's runs: every chat it has started, newest first.
@@ -81,6 +85,7 @@ export const AgentRunsPane = ({
   onBack?: () => void
   activityLineOf: (chatId: number) => string | undefined
 }) => {
+  const { formatMessage } = useIntl()
   const [processing, setProcessing] = useState<Set<number>>(new Set())
   const { resolveAction, creationAccountModal } = useResolveAction(overseer, setProcessing)
   const waiting = agent.runs.flatMap(run => pendingForRun.get(run.id) ?? [])
@@ -92,7 +97,7 @@ export const AgentRunsPane = ({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Back to agents"
+            aria-label={formatMessage({ id: 'agentRunsPane.backToAgents', defaultMessage: 'Back to agents' })}
             className="-ml-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-kumo-inactive transition-colors hover:bg-kumo-tint/60 hover:text-kumo-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring"
           >
             <CaretLeft size={13} weight="bold" />
@@ -102,7 +107,7 @@ export const AgentRunsPane = ({
           {agent.name}
         </h2>
         <span className="flex-shrink-0 text-[11.5px] leading-4 text-kumo-inactive">
-          {agent.runs.length} {agent.runs.length === 1 ? 'run' : 'runs'}
+          {agent.runs.length} {agent.runs.length === 1 ? formatMessage({ id: 'agentRunsPane.run', defaultMessage: 'run' }) : formatMessage({ id: 'agentRunsPane.runs', defaultMessage: 'runs' })}
           {/* Four places, as the chat rows use: a small scheduled task's whole day comes to a
               fraction of a cent, and two places would round that to "$0.00" here while the same
               runs read "$0.0012" in the list. */}
@@ -114,7 +119,7 @@ export const AgentRunsPane = ({
         {waiting.length > 0 && (
           <section className="mb-4 flex flex-col gap-2">
             <h3 className="m-0 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-inactive">
-              {waiting.length === 1 ? 'Waiting on you' : `Waiting on you (${waiting.length})`}
+              {waiting.length === 1 ? formatMessage({ id: 'agentRunsPane.waitingOnYou', defaultMessage: 'Waiting on you' }) : formatMessage({ id: 'agentRunsPane.waitingOnYou2', defaultMessage: 'Waiting on you ({length})' }, { length: waiting.length })}
             </h3>
             {waiting.map(record => (
               <PendingApprovalCard

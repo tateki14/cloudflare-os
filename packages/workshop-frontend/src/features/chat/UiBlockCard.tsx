@@ -13,6 +13,7 @@ import {
   UiBlockHostImpl,
   type UiBlockFrame,
 } from './uiBlockFrame'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const MIN_HEIGHT = 40
 const MAX_HEIGHT = 720
@@ -42,6 +43,7 @@ const clampHeight = (height: number) =>
 export const UiBlockCard = ({
   block, onSendMessage, sendBlockedReason, onHeightChange, scrollRoot, files,
 }: UiBlockCardProps) => {
+  const { formatMessage } = useIntl()
   const { resolvedThemeMode } = useTheme()
   const cardRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -176,7 +178,7 @@ export const UiBlockCard = ({
   return (
     <div ref={cardRef} className="group/view my-3">
       {refused !== undefined ? (
-        <Banner variant="error" title="This view stopped" description={refused} />
+        <Banner variant="error" title={formatMessage({ id: 'uiBlockCard.thisViewStopped', defaultMessage: 'This view stopped' })} description={refused} />
       ) : !stopped && (
         // The frame reaches past the answer's column by the body's padding, so the view's content
         // lines up with the prose around it.
@@ -192,37 +194,37 @@ export const UiBlockCard = ({
       {refused === undefined && (
         // Workshop chrome the frame cannot draw: where the view ends.
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[11px] leading-4 text-kumo-inactive">
-          <span>{stopped ? 'View stopped' : block.kind === 'open' ? 'Drawing…' : 'Live view'}</span>
+          <span>{stopped ? formatMessage({ id: 'uiBlockCard.viewStopped', defaultMessage: 'View stopped' }) : block.kind === 'open' ? formatMessage({ id: 'uiBlockCard.drawing', defaultMessage: 'Drawing…' }) : formatMessage({ id: 'uiBlockCard.liveView', defaultMessage: 'Live view' })}</span>
           <button
             type="button"
-            aria-label={stopped ? `Run ${title} again` : `Stop ${title}`}
+            aria-label={stopped ? formatMessage({ id: 'uiBlockCard.runAgain', defaultMessage: 'Run {title} again' }, { title: title }) : formatMessage({ id: 'uiBlockCard.stop2', defaultMessage: 'Stop {title}' }, { title: title })}
             onClick={() => setStopped(!stopped)}
             className={`cursor-pointer rounded px-1 font-medium transition-[color,opacity] duration-150 ease-out hover:text-kumo-default focus-visible:text-kumo-default focus-visible:outline-none ${
               stopped ? '' : 'sm:opacity-0 sm:group-hover/view:opacity-100 sm:group-focus-within/view:opacity-100'
             }`}
           >
-            {stopped ? 'Run' : 'Stop'}
+            {stopped ? formatMessage({ id: 'uiBlockCard.run', defaultMessage: 'Run' }) : formatMessage({ id: 'uiBlockCard.stop', defaultMessage: 'Stop' })}
           </button>
         </div>
       )}
       <div aria-live="polite">
         {chip && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-kumo-line px-3 py-2" role="group" aria-label="Send to the agent">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-kumo-line px-3 py-2" role="group" aria-label={formatMessage({ id: 'uiBlockCard.sendToTheAgent', defaultMessage: 'Send to the agent' })}>
             <PaperPlaneRightIcon size={14} className="text-kumo-subtle" aria-hidden />
             <div
               // A keyboard user has to be able to scroll a long message to read it all.
               tabIndex={0}
               role="region"
-              aria-label="Message to send"
+              aria-label={formatMessage({ id: 'uiBlockCard.messageToSend', defaultMessage: 'Message to send' })}
               className="max-h-32 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words"
             >
               <Text size="sm">{chip.message}</Text>
             </div>
             {sendBlockedReason !== undefined && <Text size="sm" variant="secondary">{sendBlockedReason}</Text>}
             <div className="ml-auto flex gap-2">
-              <WorkshopButton onClick={() => setChip(null)}>Dismiss</WorkshopButton>
+              <WorkshopButton onClick={() => setChip(null)}><FormattedMessage id="uiBlockCard.dismiss" defaultMessage="Dismiss" /></WorkshopButton>
               <WorkshopButton tone="primary" disabled={chip.sending || sendBlockedReason !== undefined} onClick={send}>
-                Send
+                <FormattedMessage id="uiBlockCard.send" defaultMessage="Send" />
               </WorkshopButton>
             </div>
           </div>

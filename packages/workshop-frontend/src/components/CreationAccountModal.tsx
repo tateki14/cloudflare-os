@@ -5,6 +5,7 @@ import type { RpcStub } from 'capnweb'
 import type { CreationApproval, Overseer, WorkpieceId } from '@gadgets/workshop-shared/api'
 import { useAuthenticatedApi } from '../AuthContext'
 import { CreationAccountDialog, type CreationTarget } from './CreationAccountDialog'
+import { useIntl } from 'react-intl';
 
 /**
  * Approving a creation (see ActionLogEntry.creation) makes the resource in one of the approver's
@@ -18,6 +19,7 @@ export const CreationAccountModal = ({ overseer, gatekeeperId, onChoose, onCance
   onChoose: (creation: CreationApproval) => void
   onCancel: () => void
 }) => {
+  const { formatMessage } = useIntl();
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
   const [target, setTarget] = useState<CreationTarget | null>(null)
@@ -44,7 +46,7 @@ export const CreationAccountModal = ({ overseer, gatekeeperId, onChoose, onCance
     load().catch(err => {
       if (cancelled) return
       console.error('Failed to load the creation:', err)
-      toasts.add({ title: 'Failed to load the creation', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'creationAccountModal.failedToLoadTheCreation', defaultMessage: 'Failed to load the creation' }), variant: 'error' })
       onCancel()
     })
     return () => { cancelled = true }
@@ -52,12 +54,10 @@ export const CreationAccountModal = ({ overseer, gatekeeperId, onChoose, onCance
 
   return (
     <CreationAccountDialog
-      title={target?.resource.creationConfigurator
-        ? 'Choose where to create it'
-        : 'Choose an account to create it in'}
+      title={target?.resource.creationConfigurator ? formatMessage({ id: 'creationAccountModal.chooseWhereToCreateIt', defaultMessage: 'Choose where to create it' }) : formatMessage({ id: 'creationAccountModal.chooseAnAccountToCreateIt', defaultMessage: 'Choose an account to create it in' })}
       target={target}
       purpose="create"
-      submitLabel="Approve"
+      submitLabel={formatMessage({ id: 'creationAccountModal.approve', defaultMessage: 'Approve' })}
       onSubmit={onChoose}
       onCancel={onCancel}
     />

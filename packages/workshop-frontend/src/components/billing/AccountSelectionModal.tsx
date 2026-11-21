@@ -5,6 +5,7 @@ import { Warning } from '@phosphor-icons/react'
 import { useOptionalAuthenticatedApi } from '../../AuthContext'
 import { useCloudflareLimitsEnabled } from '../../ServerConfigContext'
 import { NATIVE_CONNECT_COMPLETE_EVENT } from '../../connectHandoff'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * Global, mandatory modal that forces the user to pick which Cloudflare account to bill whenever
@@ -12,6 +13,7 @@ import { NATIVE_CONNECT_COMPLETE_EVENT } from '../../connectHandoff'
  * the selection is pending, so it can't be missed after connecting. Mounted once in the app shell.
  */
 export default function AccountSelectionModal() {
+  const { formatMessage } = useIntl()
   const limitsEnabled = useCloudflareLimitsEnabled()
   const auth = useOptionalAuthenticatedApi()
   const toasts = useKumoToastManager()
@@ -63,7 +65,7 @@ export default function AccountSelectionModal() {
     setSaving(true)
     try {
       await auth.authenticatedApi.selectCloudflareAccount(chosen)
-      toasts.add({ title: 'Cloudflare account selected', variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'accountSelectionModal.cloudflareAccountSelected', defaultMessage: 'Cloudflare account selected' }), variant: 'success' })
       setNeedsSelection(false)
       setAccounts(null)
     } catch (err) {
@@ -82,11 +84,10 @@ export default function AccountSelectionModal() {
         <div className="shrink-0 px-6 pt-6">
           <Dialog.Title className="text-lg font-semibold mb-2 flex items-center gap-2">
             <Warning size={22} weight="bold" className="text-kumo-warning" />
-            Choose a Cloudflare account
+            <FormattedMessage id="accountSelectionModal.chooseACloudflareAccount" defaultMessage="Choose a Cloudflare account" />
           </Dialog.Title>
           <p className="text-sm text-kumo-subtle">
-            Your Cloudflare connection has access to multiple accounts. Select the one whose credits
-            should be billed for usage beyond the free tier.
+            <FormattedMessage id="accountSelectionModal.yourCloudflareConnectionHasAccessTo" defaultMessage="Your Cloudflare connection has access to multiple accounts. Select the one whose credits should be billed for usage beyond the free tier." />
           </p>
         </div>
 
@@ -94,7 +95,7 @@ export default function AccountSelectionModal() {
           {accounts === null ? (
             <div className="flex justify-center py-6"><Loader size="base" /></div>
           ) : accounts.length === 0 ? (
-            <p className="text-sm text-kumo-subtle">No accounts available on this connection.</p>
+            <p className="text-sm text-kumo-subtle"><FormattedMessage id="accountSelectionModal.noAccountsAvailableOnThisConnection" defaultMessage="No accounts available on this connection." /></p>
           ) : (
             <Radio.Group
               appearance="card"
@@ -102,7 +103,7 @@ export default function AccountSelectionModal() {
               onValueChange={setChosen}
               disabled={saving}
             >
-              <Radio.Legend className="sr-only">Cloudflare account</Radio.Legend>
+              <Radio.Legend className="sr-only"><FormattedMessage id="accountSelectionModal.cloudflareAccount" defaultMessage="Cloudflare account" /></Radio.Legend>
               {accounts.map((a) => (
                 <Radio.Item key={a.accountId} value={a.accountId} label={a.accountName} />
               ))}
@@ -117,10 +118,10 @@ export default function AccountSelectionModal() {
             // un-actionable modal — let them retry or dismiss (it re-checks on focus).
             <>
               <Button variant="ghost" onClick={() => setNeedsSelection(false)}>
-                Dismiss
+                <FormattedMessage id="accountSelectionModal.dismiss" defaultMessage="Dismiss" />
               </Button>
               <Button variant="secondary" onClick={() => { void check(true) }}>
-                Try again
+                <FormattedMessage id="accountSelectionModal.tryAgain" defaultMessage="Try again" />
               </Button>
             </>
           ) : (
@@ -130,7 +131,7 @@ export default function AccountSelectionModal() {
               loading={saving}
               disabled={accounts === null || !chosen || saving}
             >
-              Save
+              <FormattedMessage id="accountSelectionModal.save" defaultMessage="Save" />
             </Button>
           )}
         </div>

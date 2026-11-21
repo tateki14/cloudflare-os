@@ -1,3 +1,4 @@
+import { useIntl } from 'react-intl'
 import { RpcStub } from "capnweb";
 import { createPortal } from "react-dom";
 import {
@@ -72,6 +73,7 @@ export function useSlashCommandPicker({
    */
   chatExists: boolean;
 }) {
+  const { formatMessage } = useIntl();
   const [choices, setChoices] = useState<SlashCommandChoice[]>([]);
   const [choicesQuery, setChoicesQuery] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -228,14 +230,18 @@ export function useSlashCommandPicker({
         ref={listRef}
         id={listboxId}
         role="listbox"
-        aria-label="Slash commands"
+        aria-label={formatMessage({ id: "slashCommandPicker.slashCommandsAriaLabel", defaultMessage: "Slash commands" })}
         aria-busy={loading}
         className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2"
       >
         {error ? (
-          <p className={PICKER_EMPTY}>{`Couldn’t load commands. ${error}`}</p>
+          <p className={PICKER_EMPTY}>
+            {formatMessage({ id: "slashCommandPicker.couldNotLoadCommands", defaultMessage: "Couldn’t load commands. {error}" }, { error })}
+          </p>
         ) : loading && choices.length === 0 ? (
-          <p className={PICKER_EMPTY}>Loading commands…</p>
+          <p className={PICKER_EMPTY}>
+            {formatMessage({ id: "slashCommandPicker.loadingCommands", defaultMessage: "Loading commands…" })}
+          </p>
         ) : choices.length > 0 ? (
           choices.map((choice, optionIndex) => (
             <button
@@ -273,7 +279,9 @@ export function useSlashCommandPicker({
           ))
         ) : (
           <p className={PICKER_EMPTY}>
-            {query ? "No commands match your search." : "No commands are available."}
+            {query
+              ? formatMessage({ id: "slashCommandPicker.noCommandsMatchSearch", defaultMessage: "No commands match your search." })
+              : formatMessage({ id: "slashCommandPicker.noCommandsAvailable", defaultMessage: "No commands are available." })}
           </p>
         )}
       </div>
@@ -298,10 +306,13 @@ export function useSlashCommandPicker({
     setIndex: selectIndex,
     status: open
       ? loading
-        ? "Loading slash commands"
+        ? formatMessage({ id: "slashCommandPicker.loadingSlashCommands", defaultMessage: "Loading slash commands" })
         : error
-          ? `Slash commands unavailable: ${error}`
-          : `${choices.length} slash command${choices.length === 1 ? "" : "s"} found`
+          ? formatMessage({ id: "slashCommandPicker.slashCommandsUnavailable", defaultMessage: "Slash commands unavailable: {error}" }, { error })
+          : formatMessage(
+              { id: "slashCommandPicker.slashCommandsFound", defaultMessage: "{count, plural, one {# slash command found} other {# slash commands found}}" },
+              { count: choices.length },
+            )
       : "",
   };
 }

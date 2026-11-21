@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from 'react'
+import { useIntl } from 'react-intl'
 
 // Pixels one arrow key press moves the edge, and with Shift held.
 const KEY_STEP = 16
@@ -21,6 +22,7 @@ export const ColumnResizeHandle = ({ column, width, onResize, onReset }: {
   onResize: (width: number, done: boolean) => void
   onReset: () => void
 }) => {
+  const { formatMessage } = useIntl()
   // Where a drag began and the width it began from; null while no drag is under way.
   const drag = useRef<{ x: number; width: number } | null>(null)
 
@@ -59,8 +61,8 @@ export const ColumnResizeHandle = ({ column, width, onResize, onReset }: {
   return (
     <button
       type="button"
-      aria-label={`Resize the ${column} column`}
-      title="Drag, or use the arrow keys, to resize. Double-click to reset."
+      aria-label={formatMessage({ id: 'columnResizeHandle.resizeTheColumn', defaultMessage: 'Resize the {column} column' }, { column: column })}
+      title={formatMessage({ id: 'columnResizeHandle.dragOrUseTheArrowKeys', defaultMessage: 'Drag, or use the arrow keys, to resize. Double-click to reset.' })}
       className="absolute top-0 right-0 flex h-full w-2.5 cursor-col-resize touch-none select-none items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-brand"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

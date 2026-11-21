@@ -127,7 +127,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             ref={drawerRef}
             role="dialog"
             aria-modal="true"
-            aria-label="Primary navigation"
+            aria-label={formatMessage({ id: 'appShell.primaryNavigation', defaultMessage: 'Primary navigation' })}
             tabIndex={-1}
             className="fixed inset-y-0 left-0 z-50 outline-none md:hidden"
           >

@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { saveAttachment } from './attachments/saveAttachment'
 import { readSnapshotFile, type FileSnapshots } from './inlineFiles'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** Downloads any pinned file on demand; downloaded HTML/SVG never opens in the Workshop origin. */
 export const FileLink = ({ source, files, children, title }: {
@@ -9,6 +10,7 @@ export const FileLink = ({ source, files, children, title }: {
   children: ReactNode
   title?: string
 }) => {
+  const { formatMessage } = useIntl()
   const pending = useRef<AbortController | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
@@ -37,13 +39,13 @@ export const FileLink = ({ source, files, children, title }: {
   }
 
   if (!files || !Object.hasOwn(files.oids, source) || !files.oids[source]) {
-    return <span title="File unavailable">{children} (unavailable)</span>
+    return <span title={formatMessage({ id: 'fileLink.fileUnavailable', defaultMessage: 'File unavailable' })}><FormattedMessage id="fileLink.unavailable" defaultMessage="{children} (unavailable)" values={{ children: children }} /></span>
   }
   return <>
     <button type="button" role="link" title={title} aria-disabled={busy} aria-busy={busy}
       onClick={() => void download()} className="cursor-pointer text-kumo-brand hover:underline aria-disabled:cursor-wait">
       {children}
     </button>
-    {error && <span role="alert" className="text-kumo-danger"> Download failed: {error}</span>}
+    {error && <span role="alert" className="text-kumo-danger"> <FormattedMessage id="fileLink.downloadFailed" defaultMessage="Download failed: {error}" values={{ error: error }} /></span>}
   </>
 }

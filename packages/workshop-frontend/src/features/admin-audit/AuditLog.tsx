@@ -9,6 +9,7 @@ import { AuditFilters } from './AuditFilters'
 import { AUDIT_LOG_COLUMNS, AuditLogRow } from './AuditLogRow'
 import { ColumnResizeHandle } from './ColumnResizeHandle'
 import { useColumnWidths } from './useColumnWidths'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** How many records one page of the Audit tab's log shows. */
 export const AUDIT_PAGE_SIZE = 50
@@ -55,6 +56,7 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
    * whose retention may have removed the pages turned to). */
   restarts: number
 }) => {
+  const { formatMessage } = useIntl()
   const key = filterKey(filter)
   // The cursors of the pages turned to under the current filter and restart, oldest page last.
   // Forgotten as soon as either changes, during that render, so that coming back to an earlier
@@ -161,9 +163,9 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
       )}
       {failed && (
         <div className="py-8 text-center">
-          <p role="alert" className="text-sm text-kumo-danger">Couldn’t load the admin audit log.</p>
+          <p role="alert" className="text-sm text-kumo-danger"><FormattedMessage id="auditLog.couldntLoadTheAdminAuditLog" defaultMessage="Couldn’t load the admin audit log." /></p>
           <Button variant="secondary" size="sm" className="mt-3" onClick={() => setRetries((n) => n + 1)}>
-            Retry
+            <FormattedMessage id="auditLog.retry" defaultMessage="Retry" />
           </Button>
         </div>
       )}
@@ -182,10 +184,10 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
               </colgroup>
               <Table.Header>
                 <Table.Row>
-                  <Table.Head><span className="sr-only">Expand</span></Table.Head>
+                  <Table.Head><span className="sr-only"><FormattedMessage id="auditLog.expand" defaultMessage="Expand" /></span></Table.Head>
                   {head('time')}
                   {head('admin')}
-                  <Table.Head>Action</Table.Head>
+                  <Table.Head><FormattedMessage id="auditLog.action" defaultMessage="Action" /></Table.Head>
                   {head('kind')}
                   {head('target')}
                 </Table.Row>
@@ -195,11 +197,7 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
                   ? (
                     <Table.Row>
                       <Table.Cell colSpan={AUDIT_LOG_COLUMNS} className="py-8 text-center text-kumo-subtle">
-                        {pageNumber > 1
-                          ? 'No older admin activity.'
-                          : isFiltered(filter)
-                            ? 'No admin activity matches these filters.'
-                            : 'No admin activity is recorded yet.'}
+                        {pageNumber > 1 ? formatMessage({ id: 'auditLog.noOlderAdminActivity', defaultMessage: 'No older admin activity.' }) : isFiltered(filter) ? formatMessage({ id: 'auditLog.noAdminActivityMatchesTheseFilters', defaultMessage: 'No admin activity matches these filters.' }) : formatMessage({ id: 'auditLog.noAdminActivityIsRecordedYet', defaultMessage: 'No admin activity is recorded yet.' })}
                       </Table.Cell>
                     </Table.Row>
                   )
@@ -215,7 +213,7 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
             </Table>
           </div>
           {(pageNumber > 1 || nextCursor !== undefined) && (
-            <nav className="flex items-center justify-between gap-4" aria-label="Audit log pages">
+            <nav className="flex items-center justify-between gap-4" aria-label={formatMessage({ id: 'auditLog.auditLogPages', defaultMessage: 'Audit log pages' })}>
               <Button
                 ref={newerButton}
                 variant="secondary"
@@ -224,9 +222,9 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
                 disabled={pageNumber === 1}
                 onClick={() => { if (!busy) turnTo(cursors.slice(0, -1)) }}
               >
-                Newer
+                <FormattedMessage id="auditLog.newer" defaultMessage="Newer" />
               </Button>
-              <span className="text-sm text-kumo-subtle" aria-live="polite">Page {pageNumber}</span>
+              <span className="text-sm text-kumo-subtle" aria-live="polite"><FormattedMessage id="auditLog.page" defaultMessage="Page {pageNumber}" values={{ pageNumber: pageNumber }} /></span>
               <Button
                 ref={olderButton}
                 variant="secondary"
@@ -234,7 +232,7 @@ export const AuditLog = ({ admin, filter, onFilterChange, adminSuggestions, relo
                 disabled={nextCursor === undefined}
                 onClick={() => { if (!busy && nextCursor !== undefined) turnTo([...cursors, nextCursor]) }}
               >
-                Older
+                <FormattedMessage id="auditLog.older" defaultMessage="Older" />
                 <CaretRight aria-hidden="true" />
               </Button>
             </nav>

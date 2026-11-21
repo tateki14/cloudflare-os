@@ -11,6 +11,7 @@ import {
 import {
   describeBulkFailure, describeBulkProgress, type BulkResolve,
 } from './useBulkResolve'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * How many unresolved requests on one connection start a warning.
@@ -68,6 +69,7 @@ export const PendingChangesTray = ({
   actions: PendingChangeActions
   bulk: BulkResolve
 }) => {
+  const { formatMessage } = useIntl()
   const [openGroupId, setOpenGroupId] = useState<number | null>(null)
   const [expandedActionId, setExpandedActionId] = useState<number | null>(null)
 
@@ -82,7 +84,7 @@ export const PendingChangesTray = ({
         onClick={bulk.dismissFailure}
         className="flex-shrink-0 cursor-pointer text-kumo-inactive underline-offset-2 hover:underline"
       >
-        Dismiss
+        <FormattedMessage id="pendingChangesTray.dismiss" defaultMessage="Dismiss" />
       </button>
     </p>
   )
@@ -139,12 +141,12 @@ export const PendingChangesTray = ({
       <div className="flex flex-shrink-0 items-center gap-2 px-3.5 py-2">
         <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-kumo-brand" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-4 tracking-[-0.2px] text-kumo-default">
-          {all.length === 1 ? '1 request waiting' : `${all.length} requests waiting`}
+          {all.length === 1 ? formatMessage({ id: 'pendingChangesTray.1RequestWaiting', defaultMessage: '1 request waiting' }) : formatMessage({ id: 'pendingChangesTray.requestsWaiting', defaultMessage: '{length} requests waiting' }, { length: all.length })}
           <span className="font-normal text-kumo-inactive">
             {elsewhere > 0 && (elsewhere === all.length
               ? ' · asked elsewhere in this workspace'
               : ` · ${elsewhere} from elsewhere`)}
-            {' · nothing applied yet'}
+            {formatMessage({ id: 'pendingChangesTray.nothingAppliedYet', defaultMessage: ' · nothing applied yet' })}
             {oldest && ` · oldest ${formatRelativeTime(oldest.createdAt)}`}
           </span>
         </span>
@@ -173,16 +175,14 @@ export const PendingChangesTray = ({
       <div className="min-h-0 shrink overflow-y-auto">
       {rules.restricted && (
         <p className="m-0 border-t border-kumo-line/70 px-3.5 py-1.5 text-[11.5px] leading-4 text-kumo-inactive">
-          This workspace has read sensitive data, so every request is reviewed on its own.
+          <FormattedMessage id="pendingChangesTray.thisWorkspaceHasReadSensitiveData" defaultMessage="This workspace has read sensitive data, so every request is reviewed on its own." />
         </p>
       )}
 
       {pressured.length > 0 && (
         <p className="m-0 flex items-center gap-1.5 border-t border-kumo-line/70 px-3.5 py-1.5 text-[11.5px] leading-4 text-kumo-warning">
           <Warning size={12} weight="duotone" aria-hidden="true" />
-          {pressured.length === 1
-            ? `${pressured[0].title} is holding ${pressured[0].entries.length} unresolved requests — resolve some before its queue fills up.`
-            : `${pressured.length} resources are holding large unresolved queues — resolve some before they fill up.`}
+          {pressured.length === 1 ? formatMessage({ id: 'pendingChangesTray.isHoldingUnresolvedRequestsResolveSome', defaultMessage: '{title} is holding {length} unresolved requests — resolve some before its queue fills up.' }, { title: pressured[0].title, length: pressured[0].entries.length }) : formatMessage({ id: 'pendingChangesTray.resourcesAreHoldingLargeUnresolvedQueues', defaultMessage: '{length} resources are holding large unresolved queues — resolve some before they fill up.' }, { length: pressured.length })}
         </p>
       )}
 

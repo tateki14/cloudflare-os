@@ -1,4 +1,5 @@
 import type { MouseEventHandler } from 'react'
+import { FormattedMessage } from 'react-intl'
 
 export function ResolveButton({
   tone,
@@ -31,7 +32,9 @@ export function ResolveButton({
       aria-describedby={describedBy}
       className={`flex cursor-pointer items-center rounded-md text-[12px] font-medium tracking-[-0.15px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${toneClassName}`}
     >
-      {tone === 'approve' ? 'Approve' : 'Deny'}
+      {tone === 'approve'
+        ? <FormattedMessage id="resolveButton.approve" defaultMessage="Approve" />
+        : <FormattedMessage id="resolveButton.deny" defaultMessage="Deny" />}
     </button>
   )
 }
@@ -50,7 +53,7 @@ export function AlwaysApproveButton({
       disabled={disabled}
       className="flex h-6 cursor-pointer items-center rounded-md px-2 text-[12px] font-medium tracking-[-0.15px] text-kumo-inactive transition-colors enabled:hover:bg-kumo-tint enabled:hover:text-kumo-default disabled:cursor-not-allowed disabled:opacity-40"
     >
-      Always approve
+      <FormattedMessage id="resolveButton.alwaysApprove" defaultMessage="Always approve" />
     </button>
   )
 }

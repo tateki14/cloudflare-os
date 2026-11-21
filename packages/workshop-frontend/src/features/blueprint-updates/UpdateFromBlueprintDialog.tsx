@@ -24,6 +24,7 @@ import { logRpcFailure } from '../../rpcErrors'
 import { toBlueprintChoice, type BlueprintChoice } from './blueprintChoices'
 import { parseBlueprintReference } from './blueprintReference'
 import { hasNewerRelease } from './useBlueprintUpdateAvailable'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type UpdateFromBlueprintDialogProps = {
   /** The gadget to update. `upstream` is the blueprint it follows, which the dialog offers first. */
@@ -86,7 +87,7 @@ const SWITCH_NOTE =
 
 const describeChoice = (choice: BlueprintChoice, status: string | null) => (
   <>
-    <span className="block">Version {choice.version}{status && ` · ${status}`}</span>
+    <span className="block"><FormattedMessage id="updateFromBlueprintDialog.version" defaultMessage="Version {version}" values={{ version: choice.version }} />{status && ` · ${status}`}</span>
     {choice.description && <span className="line-clamp-2">{choice.description}</span>}
   </>
 )
@@ -106,6 +107,7 @@ export const UpdateFromBlueprintDialog = ({
   onClose,
   onProposed,
 }: UpdateFromBlueprintDialogProps) => {
+  const { formatMessage } = useIntl()
   const followedId = gadget.upstream?.blueprintId
 
   const [load, setLoad] = useState<Load>({ status: 'loading' })
@@ -225,7 +227,7 @@ export const UpdateFromBlueprintDialog = ({
       </div>
       <Dialog.Close
         render={props => (
-          <WorkshopIconButton {...props} disabled={applying} aria-label="Close">
+          <WorkshopIconButton {...props} disabled={applying} aria-label={formatMessage({ id: 'updateFromBlueprintDialog.close', defaultMessage: 'Close' })}>
             <X size={18} />
           </WorkshopIconButton>
         )}
@@ -246,8 +248,8 @@ export const UpdateFromBlueprintDialog = ({
     <div className="space-y-2">
       <p className={BODY_TEXT}>{SWITCH_NOTE}</p>
       <WorkshopInput
-        aria-label="Blueprint ID or link"
-        placeholder="Paste a blueprint ID or link"
+        aria-label={formatMessage({ id: 'updateFromBlueprintDialog.blueprintIdOrLink', defaultMessage: 'Blueprint ID or link' })}
+        placeholder={formatMessage({ id: 'updateFromBlueprintDialog.pasteABlueprintIdOrLink', defaultMessage: 'Paste a blueprint ID or link' })}
         value={reference.text}
         onChange={event => handleReferenceChange(event.target.value)}
         disabled={applying}
@@ -266,7 +268,7 @@ export const UpdateFromBlueprintDialog = ({
 
   const reviewerField = (models: readonly AiChatAuthorInfo[]) => (
     <Select
-      label="Reviewing agent"
+      label={formatMessage({ id: 'updateFromBlueprintDialog.reviewingAgent', defaultMessage: 'Reviewing agent' })}
       description={
         'If you’ve customized this gadget, this agent makes sure your customizations are ' +
         'compatible with the new version. Choose “No agent” to check them yourself.'
@@ -283,7 +285,7 @@ export const UpdateFromBlueprintDialog = ({
       {models.map(model => (
         <Select.Option key={model.id} value={model.id}>{model.name}</Select.Option>
       ))}
-      <Select.Option value={NO_AGENT_OPTION_VALUE}>No agent</Select.Option>
+      <Select.Option value={NO_AGENT_OPTION_VALUE}><FormattedMessage id="updateFromBlueprintDialog.noAgent" defaultMessage="No agent" /></Select.Option>
     </Select>
   )
 
@@ -293,8 +295,8 @@ export const UpdateFromBlueprintDialog = ({
         return (
           <Banner
             size="sm"
-            title="Already up to date"
-            description={`This gadget already has the latest version of ${outcome.blueprint.title}.`}
+            title={formatMessage({ id: 'updateFromBlueprintDialog.alreadyUpToDate', defaultMessage: 'Already up to date' })}
+            description={formatMessage({ id: 'updateFromBlueprintDialog.thisGadgetAlreadyHasTheLatest', defaultMessage: 'This gadget already has the latest version of {title}.' }, { title: outcome.blueprint.title })}
           />
         )
       case 'baseUnavailable':
@@ -302,7 +304,7 @@ export const UpdateFromBlueprintDialog = ({
           <Banner
             variant="alert"
             size="sm"
-            title="This update can't be merged"
+            title={formatMessage({ id: 'updateFromBlueprintDialog.thisUpdateCantBeMerged', defaultMessage: 'This update can\'t be merged' })}
             description={
               `This gadget and ${outcome.blueprint.title} have an earlier version in common, but ` +
               'its files are not available to merge against.'
@@ -314,14 +316,14 @@ export const UpdateFromBlueprintDialog = ({
           <Banner
             variant="error"
             size="sm"
-            title="The update could not be prepared"
+            title={formatMessage({ id: 'updateFromBlueprintDialog.theUpdateCouldNotBePrepared', defaultMessage: 'The update could not be prepared' })}
             description={outcome.message}
             action={
               <Banner.Action
                 onClick={() => apply(outcome.blueprint, outcome.allowUnrelated)}
                 disabled={applying}
               >
-                Try again
+                <FormattedMessage id="updateFromBlueprintDialog.tryAgain" defaultMessage="Try again" />
               </Banner.Action>
             }
           />
@@ -345,7 +347,7 @@ export const UpdateFromBlueprintDialog = ({
                 <Banner
                   variant="alert"
                   size="sm"
-                  title="Your own changes may be undone"
+                  title={formatMessage({ id: 'updateFromBlueprintDialog.yourOwnChangesMayBeUndone', defaultMessage: 'Your own changes may be undone' })}
                   description={
                     'With no version in common, the update has to be merged against a guess at ' +
                     'what this gadget was built from. A change of yours that the guess happens ' +
@@ -355,8 +357,7 @@ export const UpdateFromBlueprintDialog = ({
                 />
               </div>
               <p className={BODY_TEXT}>
-                The update opens in a new chat, where you can check the result before accepting
-                it. Nothing changes until you do.
+                <FormattedMessage id="updateFromBlueprintDialog.theUpdateOpensInANew" defaultMessage="The update opens in a new chat, where you can check the result before accepting it. Nothing changes until you do." />
               </p>
             </div>
             <div className="shrink-0 border-t border-kumo-line px-4 py-4 sm:px-6">
@@ -369,10 +370,10 @@ export const UpdateFromBlueprintDialog = ({
                     // The button that led here is gone, and took the focus with it.
                     autoFocus
                   >
-                    Back
+                    <FormattedMessage id="updateFromBlueprintDialog.back" defaultMessage="Back" />
                   </WorkshopButton>
                   <WorkshopButton tone="primary" onClick={() => apply(unrelated, true)} disabled={applying}>
-                    {applying ? 'Preparing update…' : 'Update anyway'}
+                    {applying ? formatMessage({ id: 'updateFromBlueprintDialog.preparingUpdate', defaultMessage: 'Preparing update…' }) : formatMessage({ id: 'updateFromBlueprintDialog.updateAnyway', defaultMessage: 'Update anyway' })}
                   </WorkshopButton>
                 </>
               ))}
@@ -392,8 +393,8 @@ export const UpdateFromBlueprintDialog = ({
                 <Banner
                   variant="error"
                   size="sm"
-                  title="The blueprint could not be loaded"
-                  action={<Banner.Action onClick={retryLoad}>Try again</Banner.Action>}
+                  title={formatMessage({ id: 'updateFromBlueprintDialog.theBlueprintCouldNotBeLoaded', defaultMessage: 'The blueprint could not be loaded' })}
+                  action={<Banner.Action onClick={retryLoad}><FormattedMessage id="updateFromBlueprintDialog.tryAgain" defaultMessage="Try again" /></Banner.Action>}
                 />
               ) : !followedChoice ? (
                 <>
@@ -417,16 +418,16 @@ export const UpdateFromBlueprintDialog = ({
                     }}
                     disabled={applying}
                   >
-                    <Radio.Legend className="sr-only">Blueprint to update from</Radio.Legend>
+                    <Radio.Legend className="sr-only"><FormattedMessage id="updateFromBlueprintDialog.blueprintToUpdateFrom" defaultMessage="Blueprint to update from" /></Radio.Legend>
                     <Radio.Item
                       value="followed"
-                      label={`Update from ${followedChoice.title}`}
+                      label={formatMessage({ id: 'updateFromBlueprintDialog.updateFrom', defaultMessage: 'Update from {title}' }, { title: followedChoice.title })}
                       description={describeChoice(followedChoice, followedStatus)}
                     />
                     <Radio.Item
                       value="switch"
-                      label="Advanced: Switch blueprints"
-                      description="Update from a different blueprint, named by its ID or link."
+                      label={formatMessage({ id: 'updateFromBlueprintDialog.advancedSwitchBlueprints', defaultMessage: 'Advanced: Switch blueprints' })}
+                      description={formatMessage({ id: 'updateFromBlueprintDialog.updateFromADifferentBlueprintNamed', defaultMessage: 'Update from a different blueprint, named by its ID or link.' })}
                     />
                   </Radio.Group>
                   {source === 'switch' && switchForm()}
@@ -442,14 +443,14 @@ export const UpdateFromBlueprintDialog = ({
               {actions((
                 <>
                   <WorkshopButton className="!h-9" onClick={onClose} disabled={applying}>
-                    Cancel
+                    <FormattedMessage id="updateFromBlueprintDialog.cancel" defaultMessage="Cancel" />
                   </WorkshopButton>
                   <WorkshopButton
                     tone="primary"
                     onClick={() => { if (selected) void apply(selected, false) }}
                     disabled={applying || !selected}
                   >
-                    {applying ? 'Preparing update…' : 'Update'}
+                    {applying ? formatMessage({ id: 'updateFromBlueprintDialog.preparingUpdate', defaultMessage: 'Preparing update…' }) : formatMessage({ id: 'updateFromBlueprintDialog.update', defaultMessage: 'Update' })}
                   </WorkshopButton>
                 </>
               ))}

@@ -1,4 +1,5 @@
 import { columnLetter } from "./sheetLayout";
+import { FormattedMessage } from "react-intl";
 
 /** Rows and columns shown at most; a notice says when a sheet has more. */
 export const MAX_GRID_ROWS = 1000;
@@ -24,7 +25,7 @@ export const DataGrid = ({ rows, moreRows }: {
   ].filter(Boolean);
 
   if (shown.length === 0) {
-    return <div className="grid h-full place-items-center text-[13px] text-kumo-subtle">This sheet is empty.</div>;
+    return <div className="grid h-full place-items-center text-[13px] text-kumo-subtle"><FormattedMessage id="dataGrid.thisSheetIsEmpty" defaultMessage="This sheet is empty." /></div>;
   }
 
   return (
@@ -63,7 +64,7 @@ export const DataGrid = ({ rows, moreRows }: {
       </div>
       {cut.length > 0 && (
         <div className="shrink-0 border-t border-kumo-line bg-kumo-base px-4 py-2 text-[12px] text-kumo-subtle">
-          Showing {cut.join(" and ")}. Download the file to see all of it.
+          <FormattedMessage id="dataGrid.showingDownloadTheFileToSee" defaultMessage="Showing {value}. Download the file to see all of it." values={{ value: cut.join(" and ") }} />
         </div>
       )}
     </div>

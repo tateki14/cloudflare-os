@@ -12,6 +12,7 @@ import {
   type AllowedModelSuggestion,
 } from './modelForm'
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const POOL_DOCS = 'https://developers.cloudflare.com/ai-gateway/features/auto-router/#models'
 
@@ -42,6 +43,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
   /** Called with the list to store, or undefined to unset it. */
   onChange: (allowedModels: string[] | undefined) => void
 }) => {
+  const { formatMessage } = useIntl()
   // The staged names and the server's list they were staged from, or null while the field shows
   // the server's list. A draft is shown only while the server's list is still the one it was
   // staged from, so a save the server refuses keeps it and one that lands retires it.
@@ -72,7 +74,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
     (name.toLowerCase().includes(lowered) || description.toLowerCase().includes(lowered)))
   const typedOption: Option[] = typed && !typed.includes(',') && !names.includes(typed) &&
     !matches.some(({ name }) => name === typed)
-    ? [{ name: typed, description: 'Use the text as a gateway model name', typed: true }]
+    ? [{ name: typed, description: formatMessage({ id: 'allowedModelsField.useTheTextAsAGateway', defaultMessage: 'Use the text as a gateway model name' }), typed: true }]
     : []
   const suggested = matches.map((suggestion) => ({ ...suggestion, typed: false }))
   // A typed gateway name leads, so that Enter adds what was typed rather than a longer suggestion
@@ -220,7 +222,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
   return (
     <form noValidate onSubmit={save} className="grid content-start gap-2 sm:col-span-2">
       <label htmlFor={inputId} className="m-0 text-base font-medium text-kumo-default select-none">
-        Allowed models<span className="sr-only"> for {modelName}</span>
+        <FormattedMessage id="allowedModelsField.allowedModelsFor" defaultMessage="Allowed models<span> for {modelName}</span>" values={{ modelName: modelName, span: (chunks) => <span className="sr-only">{chunks}</span> }} />
       </label>
       <div>
         <div
@@ -246,9 +248,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
               id={inputId}
               type="text"
               role="combobox"
-              placeholder={names.length > 0
-                ? 'Add a model'
-                : 'Every model of the providers that are on'}
+              placeholder={names.length > 0 ? formatMessage({ id: 'allowedModelsField.addAModel', defaultMessage: 'Add a model' }) : formatMessage({ id: 'allowedModelsField.everyModelOfTheProvidersThat', defaultMessage: 'Every model of the providers that are on' })}
               aria-autocomplete="list"
               aria-expanded={open}
               aria-controls={open ? listboxId : undefined}
@@ -291,7 +291,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
             ref={listboxRef}
             id={listboxId}
             role="listbox"
-            aria-label={`Models to allow ${modelName}`}
+            aria-label={formatMessage({ id: 'allowedModelsField.modelsToAllow', defaultMessage: 'Models to allow {modelName}' }, { modelName: modelName })}
             // In the page's flow rather than floating, since the settings panel clips what
             // overflows it. Pressing in the list must not blur the field, which would close the
             // list before the click lands.
@@ -315,7 +315,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
                 {option.typed && <Plus size={15} className="shrink-0 text-kumo-subtle" />}
                 <span className="min-w-0">
                   <span className="block truncate font-mono text-[13px] text-kumo-default">
-                    {option.typed ? <>Add &ldquo;{option.name}&rdquo; exactly</> : option.name}
+                    {option.typed ? <><FormattedMessage id="allowedModelsField.addExactly" defaultMessage="Add “{name}” exactly" values={{ name: option.name }} /></> : option.name}
                   </span>
                   <span className="block truncate text-[11px] text-kumo-subtle">
                     {option.description}
@@ -330,22 +330,13 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
         {error !== undefined && <span className="block text-kumo-danger">{error}</span>}
         {providers.length > 0 ? (
           <>
-            With none listed, Auto picks from every model of the providers that are on (
-            {providers.map((provider) => PROVIDER_LABELS[provider]).join(', ')}) in{' '}
-            <a href={POOL_DOCS} target="_blank" rel="noreferrer" className="underline">
-              Cloudflare’s model pool
-            </a>
-            .
+            <FormattedMessage id="allowedModelsField.withNoneListedAutoPicksFrom" defaultMessage="With none listed, Auto picks from every model of the providers that are on (" />
+            {providers.map((provider) => PROVIDER_LABELS[provider]).join(', ')}<FormattedMessage id="allowedModelsField.inCloudflaresModelPool" defaultMessage=") in <a>Cloudflare’s model pool</a>." values={{ a: (chunks) => <a href={POOL_DOCS} target="_blank" rel="noreferrer" className="underline">{chunks}</a> }} />
           </>
         ) : (
-          <>No provider is on for Auto to pick from: turn one on above.</>
+          <><FormattedMessage id="allowedModelsField.noProviderIsOnForAuto" defaultMessage="No provider is on for Auto to pick from: turn one on above." /></>
         )}{' '}
-        To narrow it, add a provider’s every model, or type a model’s gateway name and press
-        Enter: <span className="font-mono">anthropic/claude-sonnet-5.5</span>,{' '}
-        <span className="font-mono">anthropic/*</span> or{' '}
-        <span className="font-mono">@cf/*/*</span>. Disabling a model above doesn’t take it out
-        of the pool; listing does. After saving, press Test: a name the gateway doesn’t know
-        fails every request.
+        <FormattedMessage id="allowedModelsField.toNarrowItAddAProviders" defaultMessage="To narrow it, add a provider’s every model, or type a model’s gateway name and press Enter: <span>anthropic/claude-sonnet-5.5</span>, <span1>anthropic/*</span1> or <span2>@cf/*/*</span2>. Disabling a model above doesn’t take it out of the pool; listing does. After saving, press Test: a name the gateway doesn’t know fails every request." values={{ span: (chunks) => <span className="font-mono">{chunks}</span>, span1: (chunks) => <span className="font-mono">{chunks}</span>, span2: (chunks) => <span className="font-mono">{chunks}</span> }} />
       </p>
       {alert.alert}
       <div className="flex gap-2">
@@ -354,9 +345,9 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
           variant="secondary"
           size="sm"
           disabled={busy}
-          aria-label={`Save the allowed models of ${modelName}`}
+          aria-label={formatMessage({ id: 'allowedModelsField.saveTheAllowedModelsOf', defaultMessage: 'Save the allowed models of {modelName}' }, { modelName: modelName })}
         >
-          Save
+          <FormattedMessage id="allowedModelsField.save" defaultMessage="Save" />
         </Button>
         {allowedModels !== undefined && (
           <Button
@@ -364,10 +355,10 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
             variant="ghost"
             size="sm"
             disabled={busy}
-            aria-label={`Reset the allowed models of ${modelName}`}
+            aria-label={formatMessage({ id: 'allowedModelsField.resetTheAllowedModelsOf', defaultMessage: 'Reset the allowed models of {modelName}' }, { modelName: modelName })}
             onClick={reset}
           >
-            Reset
+            <FormattedMessage id="allowedModelsField.reset" defaultMessage="Reset" />
           </Button>
         )}
       </div>

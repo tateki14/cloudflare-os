@@ -4,6 +4,7 @@ import { WorkshopIconButton } from './components/WorkshopControls'
 import { formatRelativeTime } from './utils/formatRelativeTime'
 import { formatFullTimestamp } from './utils/formatTimestamp'
 import { useMinuteTick } from './useMinuteTick'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type Props = {
   // The gadget owner's name, when known.
@@ -17,6 +18,7 @@ type Props = {
  * bring it back for each new one.
  */
 export const GadgetSnapshotCard = ({ ownerName, refreshedAt }: Props) => {
+  const { formatMessage } = useIntl()
   const [dismissed, setDismissed] = useState(false)
   useMinuteTick(!dismissed)
   if (dismissed) return null
@@ -29,16 +31,16 @@ export const GadgetSnapshotCard = ({ ownerName, refreshedAt }: Props) => {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-kumo-default">
-            {`You're viewing a snapshot of ${ownerName ? `${ownerName}'s` : 'this'} gadget`}
+            {formatMessage({ id: 'gadgetSnapshotCard.youreViewingASnapshotOfGadget', defaultMessage: 'You\'re viewing a snapshot of {value} gadget' }, { value: ownerName ? `${ownerName}'s` : formatMessage({ id: 'gadgetSnapshotCard.this', defaultMessage: 'this' }) })}
           </p>
           {/* Wraps rather than truncates, so the note about refresh is never cut off. */}
           <p className="text-pretty text-xs text-kumo-subtle">
-            <span title={formatFullTimestamp(refreshedAt)}>Updated {formatRelativeTime(refreshedAt)}.</span>
-            {' '}Any changes made to the snapshot are discarded on refresh.
+            <span title={formatFullTimestamp(refreshedAt)}><FormattedMessage id="gadgetSnapshotCard.updated" defaultMessage="Updated {relativeTime}." values={{ relativeTime: formatRelativeTime(refreshedAt) }} /></span>
+            {' '}<FormattedMessage id="gadgetSnapshotCard.anyChangesMadeToTheSnapshot" defaultMessage="Any changes made to the snapshot are discarded on refresh." />
           </p>
         </div>
         <span aria-hidden="true" className="h-5 w-px shrink-0 bg-kumo-line" />
-        <WorkshopIconButton aria-label="Dismiss" onClick={() => setDismissed(true)}>
+        <WorkshopIconButton aria-label={formatMessage({ id: 'gadgetSnapshotCard.dismiss', defaultMessage: 'Dismiss' })} onClick={() => setDismissed(true)}>
           <X size={16} />
         </WorkshopIconButton>
       </div>

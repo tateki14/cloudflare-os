@@ -5,6 +5,7 @@ import { derivedFrom } from "../derivedFrom";
 import { assertOpenXml } from "./assertOpenXml";
 import { readOffice } from "./officeReader";
 import { SlideFrame } from "./SlideFrame";
+import { FormattedMessage } from "react-intl";
 
 /** Slides are drawn no wider than this, however wide the viewer. */
 const MAX_SLIDE_WIDTH = 960;
@@ -62,7 +63,7 @@ export const SlidesPreview = ({ bytes }: AttachmentPreviewProps) => {
       <div className="px-4 py-4">
         <div ref={containerRef} className="flex flex-col items-center gap-3">
           {deck.slides.length === 0 ? (
-            <div className="py-10 text-center text-[13px] text-kumo-subtle">This presentation has no slides.</div>
+            <div className="py-10 text-center text-[13px] text-kumo-subtle"><FormattedMessage id="slidesPreview.thisPresentationHasNoSlides" defaultMessage="This presentation has no slides." /></div>
           ) : width > 0 && deck.slides.map((slide) => (
             <SlideFrame
               key={slide.number}

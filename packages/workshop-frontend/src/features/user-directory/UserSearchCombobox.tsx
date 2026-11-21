@@ -12,6 +12,7 @@ import type { AuthenticatedApi, UserDirectoryRecord } from '@gadgets/workshop-sh
 import { PersonAvatar } from '../../components/PersonAvatar'
 import { isImeComposing } from '../../keyboardEvent'
 import { useUserDirectorySearch } from './useUserDirectorySearch'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** Observable state of the current debounced directory search. */
 export type UserSearchState = {
@@ -55,6 +56,7 @@ export function UserSearchCombobox({
   onSubmit,
   onSearchStateChange,
 }: Props) {
+  const { formatMessage } = useIntl()
   const query = value.trim()
   const searching = searchEnabled && !disabled && !selected && query !== ''
   const directory = useUserDirectorySearch({ query, enabled: searching, search })
@@ -132,8 +134,8 @@ export function UserSearchCombobox({
         ref={inputRef}
         type="search"
         role={searchEnabled ? 'combobox' : undefined}
-        placeholder={searchEnabled ? 'Search by name or email' : 'Username or email'}
-        aria-label={searchEnabled ? 'Search people' : 'Username or email'}
+        placeholder={searchEnabled ? formatMessage({ id: 'userSearchCombobox.searchByNameOrEmail', defaultMessage: 'Search by name or email' }) : formatMessage({ id: 'userSearchCombobox.usernameOrEmail', defaultMessage: 'Username or email' })}
+        aria-label={searchEnabled ? formatMessage({ id: 'userSearchCombobox.searchPeople', defaultMessage: 'Search people' }) : formatMessage({ id: 'userSearchCombobox.usernameOrEmail', defaultMessage: 'Username or email' })}
         aria-autocomplete={searchEnabled ? 'list' : undefined}
         aria-expanded={searchEnabled ? open : undefined}
         aria-controls={open ? listboxId : undefined}
@@ -163,25 +165,25 @@ export function UserSearchCombobox({
       />
       {!searchEnabled && !disabled && !selected && query !== '' && (
         <button type="button" onClick={submitCurrentIdentifier} className="mt-2 text-[13px] underline">
-          Select {query}
+          <FormattedMessage id="userSearchCombobox.select" defaultMessage="Select {query}" values={{ query: query }} />
         </button>
       )}
       {open && (
         <div
           id={listboxId}
           role="listbox"
-          aria-label="Matching people"
+          aria-label={formatMessage({ id: 'userSearchCombobox.matchingPeople', defaultMessage: 'Matching people' })}
           aria-busy={searchState.status === 'loading'}
           className="mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-2"
         >
           {searchState.status === 'loading' ? (
-            <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">Searching…</p>
+            <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle"><FormattedMessage id="userSearchCombobox.searching" defaultMessage="Searching…" /></p>
           ) : searchState.status === 'failed' ? (
             <p role="status" className="px-3 py-2 text-[12px] text-kumo-danger">
-              User search is temporarily unavailable.
+              <FormattedMessage id="userSearchCombobox.userSearchIsTemporarilyUnavailable" defaultMessage="User search is temporarily unavailable." />
             </p>
           ) : results.length === 0 ? (
-            <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle">No users found.</p>
+            <p role="status" className="px-3 py-2 text-[12px] text-kumo-subtle"><FormattedMessage id="userSearchCombobox.noUsersFound" defaultMessage="No users found." /></p>
           ) : results.map((user, index) => (
             <button
               key={user.id}

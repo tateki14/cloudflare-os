@@ -14,6 +14,7 @@ import { ACCESS_LEVEL_NAMES, REFUSAL_NAMES } from './accessNames'
 import { targetUserOf, type AuditFilter } from './auditFilter'
 import { AuditValue } from './AuditValue'
 import { KindBadge } from './KindBadge'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** How many columns an AuditLogRow fills, for the table's empty and detail rows. */
 export const AUDIT_LOG_COLUMNS = 6
@@ -50,19 +51,21 @@ const excerptLabel = ({ offset, beforeLength, afterLength }: NonNullable<AdminSe
     `${length(beforeLength)} → ${length(afterLength)} characters`
 }
 
-const SettingChanges = ({ changes }: { changes: AdminSettingChange[] }) => (
+const SettingChanges = ({ changes }: { changes: AdminSettingChange[] }) => {
+  const { formatMessage } = useIntl()
+  return (
   <ul className="space-y-4">
     {changes.map((change, index) => (
       <li key={index} className="text-sm">
         <p className="font-mono text-xs text-kumo-strong break-all">{changeName(change)}</p>
         <div className="mt-1 grid gap-3 md:grid-cols-2">
           <div className="min-w-0">
-            <p className="text-xs text-kumo-subtle mb-0.5">Before</p>
-            <AuditValue value={change.before} label={`${changeName(change)}, before`} />
+            <p className="text-xs text-kumo-subtle mb-0.5"><FormattedMessage id="auditLogRow.before" defaultMessage="Before" /></p>
+            <AuditValue value={change.before} label={formatMessage({ id: 'auditLogRow.before2', defaultMessage: '{changeName}, before' }, { changeName: changeName(change) })} />
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-kumo-subtle mb-0.5">After</p>
-            <AuditValue value={change.after} label={`${changeName(change)}, after`} />
+            <p className="text-xs text-kumo-subtle mb-0.5"><FormattedMessage id="auditLogRow.after" defaultMessage="After" /></p>
+            <AuditValue value={change.after} label={formatMessage({ id: 'auditLogRow.after2', defaultMessage: '{changeName}, after' }, { changeName: changeName(change) })} />
           </div>
         </div>
         {change.excerpt && (
@@ -72,6 +75,7 @@ const SettingChanges = ({ changes }: { changes: AdminSettingChange[] }) => (
     ))}
   </ul>
 )
+}
 
 // A user's name that filters the log by them, shown whole: one longer than its column wraps,
 // since the action is the column cut.
@@ -98,13 +102,15 @@ const Detail = ({ term, children }: { term: string; children: ReactNode }) => (
 const WorkspaceDetail = ({ record, onFilterBy }: {
   record: AdminAccessRecord | AdminWriteRecord
   onFilterBy: (filter: AuditFilter) => void
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <Detail term="Workspace">
     <Button
       variant="ghost"
       size="sm"
       className="-ml-2 h-auto max-w-full text-sm"
-      aria-label={`Show only calls into ${record.workspaceTitle || record.workspaceId}`}
+      aria-label={formatMessage({ id: 'auditLogRow.showOnlyCallsInto', defaultMessage: 'Show only calls into {value}' }, { value: record.workspaceTitle || record.workspaceId })}
       onClick={() => onFilterBy({ workspace: record.workspaceId })}
     >
       <span className="truncate">{record.workspaceTitle || 'Untitled'}</span>
@@ -112,6 +118,7 @@ const WorkspaceDetail = ({ record, onFilterBy }: {
     <span className="block font-mono text-xs text-kumo-subtle break-all">{record.workspaceId}</span>
   </Detail>
 )
+}
 
 // A record's arguments by name, left out when it has none.
 const ArgumentsDetail = ({ args }: { args: AdminAccessRecord['args'] }) => {
@@ -137,7 +144,7 @@ const AccessDetails = ({ record, onFilterBy }: {
     <Detail term="Reason">{record.reason}</Detail>
     <Detail term="Access">
       {ACCESS_LEVEL_NAMES[record.access]}
-      {record.refused && <> · refused: {REFUSAL_NAMES[record.refused]}</>}
+      {record.refused && <> <FormattedMessage id="auditLogRow.refused" defaultMessage="· refused: {value}" values={{ value: REFUSAL_NAMES[record.refused] }} /></>}
     </Detail>
     <ArgumentsDetail args={record.args} />
     <Detail term="Via">{VIA_NAMES[record.via]}</Detail>
@@ -173,6 +180,7 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
   /** Adds a filter to those set. */
   onFilterBy: (filter: AuditFilter) => void
 }) => {
+  const { formatMessage } = useIntl()
   const [expanded, setExpanded] = useState(false)
   const detailsId = useId()
   const time = formatFullTimestamp(record.at)
@@ -187,7 +195,7 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
             shape="square"
             aria-expanded={expanded}
             aria-controls={detailsId}
-            aria-label={`${expanded ? 'Hide' : 'Show'} details of ${record.method} at ${time}`}
+            aria-label={formatMessage({ id: 'auditLogRow.detailsOfAt', defaultMessage: '{value} details of {method} at {time}' }, { value: expanded ? formatMessage({ id: 'auditLogRow.hide', defaultMessage: 'Hide' }) : formatMessage({ id: 'auditLogRow.show', defaultMessage: 'Show' }), method: record.method, time: time })}
             onClick={() => setExpanded((open) => !open)}
           >
             <CaretRight
@@ -202,7 +210,7 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
         <Table.Cell>
           <NameFilter
             name={record.admin}
-            label={`Show only ${record.admin}’s activity`}
+            label={formatMessage({ id: 'auditLogRow.showOnlySActivity', defaultMessage: 'Show only {admin}’s activity' }, { admin: record.admin })}
             onFilter={() => onFilterBy({ admin: record.admin })}
           />
         </Table.Cell>
@@ -213,7 +221,7 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
           <span className="flex flex-wrap items-center gap-1.5">
             <KindBadge kind={record.kind} />
             {(record.kind === 'workspace' || record.kind === 'user') && record.refused && (
-              <span title={REFUSAL_NAMES[record.refused]}><Badge variant="warning">Refused</Badge></span>
+              <span title={REFUSAL_NAMES[record.refused]}><Badge variant="warning"><FormattedMessage id="auditLogRow.refused2" defaultMessage="Refused" /></Badge></span>
             )}
           </span>
         </Table.Cell>
@@ -221,20 +229,20 @@ export const AuditLogRow = ({ record, shaded, onFilterBy }: {
           {record.kind === 'setting'
             ? (
               // A setting change reaches every user, not one: no user is its target.
-              <span className="text-sm text-kumo-subtle" title="Deployment-wide">
+              <span className="text-sm text-kumo-subtle" title={formatMessage({ id: 'auditLogRow.deploymentWide', defaultMessage: 'Deployment-wide' })}>
                 <span aria-hidden="true">—</span>
-                <span className="sr-only">Deployment-wide</span>
+                <span className="sr-only"><FormattedMessage id="auditLogRow.deploymentWide" defaultMessage="Deployment-wide" /></span>
               </span>
             )
             : target
               ? (
                 <NameFilter
                   name={target}
-                  label={`Show only calls targeting ${target}`}
+                  label={formatMessage({ id: 'auditLogRow.showOnlyCallsTargeting', defaultMessage: 'Show only calls targeting {target}' }, { target: target })}
                   onFilter={() => onFilterBy({ owner: target })}
                 />
               )
-              : <span className="text-sm text-kumo-subtle">Unknown</span>}
+              : <span className="text-sm text-kumo-subtle"><FormattedMessage id="auditLogRow.unknown" defaultMessage="Unknown" /></span>}
         </Table.Cell>
       </Table.Row>
       <Table.Row id={detailsId} hidden={!expanded}>

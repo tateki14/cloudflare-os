@@ -10,6 +10,7 @@ import { ACCESS_LEVEL_NAMES } from './accessNames'
 import type { AuditFilter } from './auditFilter'
 import { AuditLog } from './AuditLog'
 import type { AuditSettings } from './auditSettings'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type AdminAuditPanelProps = {
   admin: RpcStub<AdminApi>
@@ -45,29 +46,34 @@ type StatsAnswer = { loads: number } & ({ stats: AdminAuditStats } | { failed: t
 // The window's writes to workspaces. The router can serve this frontend beside a backend older
 // than admin writes, whose statistics count none: nothing is shown then, rather than a figure the
 // backend never gave.
-const Writes = ({ count }: { count: unknown }) => typeof count !== 'number' ? null : (
+const Writes = ({ count }: { count: unknown }) => {
+  const { formatMessage } = useIntl()
+  return typeof count !== 'number' ? null : (
   <span className="block mt-1">
-    {NUMBER.format(count)} {count === 1 ? 'write' : 'writes'}
+    {NUMBER.format(count)} {count === 1 ? formatMessage({ id: 'adminAuditPanel.write', defaultMessage: 'write' }) : formatMessage({ id: 'adminAuditPanel.writes', defaultMessage: 'writes' })}
   </span>
 )
+}
 
 const StatsCards = ({ stats, onFilterBy }: {
   stats: AdminAuditStats
   onFilterBy: (filter: AuditFilter) => void
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <div className="grid items-start gap-6 lg:grid-cols-2">
     <div className={CARD}>
-      <h3 className="text-lg font-semibold text-kumo-strong mb-1">Admin actions, last {stats.days} days</h3>
+      <h3 className="text-lg font-semibold text-kumo-strong mb-1"><FormattedMessage id="adminAuditPanel.adminActionsLastDays" defaultMessage="Admin actions, last {days} days" values={{ days: stats.days }} /></h3>
       <p className="text-sm text-kumo-subtle mb-4">
         <span className="text-2xl font-semibold text-kumo-default tabular-nums">{NUMBER.format(stats.totalEvents)}</span>
-        {' '}{stats.totalEvents === 1 ? 'action' : 'actions'}, by UTC day
+        {' '}<FormattedMessage id="adminAuditPanel.byUtcDay" defaultMessage="{value}, by UTC day" values={{ value: stats.totalEvents === 1 ? formatMessage({ id: 'adminAuditPanel.action', defaultMessage: 'action' }) : formatMessage({ id: 'adminAuditPanel.actions', defaultMessage: 'actions' }) }} />
         <Writes count={stats.writes} />
       </p>
       <Table>
         <Table.Header>
           <Table.Row>
-            <Table.Head>Day</Table.Head>
-            <Table.Head className="text-right">Actions</Table.Head>
+            <Table.Head><FormattedMessage id="adminAuditPanel.day" defaultMessage="Day" /></Table.Head>
+            <Table.Head className="text-right"><FormattedMessage id="adminAuditPanel.actions2" defaultMessage="Actions" /></Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
@@ -82,18 +88,18 @@ const StatsCards = ({ stats, onFilterBy }: {
     </div>
 
     <div className={CARD}>
-      <h3 className="text-lg font-semibold text-kumo-strong mb-1">Most active admins</h3>
+      <h3 className="text-lg font-semibold text-kumo-strong mb-1"><FormattedMessage id="adminAuditPanel.mostActiveAdmins" defaultMessage="Most active admins" /></h3>
       <p className="text-sm text-kumo-subtle mb-4">
-        By actions in the last {stats.days} days. Choose an admin to see only their activity.
+        <FormattedMessage id="adminAuditPanel.byActionsInTheLastDays" defaultMessage="By actions in the last {days} days. Choose an admin to see only their activity." values={{ days: stats.days }} />
       </p>
       {stats.topAdmins.length === 0
-        ? <p className="text-sm text-kumo-subtle">No admin activity in this window.</p>
+        ? <p className="text-sm text-kumo-subtle"><FormattedMessage id="adminAuditPanel.noAdminActivityInThisWindow" defaultMessage="No admin activity in this window." /></p>
         : (
           <Table>
             <Table.Header>
               <Table.Row>
-                <Table.Head>Admin</Table.Head>
-                <Table.Head className="text-right">Actions</Table.Head>
+                <Table.Head><FormattedMessage id="adminAuditPanel.admin" defaultMessage="Admin" /></Table.Head>
+                <Table.Head className="text-right"><FormattedMessage id="adminAuditPanel.actions2" defaultMessage="Actions" /></Table.Head>
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -104,7 +110,7 @@ const StatsCards = ({ stats, onFilterBy }: {
                       variant="ghost"
                       size="sm"
                       className="-ml-2 max-w-full text-base"
-                      aria-label={`Show only ${admin}’s activity`}
+                      aria-label={formatMessage({ id: 'adminAuditPanel.showOnlySActivity', defaultMessage: 'Show only {admin}’s activity' }, { admin: admin })}
                       onClick={() => onFilterBy({ admin })}
                     >
                       <span className="truncate">{admin}</span>
@@ -119,6 +125,7 @@ const StatsCards = ({ stats, onFilterBy }: {
     </div>
   </div>
 )
+}
 
 const accessHelp = ({ chosen, effective, max }: AuditSettings['adminWorkspaceAccess']): string[] => {
   const help = [
@@ -153,6 +160,7 @@ const accessRank = (level: AdminWorkspaceAccess) => ADMIN_WORKSPACE_ACCESS_LEVEL
  * users' accounts, and the log's retention.
  */
 export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, onFilterChange }: AdminAuditPanelProps) => {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   // Each load is one value of this; a new one supersedes those before it.
   const [loads, setLoads] = useState(0)
@@ -244,11 +252,9 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
       <section className="space-y-6" aria-labelledby={activityHeading}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h2 id={activityHeading} className="text-lg font-semibold text-kumo-strong">Admin activity</h2>
+            <h2 id={activityHeading} className="text-lg font-semibold text-kumo-strong"><FormattedMessage id="adminAuditPanel.adminActivity" defaultMessage="Admin activity" /></h2>
             <p className="text-sm text-kumo-subtle mt-0.5">
-              Every change an admin makes to the deployment&rsquo;s settings, every admin call into a
-              workspace or a user&rsquo;s account, and every admin write to a workspace, kept for{' '}
-              {NUMBER.format(retention.effective)} days.
+              <FormattedMessage id="adminAuditPanel.everyChangeAnAdminMakesTo" defaultMessage="Every change an admin makes to the deployment’s settings, every admin call into a workspace or a user’s account, and every admin write to a workspace, kept for {value} days." values={{ value: NUMBER.format(retention.effective) }} />
             </p>
           </div>
           <Button
@@ -259,7 +265,7 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
             disabled={refreshing}
             onClick={reload}
           >
-            Refresh
+            <FormattedMessage id="adminAuditPanel.refresh" defaultMessage="Refresh" />
           </Button>
         </div>
 
@@ -270,14 +276,14 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
         )}
         {statsFailed && (
           <div className={`${CARD} text-center`}>
-            <p role="alert" className="text-sm text-kumo-danger">Couldn’t load the admin audit statistics.</p>
-            <Button variant="secondary" size="sm" className="mt-3" onClick={reload}>Retry</Button>
+            <p role="alert" className="text-sm text-kumo-danger"><FormattedMessage id="adminAuditPanel.couldntLoadTheAdminAuditStatistics" defaultMessage="Couldn’t load the admin audit statistics." /></p>
+            <Button variant="secondary" size="sm" className="mt-3" onClick={reload}><FormattedMessage id="adminAuditPanel.retry" defaultMessage="Retry" /></Button>
           </div>
         )}
         {stats !== null && !statsFailed && <StatsCards stats={stats} onFilterBy={filterBy} />}
 
         <section className={CARD} aria-labelledby={logHeading}>
-          <h3 id={logHeading} className="text-lg font-semibold text-kumo-strong mb-4">Activity log</h3>
+          <h3 id={logHeading} className="text-lg font-semibold text-kumo-strong mb-4"><FormattedMessage id="adminAuditPanel.activityLog" defaultMessage="Activity log" /></h3>
           <AuditLog
             admin={admin}
             filter={filter}
@@ -293,7 +299,7 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
         <h2 className="text-lg font-semibold text-kumo-strong mb-4">{ACCESS_LABEL}</h2>
         <div ref={accessField}>
           <Select<AdminWorkspaceAccess>
-            label="Access level"
+            label={formatMessage({ id: 'adminAuditPanel.accessLevel', defaultMessage: 'Access level' })}
             value={access.effective}
             disabled={savingAccess}
             onValueChange={(level) => { if (level !== null) void changeAccess(level) }}
@@ -314,15 +320,10 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
       </div>
 
       <div className={CARD}>
-        <h2 className="text-lg font-semibold text-kumo-strong mb-4">Audit retention</h2>
+        <h2 className="text-lg font-semibold text-kumo-strong mb-4"><FormattedMessage id="adminAuditPanel.auditRetention" defaultMessage="Audit retention" /></h2>
         {retention.chosen < retention.min && (
           <p className="text-sm text-kumo-subtle mb-4">
-            The retention set here is {NUMBER.format(retention.chosen)} days, so this
-            deployment&rsquo;s minimum of {NUMBER.format(retention.min)} days is what holds it up. If
-            a deploy lowers or removes ADMIN_AUDIT_RETENTION_MIN_DAYS, as a deploy tool that writes
-            the backend&rsquo;s variables without it does, {NUMBER.format(retention.chosen)} days
-            applies again. To keep a retention either way, type the number of days and save it, even
-            the minimum.
+            <FormattedMessage id="adminAuditPanel.theRetentionSetHereIsDays" defaultMessage="The retention set here is {value} days, so this deployment’s minimum of {value2} days is what holds it up. If a deploy lowers or removes ADMIN_AUDIT_RETENTION_MIN_DAYS, as a deploy tool that writes the backend’s variables without it does, {value3} days applies again. To keep a retention either way, type the number of days and save it, even the minimum." values={{ value: NUMBER.format(retention.chosen), value2: NUMBER.format(retention.min), value3: NUMBER.format(retention.chosen) }} />
           </p>
         )}
         <div className="max-w-md">

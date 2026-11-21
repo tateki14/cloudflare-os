@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'rea
 import { useObjectUrl } from './attachments/useObjectUrl'
 import { isSvgImage } from './inlineImages'
 import type { FileSnapshots } from './inlineFiles'
+import { useIntl } from 'react-intl'
 
 /** The chat's existing scroll owner, notified once image dimensions are known. */
 export type FileImageLayout = {
@@ -17,6 +18,7 @@ export const FileImage = ({ oid, alt = '', title, readBlob, layout }: {
   readBlob: FileSnapshots['readBlob']
   layout?: FileImageLayout
 }) => {
+  const { formatMessage } = useIntl()
   const ref = useRef<HTMLSpanElement>(null)
   const [nearViewport, setNearViewport] = useState(false)
   const [state, setState] = useState<{ oid: string; blob: Blob; mimeType: string } | { error: string }>()
@@ -60,7 +62,7 @@ export const FileImage = ({ oid, alt = '', title, readBlob, layout }: {
     src={url} data-blob-oid={oid} alt={alt} title={title} className="max-w-full h-auto"
     onLoad={layout?.onHeightChange}
     onError={() => setState({ error: 'This image could not be decoded.' })}
-  /> : <span role="img" aria-label={alt || 'Image'} aria-busy={!error}
+  /> : <span role="img" aria-label={alt || formatMessage({ id: 'fileImage.image', defaultMessage: 'Image' })} aria-busy={!error}
     title={state && 'error' in state ? state.error : title} className="text-kumo-subtle">
     {error ? `Image unavailable${alt ? `: ${alt}` : ''}` : alt || 'Loading image…'}
   </span>}</span>

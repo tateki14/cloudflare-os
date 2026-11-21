@@ -2,6 +2,7 @@ import { useContext, type ReactNode } from "react";
 import { Button, DropdownMenu } from "@cloudflare/kumo";
 import { DotsThree } from "@phosphor-icons/react";
 import { TimelineContext } from "./readTimelineContext";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /** One rendered work item, which may group several persisted timeline records. */
 export const TimelineReadItem = ({
@@ -17,6 +18,7 @@ export const TimelineReadItem = ({
   previousUnreadEnd?: number;
   children: ReactNode;
 }) => {
+  const { formatMessage } = useIntl();
   const timeline = useContext(TimelineContext);
   return (
     <div
@@ -31,13 +33,11 @@ export const TimelineReadItem = ({
         unreadEnd >= timeline.divider && (
           <div
             role="separator"
-            aria-label="New since your last visit"
+            aria-label={formatMessage({ id: "timelineReadItem.newSinceYourLastVisit", defaultMessage: "New since your last visit" })}
             data-unread-divider
             className="my-4 flex items-center gap-3 text-xs font-medium text-kumo-brand"
           >
-            <span className="h-px flex-1 bg-kumo-brand" />
-            New
-            <span className="h-px flex-1 bg-kumo-brand" />
+            <FormattedMessage id="timelineReadItem.new" defaultMessage="{element}New{element2}" values={{ element: <span className="h-px flex-1 bg-kumo-brand" />, element2: <span className="h-px flex-1 bg-kumo-brand" /> }} />
           </div>
         )}
       {children}
@@ -50,7 +50,7 @@ export const TimelineReadItem = ({
                   variant="ghost"
                   size="xs"
                   shape="square"
-                  aria-label="Read actions for this item"
+                  aria-label={formatMessage({ id: "timelineReadItem.readActionsForThisItem", defaultMessage: "Read actions for this item" })}
                 >
                   <DotsThree size={16} />
                 </Button>
@@ -61,7 +61,7 @@ export const TimelineReadItem = ({
                 disabled={start > timeline.latestSequence}
                 onClick={() => timeline.markUnread(start)}
               >
-                Mark unread from here
+                <FormattedMessage id="timelineReadItem.markUnreadFromHere" defaultMessage="Mark unread from here" />
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu>

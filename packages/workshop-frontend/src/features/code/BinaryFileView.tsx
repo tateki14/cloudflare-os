@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { BytesRef } from '@gadgets/workshop-shared/code-change'
 import { WorkshopButton } from '../../components/WorkshopControls'
 import { formatAttachmentSize } from '../chat/attachmentFormatting'
+import { FormattedMessage } from 'react-intl'
 
 // Image types an <img> renders, by file extension. SVG is left out: a valid SVG is text, so it
 // opens in the editor. A Map, because a file may be named for an Object.prototype member.
@@ -45,7 +46,7 @@ export const BinaryFileView = ({ filename, blob, readBlob }: BinaryFileViewProps
   if (imageType === undefined) {
     return (
       <div className="flex h-full items-center justify-center bg-kumo-base px-6 text-center text-sm text-kumo-subtle">
-        Binary file ({formatAttachmentSize(blob.byteLength)}). Download it to open it.
+        <FormattedMessage id="binaryFileView.binaryFileDownloadItToOpen" defaultMessage="Binary file ({attachmentSize}). Download it to open it." values={{ attachmentSize: formatAttachmentSize(blob.byteLength) }} />
       </div>
     )
   }
@@ -53,14 +54,14 @@ export const BinaryFileView = ({ filename, blob, readBlob }: BinaryFileViewProps
   if (loaded === undefined) {
     return (
       <div className="flex h-full items-center justify-center bg-kumo-base text-kumo-subtle">
-        Loading image...
+        <FormattedMessage id="binaryFileView.loadingImage" defaultMessage="Loading image..." />
       </div>
     )
   }
   if (loaded.url === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 bg-kumo-base px-6 text-center">
-        <p className="m-0 text-sm text-kumo-danger">Failed to load this image.</p>
+        <p className="m-0 text-sm text-kumo-danger"><FormattedMessage id="binaryFileView.failedToLoadThisImage" defaultMessage="Failed to load this image." /></p>
         <WorkshopButton
           tone="secondary"
           className="!h-8"
@@ -69,7 +70,7 @@ export const BinaryFileView = ({ filename, blob, readBlob }: BinaryFileViewProps
             setRetryToken(token => token + 1)
           }}
         >
-          Try again
+          <FormattedMessage id="binaryFileView.tryAgain" defaultMessage="Try again" />
         </WorkshopButton>
       </div>
     )

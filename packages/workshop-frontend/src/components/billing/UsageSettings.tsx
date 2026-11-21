@@ -9,12 +9,14 @@ import { buildAddCreditsUrl } from './creditsUrl'
 import ResetCountdown from './ResetCountdown'
 import { NATIVE_CONNECT_COMPLETE_EVENT, openConnectWindow } from '../../connectHandoff'
 import { AuthPopupCancelledError } from '../../features/native-app/authPopup'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * Shows the user's free-tier usage and Cloudflare connection / credit status on the profile page.
  * Renders nothing unless the Cloudflare limits flow is enabled server-side.
  */
 export default function UsageSettings() {
+  const { formatMessage } = useIntl()
   const limitsEnabled = useCloudflareLimitsEnabled()
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
@@ -74,7 +76,7 @@ export default function UsageSettings() {
       await openConnectWindow(await authenticatedApi.connectAccount('cloudflare', []), authenticatedApi)
     } catch (error) {
       if (error instanceof AuthPopupCancelledError) return
-      toasts.add({ title: 'Could not connect Cloudflare',
+      toasts.add({ title: formatMessage({ id: 'usageSettings.couldNotConnectCloudflare', defaultMessage: 'Could not connect Cloudflare' }),
         description: error instanceof Error ? error.message : undefined, variant: 'error' })
     } finally {
       setBusy(false)
@@ -85,7 +87,7 @@ export default function UsageSettings() {
     setSelecting(accountId)
     try {
       await authenticatedApi.selectCloudflareAccount(accountId)
-      toasts.add({ title: 'Cloudflare account selected', variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'usageSettings.cloudflareAccountSelected', defaultMessage: 'Cloudflare account selected' }), variant: 'success' })
       setAccounts(null)
       refresh()
     } catch (err) {
@@ -99,23 +101,22 @@ export default function UsageSettings() {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="px-1 text-[12px] font-medium uppercase tracking-[0.08em] text-kumo-inactive">
-        Usage &amp; billing
+        <FormattedMessage id="usageSettings.usageBilling" defaultMessage="Usage & billing" />
       </h2>
       <div className="rounded-xl border border-kumo-line bg-kumo-base p-5">
       {loading || !usage ? (
-        <p className="text-sm text-kumo-subtle">Loading usage…</p>
+        <p className="text-sm text-kumo-subtle"><FormattedMessage id="usageSettings.loadingUsage" defaultMessage="Loading usage…" /></p>
       ) : (
         <div className="space-y-6">
           {/* Free daily allowance */}
           <div>
-            <p className="text-xs font-medium text-kumo-subtle mb-1">Free daily allowance</p>
+            <p className="text-xs font-medium text-kumo-subtle mb-1"><FormattedMessage id="usageSettings.freeDailyAllowance" defaultMessage="Free daily allowance" /></p>
             <p className="text-sm text-kumo-default">
-              {usage.remaining} of {usage.dailyLimit}{' '}
-              {usage.dailyLimit === 1 ? 'request' : 'requests'} remaining today
+              <FormattedMessage id="usageSettings.ofRemainingToday" defaultMessage="{remaining} of {dailyLimit} {value} remaining today" values={{ remaining: usage.remaining, dailyLimit: usage.dailyLimit, value: usage.dailyLimit === 1 ? formatMessage({ id: 'usageSettings.request', defaultMessage: 'request' }) : formatMessage({ id: 'usageSettings.requests', defaultMessage: 'requests' }) }} />
             </p>
             {usage.resetAt && (
               <p className="text-xs text-kumo-subtle mt-1">
-                Resets at 00:00 UTC, in{' '}
+                <FormattedMessage id="usageSettings.resetsAt0000UtcIn" defaultMessage="Resets at 00:00 UTC, in" />{' '}
                 <ResetCountdown resetAt={usage.resetAt} onElapsed={refresh} />.
               </p>
             )}
@@ -123,22 +124,20 @@ export default function UsageSettings() {
 
           {/* Cloudflare connection / credits */}
           <div>
-            <p className="text-xs font-medium text-kumo-subtle mb-1">Cloudflare account</p>
+            <p className="text-xs font-medium text-kumo-subtle mb-1"><FormattedMessage id="usageSettings.cloudflareAccount" defaultMessage="Cloudflare account" /></p>
             {!usage.connected ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-kumo-subtle">
                   <CloudflareLogo size={16} />
-                  <span>Not connected</span>
+                  <span><FormattedMessage id="usageSettings.notConnected" defaultMessage="Not connected" /></span>
                 </div>
                 <p className="text-sm text-kumo-subtle">
-                  Connect your Cloudflare account to keep building once your free allowance runs
-                  out. Usage beyond the free tier is billed to your own Cloudflare AI Gateway
-                  credits.
+                  <FormattedMessage id="usageSettings.connectYourCloudflareAccountToKeep" defaultMessage="Connect your Cloudflare account to keep building once your free allowance runs out. Usage beyond the free tier is billed to your own Cloudflare AI Gateway credits." />
                 </p>
                 <div className="pt-1">
                   <Button variant="primary" size="sm" onClick={connect} loading={busy}>
                     <Lightning size={14} weight="bold" className="mr-1" />
-                    Connect Cloudflare
+                    <FormattedMessage id="usageSettings.connectCloudflare" defaultMessage="Connect Cloudflare" />
                   </Button>
                 </div>
               </div>
@@ -147,17 +146,16 @@ export default function UsageSettings() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-kumo-default">
                   <Warning size={18} weight="bold" className="text-kumo-warning" />
-                  <span>Choose which Cloudflare account to bill</span>
+                  <span><FormattedMessage id="usageSettings.chooseWhichCloudflareAccountToBill" defaultMessage="Choose which Cloudflare account to bill" /></span>
                 </div>
                 <p className="text-sm text-kumo-subtle">
-                  Your connection has access to multiple Cloudflare accounts. Select the one whose
-                  AI Gateway credits should be used.
+                  <FormattedMessage id="usageSettings.yourConnectionHasAccessToMultiple" defaultMessage="Your connection has access to multiple Cloudflare accounts. Select the one whose AI Gateway credits should be used." />
                 </p>
                 {accounts === null ? (
-                  <p className="text-sm text-kumo-subtle">Loading accounts…</p>
+                  <p className="text-sm text-kumo-subtle"><FormattedMessage id="usageSettings.loadingAccounts" defaultMessage="Loading accounts…" /></p>
                 ) : accounts.length === 0 ? (
                   <p className="text-sm text-kumo-subtle">
-                    No accounts available on this connection.
+                    <FormattedMessage id="usageSettings.noAccountsAvailableOnThisConnection" defaultMessage="No accounts available on this connection." />
                   </p>
                 ) : (
                   <div className="flex flex-col gap-2">
@@ -182,12 +180,12 @@ export default function UsageSettings() {
                 <div className="flex items-center gap-2 text-sm text-kumo-default">
                   <CloudCheck size={18} weight="bold" className="text-kumo-success" />
                   <span>
-                    Connected
+                    <FormattedMessage id="usageSettings.connected" defaultMessage="Connected" />
                     {usage.accountName && <> — {usage.accountName}</>}
                   </span>
                 </div>
                 <p className="text-sm text-kumo-default">
-                  Account balance:{' '}
+                  <FormattedMessage id="usageSettings.accountBalance" defaultMessage="Account balance:" />{' '}
                   {usage.balance !== null ? (
                     <strong>${usage.balance.toFixed(2)}</strong>
                   ) : (
@@ -202,7 +200,7 @@ export default function UsageSettings() {
                     onClick={() => window.open(buildAddCreditsUrl(usage.accountId), '_blank')}
                   >
                     <Lightning size={14} weight="bold" className="mr-1" />
-                    Add credits
+                    <FormattedMessage id="usageSettings.addCredits" defaultMessage="Add credits" />
                   </Button>
                 </div>
               </div>
@@ -210,16 +208,12 @@ export default function UsageSettings() {
           </div>
 
           <p className="text-xs text-kumo-subtle border-t border-kumo-line pt-3">
-            Learn more about{' '}
-            <a
+            <FormattedMessage id="usageSettings.learnMoreAboutAiGatewayUnified" defaultMessage="Learn more about <a>AI Gateway unified billing</a>." values={{ a: (chunks) => <a
               href="https://developers.cloudflare.com/ai-gateway/features/unified-billing/"
               target="_blank"
               rel="noreferrer"
               className="underline"
-            >
-              AI Gateway unified billing
-            </a>
-            .
+            >{chunks}</a> }} />
           </p>
         </div>
       )}

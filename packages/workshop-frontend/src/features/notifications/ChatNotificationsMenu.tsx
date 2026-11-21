@@ -4,6 +4,7 @@ import { Bell, BellSlash } from "@phosphor-icons/react";
 import type { Overseer } from "@gadgets/workshop-shared/api";
 import { MENU_ITEM } from "../../components/menuStyles";
 import { logRpcFailure } from "../../rpcErrors";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /** Per-user chat preference; the unread subscription supplies the saved value. */
 export const ChatNotificationsMenu = ({ overseer, chatId, enabled, override, disabled }: {
@@ -13,6 +14,7 @@ export const ChatNotificationsMenu = ({ overseer, chatId, enabled, override, dis
   override?: boolean;
   disabled: boolean;
 }) => {
+  const { formatMessage } = useIntl();
   const [saving, setSaving] = useState(false);
   const toasts = useKumoToastManager();
   const update = async (value: boolean) => {
@@ -21,7 +23,7 @@ export const ChatNotificationsMenu = ({ overseer, chatId, enabled, override, dis
       await overseer.setChatNotificationsEnabled(chatId, value);
     } catch (error) {
       logRpcFailure("Failed to update chat notifications:", error);
-      toasts.add({ title: "Failed to update notifications", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatNotificationsMenu.failedToUpdateNotifications", defaultMessage: "Failed to update notifications" }), variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -31,12 +33,12 @@ export const ChatNotificationsMenu = ({ overseer, chatId, enabled, override, dis
       {!enabled && <DropdownMenu.Item disabled={disabled || saving}
         onClick={() => { void update(true); }} className={MENU_ITEM}>
         <Bell size={13} />
-        {override === false ? "Unmute notifications" : "Enable notifications"}
+        {override === false ? formatMessage({ id: "chatNotificationsMenu.unmuteNotifications", defaultMessage: "Unmute notifications" }) : formatMessage({ id: "chatNotificationsMenu.enableNotifications", defaultMessage: "Enable notifications" })}
       </DropdownMenu.Item>}
       {(enabled || override !== false) && <DropdownMenu.Item disabled={disabled || saving}
         onClick={() => { void update(false); }} className={MENU_ITEM}>
         <BellSlash size={13} />
-        Mute notifications
+        <FormattedMessage id="chatNotificationsMenu.muteNotifications" defaultMessage="Mute notifications" />
       </DropdownMenu.Item>}
     </>
   );

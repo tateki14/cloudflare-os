@@ -3,6 +3,7 @@ import { useKumoToastManager } from '@cloudflare/kumo'
 import { RpcStub } from 'capnweb'
 import { Overseer } from '@gadgets/workshop-shared/api'
 import { ActionKind } from '@gadgets/workshop-shared/gatekeeper'
+import { useIntl } from 'react-intl'
 
 /**
  * Enables an auto-approval rule for the action's (gatekeeperId, actionKind.tag), and tracks
@@ -15,6 +16,7 @@ export function useAlwaysApproveTag(
     // Told once the change settles, whichever way it went, so other surfaces re-read the rules;
     // see `AutoApprovalChannel`.
     onChanged?: () => void) {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   const [enabledTags, setEnabledTags] = useState<Set<string>>(new Set())
 
@@ -30,7 +32,7 @@ export function useAlwaysApproveTag(
       return true
     } catch (err) {
       console.error('Failed to enable auto-approval:', err)
-      toasts.add({ title: 'Failed to enable auto-approval', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'useAlwaysApproveTag.failedToEnableAutoApproval', defaultMessage: 'Failed to enable auto-approval' }), variant: 'error' })
       return false
     } finally {
       onChanged?.()

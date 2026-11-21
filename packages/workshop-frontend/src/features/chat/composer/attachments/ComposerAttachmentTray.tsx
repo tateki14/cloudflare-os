@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useAttachmentContents } from "../../attachments/useAttachmentContents";
 import { ComposerAttachmentCard } from "./ComposerAttachmentCard";
 import type { ComposerAttachment } from "./useComposerAttachments";
+import { useIntl } from "react-intl";
 
 const AttachmentViewer = lazy(() =>
   import("../../attachments/AttachmentViewer").then(m => ({ default: m.AttachmentViewer })));
@@ -26,6 +27,7 @@ export const ComposerAttachmentTray = ({
   disabled?: boolean;
   onRemove: (attachmentId: string) => void;
 }) => {
+  const { formatMessage } = useIntl();
   const open = attachments.length > 0;
   const [viewedId, setViewedId] = useState<string | null>(null);
   // The files are still on this device, so they are read from there, uploaded or not.
@@ -47,7 +49,7 @@ export const ComposerAttachmentTray = ({
         className="overflow-hidden"
       >
         <ul
-          aria-label="Attachments"
+          aria-label={formatMessage({ id: "composerAttachmentTray.attachments", defaultMessage: "Attachments" })}
           aria-hidden={!open}
           className="m-0 flex list-none gap-2 overflow-x-auto px-3 pb-2 pt-3"
         >

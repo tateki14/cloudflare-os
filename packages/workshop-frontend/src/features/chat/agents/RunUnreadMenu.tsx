@@ -6,6 +6,7 @@ import { WorkshopIconButton } from '../../../components/WorkshopControls'
 import { ChatNotificationsMenu } from '../../notifications/ChatNotificationsMenu'
 import { UnreadBadge } from '../../notifications/UnreadBadge'
 import { unreadCountOf, useUnreadState } from '../../notifications/UnreadStateBridge'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * What a run has left unread, and the control that sets it.
@@ -22,6 +23,7 @@ export const RunUnreadMenu = ({ workspaceId, run, overseer }: {
   run: AiChatMetadata
   overseer: RpcStub<Overseer>
 }) => {
+  const { formatMessage } = useIntl()
   const unread = useUnreadState()
   const count = unreadCountOf(unread, workspaceId, run.id)
   const readState = unread?.chats?.find(item => item.workspaceId === workspaceId && item.chatId === run.id)
@@ -34,7 +36,7 @@ export const RunUnreadMenu = ({ workspaceId, run, overseer }: {
         <DropdownMenu.Trigger
           render={
             <WorkshopIconButton
-              aria-label={`Actions for ${run.title}`}
+              aria-label={formatMessage({ id: 'runUnreadMenu.actionsFor', defaultMessage: 'Actions for {title}' }, { title: run.title })}
               onClick={event => event.stopPropagation()}
               className="!h-7 !w-7 flex-shrink-0 text-kumo-inactive opacity-100 focus:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 sm:!h-6 sm:!w-6 sm:opacity-0"
             >
@@ -52,13 +54,13 @@ export const RunUnreadMenu = ({ workspaceId, run, overseer }: {
             disabled={!unread?.chats || count === 0}
             onClick={() => { void unread?.markRead(overseer, run.id).catch(() => {}) }}
           >
-            Mark thread read
+            <FormattedMessage id="runUnreadMenu.markThreadRead" defaultMessage="Mark thread read" />
           </DropdownMenu.Item>
           <DropdownMenu.Item
             disabled={!unread?.chats || count > 0}
             onClick={() => { void unread?.markUnread(overseer, run.id).catch(() => {}) }}
           >
-            Mark thread unread
+            <FormattedMessage id="runUnreadMenu.markThreadUnread" defaultMessage="Mark thread unread" />
           </DropdownMenu.Item>
           <ChatNotificationsMenu overseer={overseer} chatId={run.id}
             enabled={notificationsEnabled} override={readState?.notificationsEnabledOverride}

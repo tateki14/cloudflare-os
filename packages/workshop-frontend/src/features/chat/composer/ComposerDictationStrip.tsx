@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import { Button } from "@cloudflare/kumo";
 import { Check, X } from "@phosphor-icons/react";
 import type { DictatedWords } from "./useComposerDictation";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /**
  * The words dictation is waiting to add, shown apart from the draft so that the draft, its
@@ -15,6 +16,7 @@ export const ComposerDictationStrip = ({ textId, words, disabled, onAdd, onDisca
   onAdd: () => void;
   onDiscard: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const textRef = useRef<HTMLParagraphElement>(null);
   const empty = !words.final && !words.interim;
 
@@ -27,7 +29,7 @@ export const ComposerDictationStrip = ({ textId, words, disabled, onAdd, onDisca
   return (
     <div
       role="group"
-      aria-label="Voice typing"
+      aria-label={formatMessage({ id: "composerDictationStrip.voiceTyping", defaultMessage: "Voice typing" })}
       className="flex items-start gap-1 px-4 pb-2"
       onKeyDown={(e) => {
         if (e.key !== "Escape") return;
@@ -41,7 +43,7 @@ export const ComposerDictationStrip = ({ textId, words, disabled, onAdd, onDisca
         className="m-0 max-h-[66px] min-w-0 flex-1 overflow-y-auto py-1 text-[16px] leading-[22px] text-kumo-default sm:text-[14px]"
       >
         {empty
-          ? <span className="text-kumo-subtle">Listening…</span>
+          ? <span className="text-kumo-subtle"><FormattedMessage id="composerDictationStrip.listening" defaultMessage="Listening…" /></span>
           : <>{words.final}<span className="text-kumo-subtle">{words.interim}</span></>}
       </p>
       <Button
@@ -49,8 +51,8 @@ export const ComposerDictationStrip = ({ textId, words, disabled, onAdd, onDisca
         shape="square"
         size="sm"
         variant="ghost"
-        aria-label="Add to message"
-        title="Add to message"
+        aria-label={formatMessage({ id: "composerDictationStrip.addToMessage", defaultMessage: "Add to message" })}
+        title={formatMessage({ id: "composerDictationStrip.addToMessage", defaultMessage: "Add to message" })}
         icon={<Check />}
         disabled={disabled || empty}
         onClick={onAdd}
@@ -60,8 +62,8 @@ export const ComposerDictationStrip = ({ textId, words, disabled, onAdd, onDisca
         shape="square"
         size="sm"
         variant="ghost"
-        aria-label="Discard what you said"
-        title="Discard what you said"
+        aria-label={formatMessage({ id: "composerDictationStrip.discardWhatYouSaid", defaultMessage: "Discard what you said" })}
+        title={formatMessage({ id: "composerDictationStrip.discardWhatYouSaid", defaultMessage: "Discard what you said" })}
         icon={<X />}
         disabled={disabled}
         onClick={onDiscard}

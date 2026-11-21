@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { InputGroup, SensitiveInput } from '@cloudflare/kumo'
 import { ArrowCounterClockwise } from '@phosphor-icons/react'
+import { useIntl } from 'react-intl'
 
 // Shown in place of a secret the server withholds, which the client never has.
 const WITHHELD_MASK = '********'
@@ -21,6 +22,7 @@ export const StoredSecretInput = ({ value, stored, onValueChange, label, 'aria-l
   placeholder?: string
   error?: string
 }) => {
+  const { formatMessage } = useIntl()
   if (!stored) {
     return (
       <SensitiveInput
@@ -57,8 +59,8 @@ export const StoredSecretInput = ({ value, stored, onValueChange, label, 'aria-l
           <InputGroup.Button
             shape="square"
             icon={ArrowCounterClockwise}
-            aria-label="Keep stored value"
-            tooltip="Keep stored value"
+            aria-label={formatMessage({ id: 'storedSecretInput.keepStoredValue', defaultMessage: 'Keep stored value' })}
+            tooltip={formatMessage({ id: 'storedSecretInput.keepStoredValue', defaultMessage: 'Keep stored value' })}
             onClick={() => onValueChange(null)}
           />
         </InputGroup.Addon>

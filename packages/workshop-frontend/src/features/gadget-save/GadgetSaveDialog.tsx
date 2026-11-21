@@ -10,6 +10,7 @@ import { WorkshopInput } from '../../components/WorkshopControls'
 import type { SaveRequest } from './GadgetSaveMenuItems'
 import { safeExternalUrl } from '../../utils/safeExternalUrl'
 import { writeSavedFile } from './savedFiles'
+import { useIntl } from 'react-intl'
 
 /**
  * Saves the gadget's export as a file in one of the user's connected accounts: a new file, named
@@ -25,6 +26,7 @@ export const GadgetSaveDialog = ({
   request: SaveRequest
   onClose: () => void
 }) => {
+  const { formatMessage } = useIntl()
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
   const [name, setName] = useState(gadgetTitle)
@@ -40,7 +42,7 @@ export const GadgetSaveDialog = ({
       writeSavedFile(storageKey, { accountId, url, name: fileName })
       const href = safeExternalUrl(url)
       toasts.add({
-        title: `Saved to ${resource.title}`,
+        title: formatMessage({ id: 'gadgetSaveDialog.savedTo', defaultMessage: 'Saved to {title}' }, { title: resource.title }),
         variant: 'success',
         actions: href ? [{ children: 'Open', onClick: () => window.open(href, '_blank', 'noopener') }] : undefined,
       })
@@ -48,7 +50,7 @@ export const GadgetSaveDialog = ({
     } catch (err) {
       console.error(`Failed to save Gadget to ${resource.title}:`, err)
       toasts.add({
-        title: err instanceof Error && err.message ? err.message : `Failed to save to ${resource.title}`,
+        title: err instanceof Error && err.message ? err.message : formatMessage({ id: 'gadgetSaveDialog.failedToSaveTo', defaultMessage: 'Failed to save to {title}' }, { title: resource.title }),
         variant: 'error',
       })
     } finally {
@@ -60,10 +62,10 @@ export const GadgetSaveDialog = ({
     return (
       <DeleteConfirmationDialog
         open
-        title={`Update “${saved.name}”?`}
-        description="This replaces its content with the current version of this gadget. Suggestions that are pending in it are discarded, and comments may lose their place."
+        title={formatMessage({ id: 'gadgetSaveDialog.update', defaultMessage: 'Update “{name}”?' }, { name: saved.name })}
+        description={formatMessage({ id: 'gadgetSaveDialog.thisReplacesItsContentWithThe', defaultMessage: 'This replaces its content with the current version of this gadget. Suggestions that are pending in it are discarded, and comments may lose their place.' })}
         isDeleting={updating}
-        confirmLabel="Update"
+        confirmLabel={formatMessage({ id: 'gadgetSaveDialog.update2', defaultMessage: 'Update' })}
         confirmingLabel="Updating…"
         onOpenChange={open => { if (!open) onClose() }}
         onConfirm={async () => {
@@ -77,16 +79,16 @@ export const GadgetSaveDialog = ({
 
   return (
     <CreationAccountDialog
-      title={`Save to ${resource.title}`}
+      title={formatMessage({ id: 'gadgetSaveDialog.saveTo', defaultMessage: 'Save to {title}' }, { title: resource.title })}
       target={target}
       purpose="save"
-      submitLabel="Save"
+      submitLabel={formatMessage({ id: 'gadgetSaveDialog.save', defaultMessage: 'Save' })}
       submitDisabled={!name.trim()}
       // A savable type has a configurator, whose choice is where the file goes.
       onSubmit={({ accountId, configuration }) => save(accountId, configuration!, name.trim())}
       onCancel={onClose}
     >
-      <WorkshopInput label="Name" value={name} onChange={event => setName(event.target.value)} />
+      <WorkshopInput label={formatMessage({ id: 'gadgetSaveDialog.name', defaultMessage: 'Name' })} value={name} onChange={event => setName(event.target.value)} />
     </CreationAccountDialog>
   )
 }

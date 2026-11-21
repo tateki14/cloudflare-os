@@ -14,6 +14,7 @@ import type { FileChange, TextChange } from '@gadgets/workshop-shared/code-chang
 import { codeEditorTheme, monoFont } from './codeTheme'
 import { getLanguage } from './getLanguage'
 import { useTheme } from '../../ThemeContext'
+import { FormattedMessage } from 'react-intl'
 
 // The code view's plain editor: CodeMirror 6, either read-only (the committed head view) or
 // bound to the chat's OT client through an EditSession. In-chat diff presentation lives in
@@ -208,7 +209,7 @@ export default function CodeEditor({
         className="flex justify-center items-center bg-kumo-base text-kumo-subtle"
         style={{ height }}
       >
-        Select a file to start editing
+        <FormattedMessage id="codeEditor.selectFileToEdit" defaultMessage="Select a file to start editing" />
       </div>
     )
   }

@@ -7,6 +7,7 @@ import { buildAddCreditsUrl } from './creditsUrl'
 import ResetCountdown from './ResetCountdown'
 import { NATIVE_CONNECT_COMPLETE_EVENT, openConnectWindow } from '../../connectHandoff'
 import { AuthPopupCancelledError } from '../../features/native-app/authPopup'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 interface OutOfCreditsModalProps {
   open: boolean
@@ -19,6 +20,7 @@ interface OutOfCreditsModalProps {
  * up credits in the Cloudflare dashboard (if connected but low balance).
  */
 export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalProps) {
+  const { formatMessage } = useIntl()
   const auth = useOptionalAuthenticatedApi()
   const toasts = useKumoToastManager()
   const [usage, setUsage] = useState<CloudflareUsageInfo | null>(null)
@@ -75,7 +77,7 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
     } catch (err) {
       if (err instanceof AuthPopupCancelledError) return
       toasts.add({
-        title: 'Could not connect Cloudflare',
+        title: formatMessage({ id: 'outOfCreditsModal.couldNotConnectCloudflare', defaultMessage: 'Could not connect Cloudflare' }),
         description: err instanceof Error ? err.message : undefined,
         variant: 'error',
       })
@@ -107,7 +109,7 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
       <Dialog className="responsive-dialog overflow-y-auto p-6 sm:w-[560px]" size="base">
         <Dialog.Title className="text-lg font-semibold mb-2 flex items-center gap-2">
           <CloudWarning size={22} weight="bold" className="text-kumo-warning" />
-          You've reached your free usage limit
+          <FormattedMessage id="outOfCreditsModal.youveReachedYourFreeUsageLimit" defaultMessage="You've reached your free usage limit" />
         </Dialog.Title>
 
         {usage === null ? (
@@ -116,33 +118,27 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
           <div className="space-y-4">
             {!connected ? (
               <p className="text-sm text-kumo-subtle">
-                You've used all {usage.dailyLimit} of your free {usage.dailyLimit === 1 ? 'request' : 'requests'} for
-                today. Connect your Cloudflare account to keep building now — usage beyond the free
-                tier is billed to your own Cloudflare AI Gateway credits
+                <FormattedMessage id="outOfCreditsModal.youveUsedAllOfYourFree" defaultMessage="You've used all {dailyLimit} of your free {value} for today. Connect your Cloudflare account to keep building now — usage beyond the free tier is billed to your own Cloudflare AI Gateway credits" values={{ dailyLimit: usage.dailyLimit, value: usage.dailyLimit === 1 ? formatMessage({ id: 'outOfCreditsModal.request', defaultMessage: 'request' }) : formatMessage({ id: 'outOfCreditsModal.requests', defaultMessage: 'requests' }) }} />
                 {usage.resetAt ? (
                   <>
-                    {' '}— or wait: your free {usage.dailyLimit === 1 ? 'request resets' : 'requests reset'} at
-                    00:00 UTC, in <ResetCountdown resetAt={usage.resetAt} onElapsed={refresh} />.
+                    {' '}<FormattedMessage id="outOfCreditsModal.orWaitYourFreeAt00" defaultMessage="— or wait: your free {value} at 00:00 UTC, in" values={{ value: usage.dailyLimit === 1 ? formatMessage({ id: 'outOfCreditsModal.requestResets', defaultMessage: 'request resets' }) : formatMessage({ id: 'outOfCreditsModal.requestsReset', defaultMessage: 'requests reset' }) }} /> <ResetCountdown resetAt={usage.resetAt} onElapsed={refresh} />.
                   </>
                 ) : '.'}
               </p>
             ) : needsSelection ? (
               <p className="text-sm text-kumo-subtle">
-                Your Cloudflare connection has access to multiple accounts. Choose which one's AI
-                Gateway credits should be billed for usage beyond the free tier.
+                <FormattedMessage id="outOfCreditsModal.yourCloudflareConnectionHasAccessTo" defaultMessage="Your Cloudflare connection has access to multiple accounts. Choose which one's AI Gateway credits should be billed for usage beyond the free tier." />
               </p>
             ) : (
               <p className="text-sm text-kumo-subtle">
-                Your Cloudflare account is connected
+                <FormattedMessage id="outOfCreditsModal.yourCloudflareAccountIsConnected" defaultMessage="Your Cloudflare account is connected" />
                 {usage.balance !== null && (
-                  <> with a balance of <strong>${usage.balance.toFixed(2)}</strong></>
+                  <> <FormattedMessage id="outOfCreditsModal.withABalanceOf" defaultMessage="with a balance of" /> <strong>${usage.balance.toFixed(2)}</strong></>
                 )}
-                , but it's below the minimum needed to continue. Add credits to your AI Gateway to
-                keep building now
+                <FormattedMessage id="outOfCreditsModal.butItsBelowTheMinimumNeeded" defaultMessage=", but it's below the minimum needed to continue. Add credits to your AI Gateway to keep building now" />
                 {usage.resetAt ? (
                   <>
-                    {' '}or wait — your free {usage.dailyLimit === 1 ? 'request resets' : 'requests reset'} at
-                    00:00 UTC, in <ResetCountdown resetAt={usage.resetAt} onElapsed={refresh} />.
+                    {' '}<FormattedMessage id="outOfCreditsModal.orWaitYourFreeAt002" defaultMessage="or wait — your free {value} at 00:00 UTC, in" values={{ value: usage.dailyLimit === 1 ? formatMessage({ id: 'outOfCreditsModal.requestResets', defaultMessage: 'request resets' }) : formatMessage({ id: 'outOfCreditsModal.requestsReset', defaultMessage: 'requests reset' }) }} /> <ResetCountdown resetAt={usage.resetAt} onElapsed={refresh} />.
                   </>
                 ) : '.'}
               </p>
@@ -151,9 +147,9 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
             {needsSelection && (
               <div className="flex flex-col gap-2">
                 {accounts === null ? (
-                  <p className="text-sm text-kumo-subtle">Loading accounts…</p>
+                  <p className="text-sm text-kumo-subtle"><FormattedMessage id="outOfCreditsModal.loadingAccounts" defaultMessage="Loading accounts…" /></p>
                 ) : accounts.length === 0 ? (
-                  <p className="text-sm text-kumo-subtle">No accounts available on this connection.</p>
+                  <p className="text-sm text-kumo-subtle"><FormattedMessage id="outOfCreditsModal.noAccountsAvailableOnThisConnection" defaultMessage="No accounts available on this connection." /></p>
                 ) : (
                   accounts.map((a) => (
                     <Button
@@ -172,37 +168,33 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
             )}
 
             <p className="text-sm text-kumo-subtle">
-              Learn more about{' '}
-              <a
+              <FormattedMessage id="outOfCreditsModal.learnMoreAboutAiGatewayUnified" defaultMessage="Learn more about <a>AI Gateway unified billing</a>." values={{ a: (chunks) => <a
                 href="https://developers.cloudflare.com/ai-gateway/features/unified-billing/"
                 target="_blank"
                 rel="noreferrer"
                 className="underline"
-              >
-                AI Gateway unified billing
-              </a>
-              .
+              >{chunks}</a> }} />
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               {!connected ? (
                 <>
-                  <Button variant="secondary" onClick={onClose}>Maybe later</Button>
+                  <Button variant="secondary" onClick={onClose}><FormattedMessage id="outOfCreditsModal.maybeLater" defaultMessage="Maybe later" /></Button>
                   <Button variant="primary" onClick={connect} loading={connecting}>
                     <Lightning size={16} weight="bold" />
-                    Connect Cloudflare
+                    <FormattedMessage id="outOfCreditsModal.connectCloudflare" defaultMessage="Connect Cloudflare" />
                   </Button>
                 </>
               ) : needsSelection ? (
-                <Button variant="secondary" onClick={onClose}>Close</Button>
+                <Button variant="secondary" onClick={onClose}><FormattedMessage id="outOfCreditsModal.close" defaultMessage="Close" /></Button>
               ) : (
                 <>
-                  <Button variant="secondary" onClick={onClose}>Close</Button>
+                  <Button variant="secondary" onClick={onClose}><FormattedMessage id="outOfCreditsModal.close" defaultMessage="Close" /></Button>
                   <Button
                     variant="primary"
                     onClick={() => window.open(buildAddCreditsUrl(usage.accountId), '_blank')}
                   >
-                    Add credits in Cloudflare
+                    <FormattedMessage id="outOfCreditsModal.addCreditsInCloudflare" defaultMessage="Add credits in Cloudflare" />
                   </Button>
                 </>
               )}

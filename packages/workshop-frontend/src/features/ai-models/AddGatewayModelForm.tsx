@@ -14,6 +14,7 @@ import { PROVIDER_LABELS, REASONING_LEVEL_LABELS, parseTokenLimit } from './mode
 import type { ModelSuggestion } from './modelsDev'
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
 import { useGatewayTests } from './useGatewayTests'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const TOKEN_LIMIT_ERROR = 'Enter a positive whole number of tokens'
 const BEHAVES_LIKE_HELP =
@@ -71,6 +72,7 @@ export const AddGatewayModelForm = ({
   /** Tests the model as described, without adding it. Rejects when the test could not be run. */
   onTest: (model: GatewayModel) => Promise<GatewayModelLevelTest[]>
 }) => {
+  const { formatMessage } = useIntl()
   const [chosenProvider, setChosenProvider] = useState(providers[0])
   const [id, setId] = useState('')
   const [name, setName] = useState('')
@@ -198,7 +200,7 @@ export const AddGatewayModelForm = ({
   return (
     <form noValidate onSubmit={submit} className="grid items-start gap-4 sm:grid-cols-2">
       <Select<AiModelProvider>
-        label="Provider"
+        label={formatMessage({ id: 'addGatewayModelForm.provider', defaultMessage: 'Provider' })}
         className="w-full"
         disabled={disabled}
         value={provider}
@@ -271,7 +273,7 @@ export const AddGatewayModelForm = ({
           </Autocomplete>
           {suggestions.unavailable && (
             <p role="status" className="text-sm leading-snug text-kumo-subtle">
-              Suggestions from models.dev couldn’t be loaded. Enter the model’s details by hand.
+              <FormattedMessage id="addGatewayModelForm.suggestionsFromModelsDevCouldntBe" defaultMessage="Suggestions from models.dev couldn’t be loaded. Enter the model’s details by hand." />
             </p>
           )}
         </div>
@@ -289,8 +291,8 @@ export const AddGatewayModelForm = ({
       )}
       <Input
         ref={nameRef}
-        label="Display name"
-        description="Shown wherever the model is listed."
+        label={formatMessage({ id: 'addGatewayModelForm.displayName', defaultMessage: 'Display name' })}
+        description={formatMessage({ id: 'addGatewayModelForm.shownWhereverTheModelIsListed', defaultMessage: 'Shown wherever the model is listed.' })}
         value={name}
         disabled={disabled}
         onChange={edit(setName)}
@@ -299,9 +301,9 @@ export const AddGatewayModelForm = ({
       />
       <Input
         ref={contextWindowRef}
-        label="Context window"
+        label={formatMessage({ id: 'addGatewayModelForm.contextWindow', defaultMessage: 'Context window' })}
         inputMode="numeric"
-        description="The maximum tokens one request may total."
+        description={formatMessage({ id: 'addGatewayModelForm.theMaximumTokensOneRequestMay', defaultMessage: 'The maximum tokens one request may total.' })}
         value={contextWindow}
         disabled={disabled}
         onChange={edit(setContextWindow)}
@@ -310,10 +312,10 @@ export const AddGatewayModelForm = ({
       />
       <Input
         ref={outputLimitRef}
-        label="Output limit"
+        label={formatMessage({ id: 'addGatewayModelForm.outputLimit', defaultMessage: 'Output limit' })}
         required={false}
         inputMode="numeric"
-        description="The maximum tokens in one response, also reserved out of the context window."
+        description={formatMessage({ id: 'addGatewayModelForm.theMaximumTokensInOneResponse', defaultMessage: 'The maximum tokens in one response, also reserved out of the context window.' })}
         value={outputLimit}
         disabled={disabled}
         onChange={edit(setOutputLimit)}
@@ -322,11 +324,11 @@ export const AddGatewayModelForm = ({
       />
       {behavesLikeOffered.length > 0 && (
         <Select<string | null>
-          label="Behaves like"
+          label={formatMessage({ id: 'addGatewayModelForm.behavesLike', defaultMessage: 'Behaves like' })}
           labelTooltip={BEHAVES_LIKE_HELP}
           required={false}
           className="w-full"
-          placeholder="None"
+          placeholder={formatMessage({ id: 'addGatewayModelForm.none', defaultMessage: 'None' })}
           disabled={disabled}
           value={behavesLike?.id ?? null}
           onValueChange={(value) => {
@@ -335,15 +337,15 @@ export const AddGatewayModelForm = ({
           }}
           renderValue={() => behavesLike?.name}
         >
-          <Select.Option value={null}>None</Select.Option>
+          <Select.Option value={null}><FormattedMessage id="addGatewayModelForm.none" defaultMessage="None" /></Select.Option>
           {behavesLikeOffered.map((option) => (
             <Select.Option key={option.id} value={option.id}>{option.name}</Select.Option>
           ))}
         </Select>
       )}
       <Select<boolean | null>
-        label="Image input"
-        description="Whether the model takes images beside text."
+        label={formatMessage({ id: 'addGatewayModelForm.imageInput', defaultMessage: 'Image input' })}
+        description={formatMessage({ id: 'addGatewayModelForm.whetherTheModelTakesImagesBeside', defaultMessage: 'Whether the model takes images beside text.' })}
         required={false}
         className="w-full"
         placeholder={NOT_STATED}
@@ -356,12 +358,12 @@ export const AddGatewayModelForm = ({
         renderValue={(value) => (value ? 'Yes' : 'No')}
       >
         <Select.Option value={null}>{NOT_STATED}</Select.Option>
-        <Select.Option value={true}>Yes</Select.Option>
-        <Select.Option value={false}>No</Select.Option>
+        <Select.Option value={true}><FormattedMessage id="addGatewayModelForm.yes" defaultMessage="Yes" /></Select.Option>
+        <Select.Option value={false}><FormattedMessage id="addGatewayModelForm.no" defaultMessage="No" /></Select.Option>
       </Select>
       <Select<ReasoningLevel, true>
         multiple
-        label="Reasoning levels"
+        label={formatMessage({ id: 'addGatewayModelForm.reasoningLevels', defaultMessage: 'Reasoning levels' })}
         description={REASONING_LEVELS_HELP}
         required={false}
         className="w-full"
@@ -390,7 +392,7 @@ export const AddGatewayModelForm = ({
         )}
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" variant="secondary" icon={Plus} disabled={disabled}>
-            Add model
+            <FormattedMessage id="addGatewayModelForm.addModel" defaultMessage="Add model" />
           </Button>
           <GatewayTestButton
             name="this model"

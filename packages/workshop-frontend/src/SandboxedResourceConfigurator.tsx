@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RpcStub, RpcTarget, newMessagePortRpcSession } from 'capnweb'
+import { useIntl } from 'react-intl'
 import { ResourceConfiguratorFrame, ResourceConfiguratorHost, ResourceConfiguratorIframe } from '@gadgets/workshop-shared/gatekeeper'
 import { createRateLimitedCapability } from './rateLimitedCapability'
 import { useTheme } from './ThemeContext'
@@ -116,6 +117,7 @@ export default function SandboxedResourceConfigurator({
   acceptedResourceUrlPatterns: readonly string[],
 }) {
   const { resolvedThemeMode } = useTheme()
+  const { formatMessage } = useIntl()
   const placeholderRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const rpcSessionRef = useRef<{ [Symbol.dispose]?(): void } | null>(null)
@@ -289,16 +291,27 @@ export default function SandboxedResourceConfigurator({
   }
 
   const collectResourceUrl = () => {
-    if (iframeInvalidatedRef.current) return Promise.reject(new Error('Configurator is no longer available.'))
+    if (iframeInvalidatedRef.current) {
+      return Promise.reject(new Error(
+        formatMessage({ id: 'sandboxedResourceConfigurator.errorNoLongerAvailable', defaultMessage: 'Configurator is no longer available.' }),
+      ))
+    }
     const iframe = iframeRpcRef.current
-    if (!iframe || !iframeConnectedRef.current) return Promise.reject(new Error('Configurator is not ready.'))
+    if (!iframe || !iframeConnectedRef.current) {
+      return Promise.reject(new Error(
+        formatMessage({ id: 'sandboxedResourceConfigurator.errorNotReady', defaultMessage: 'Configurator is not ready.' }),
+      ))
+    }
 
     let timeout: number | null = null
     return Promise.race([
       iframe.collectResourceUrl(),
       new Promise<never>((_, reject) => {
         timeout = window.setTimeout(() => {
-          reject(new Error('Configurator did not provide its resource URL. Please try again.'))
+          reject(new Error(formatMessage({
+            id: 'sandboxedResourceConfigurator.errorNoResourceUrl',
+            defaultMessage: 'Configurator did not provide its resource URL. Please try again.',
+          })))
         }, COLLECT_VALUES_TIMEOUT_MS)
       }),
     ]).finally(() => {
@@ -431,7 +444,7 @@ export default function SandboxedResourceConfigurator({
         srcDoc={frame.iframeHtml}
         onLoad={handleIframeLoad}
         sandbox="allow-scripts"
-        title="Resource configurator"
+        title={formatMessage({ id: 'sandboxedResourceConfigurator.iframeTitle', defaultMessage: 'Resource configurator' })}
         scrolling="no"
         style={{
           position: 'fixed',

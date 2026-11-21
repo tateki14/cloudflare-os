@@ -7,6 +7,7 @@ import { AttachmentPreviewError, type AttachmentPreviewProps } from "../attachme
 import styles from "./PdfPreview.module.css";
 import { canvasDensity, openPdf } from "./pdfjs";
 import { scrollRoot } from "./scrollRoot";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /** Pages are drawn no wider than this, however wide the viewer. */
 const MAX_PAGE_WIDTH = 900;
@@ -33,6 +34,7 @@ const PdfPage = ({ doc, pageNumber, width }: {
   pageNumber: number;
   width: number;
 }) => {
+  const { formatMessage } = useIntl();
   const hostRef = useRef<HTMLDivElement>(null);
   const [near, setNear] = useState(false);
   const [aspect, setAspect] = useState(DEFAULT_ASPECT);
@@ -124,7 +126,7 @@ const PdfPage = ({ doc, pageNumber, width }: {
     <div
       ref={hostRef}
       role="group"
-      aria-label={`Page ${pageNumber}`}
+      aria-label={formatMessage({ id: "pdfPreview.page", defaultMessage: "Page {pageNumber}" }, { pageNumber: pageNumber })}
       className="relative shrink-0 overflow-hidden bg-kumo-base shadow-sm ring-1 ring-kumo-line"
       style={{ width, height: Math.round(width * aspect) }}
     />
@@ -133,6 +135,7 @@ const PdfPage = ({ doc, pageNumber, width }: {
 
 /** A PDF, every page drawn by pdf.js as the document specifies. */
 export const PdfPreview = ({ bytes }: AttachmentPreviewProps) => {
+  const { formatMessage } = useIntl();
   const containerRef = useRef<HTMLDivElement>(null);
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
@@ -173,14 +176,14 @@ export const PdfPreview = ({ bytes }: AttachmentPreviewProps) => {
     <div className="min-h-full">
       {doc && doc.numPages > MAX_PAGES && (
         <div className="sticky top-0 z-10 border-b border-kumo-line bg-kumo-elevated px-4 py-2 text-center text-[12px] leading-4 text-kumo-subtle">
-          Only the first {MAX_PAGES} pages are shown. Download the file to see everything.
+          <FormattedMessage id="pdfPreview.onlyTheFirstPagesAreShown" defaultMessage="Only the first {MAX_PAGES} pages are shown. Download the file to see everything." values={{ MAX_PAGES: MAX_PAGES }} />
         </div>
       )}
       <div ref={containerRef} className="flex flex-col items-center gap-3 px-4 py-4">
         {doc ? Array.from({ length: pageCount }, (_, index) => (
           <PdfPage key={index} doc={doc} pageNumber={index + 1} width={width} />
         )) : (
-          <div className="grid h-40 place-items-center" role="status" aria-label="Loading preview">
+          <div className="grid h-40 place-items-center" role="status" aria-label={formatMessage({ id: "pdfPreview.loadingPreview", defaultMessage: "Loading preview" })}>
             <Loader size="base" />
           </div>
         )}

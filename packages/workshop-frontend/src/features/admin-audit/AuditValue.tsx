@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { Button } from '@cloudflare/kumo'
+import { useIntl } from 'react-intl'
 
 // Past this many characters or lines, a value may not fit the six lines it is clamped to.
 const CLAMP_CHARACTERS = 480
@@ -32,6 +33,7 @@ const layOut = (value: string) => {
  * show nothing, says "empty".
  */
 export const AuditValue = ({ value, label }: { value: string | undefined; label: string }) => {
+  const { formatMessage } = useIntl()
   const [expanded, setExpanded] = useState(false)
   const valueId = useId()
   if (value === undefined) {
@@ -65,7 +67,7 @@ export const AuditValue = ({ value, label }: { value: string | undefined; label:
           aria-label={`${expanded ? 'Show less' : 'Show all'} of ${label}`}
           onClick={() => setExpanded((open) => !open)}
         >
-          {expanded ? 'Show less' : 'Show all'}
+          {expanded ? formatMessage({ id: 'auditValue.showLess', defaultMessage: 'Show less' }) : formatMessage({ id: 'auditValue.showAll', defaultMessage: 'Show all' })}
         </Button>
       )}
     </span>

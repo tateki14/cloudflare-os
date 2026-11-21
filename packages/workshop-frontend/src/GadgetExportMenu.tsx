@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DropdownMenu, Tooltip, useKumoToastManager } from '@cloudflare/kumo'
 import { DownloadSimple } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import type { RpcStub } from 'capnweb'
 import type { GadgetClient, GadgetSnapshotClient } from '@gadgets/workshop-shared/api'
 import type { GadgetExportFormat } from '@gadgets/workshop-shared/api'
@@ -32,6 +33,7 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
   const formatRequest = useRef(0)
   const { vendors: saveVendors, refresh: refreshSaveVendors } = useSaveVendors(!!saveScope)
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   useEffect(() => {
     ++formatRequest.current
@@ -87,7 +89,13 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
       )
     } catch (error) {
       console.error(`Failed to export Gadget as ${format.label}:`, error)
-      toasts.add({ title: `Failed to export ${format.label}`, variant: 'error' })
+      toasts.add({
+        title: formatMessage(
+          { id: 'gadgetExportMenu.toastExportFormatFailed', defaultMessage: 'Failed to export {label}' },
+          { label: format.label },
+        ),
+        variant: 'error',
+      })
     } finally {
       setExportingId(null)
     }
@@ -114,7 +122,7 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
           />
           <DropdownMenu.Content className="themed-floating-shadow !z-[1100] !min-w-[144px] rounded-lg border border-kumo-line bg-kumo-base p-1" style={MENU_POSITIONER_STYLE}>
             {loading || !saveVendors ? (
-              <div role="status" aria-label="Loading export formats" className="space-y-1 py-0.5">
+              <div role="status" aria-label={formatMessage({ id: 'gadgetExportMenu.loadingExportFormats', defaultMessage: 'Loading export formats' })} className="space-y-1 py-0.5">
                 {['w-20', 'w-14'].map(width => (
                   <div key={width} className="flex h-7 items-center gap-2 px-2.5">
                     <span className="h-3 w-3 animate-pulse rounded bg-kumo-elevated" />
@@ -124,18 +132,20 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
               </div>
             ) : loadFailed ? (
               <div className="px-2.5 py-2 text-[12px] leading-4 text-kumo-subtle">
-                <p>Export formats could not be loaded.</p>
+                <p>
+                  <FormattedMessage id="gadgetExportMenu.exportFormatsLoadFailed" defaultMessage="Export formats could not be loaded." />
+                </p>
                 <button
                   type="button"
                   onClick={loadFormats}
                   className="mt-1 font-medium text-kumo-default hover:underline"
                 >
-                  Try again
+                  <FormattedMessage id="gadgetExportMenu.tryAgain" defaultMessage="Try again" />
                 </button>
               </div>
             ) : formats?.length === 0 ? (
               <p className="px-2.5 py-2 text-[12px] leading-4 text-kumo-subtle">
-                This Gadget does not support exports.
+                <FormattedMessage id="gadgetExportMenu.noExportsSupported" defaultMessage="This Gadget does not support exports." />
               </p>
             ) : formats?.map(format => (
               <DropdownMenu.Item

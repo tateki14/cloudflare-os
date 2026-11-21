@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useKumoToastManager } from '@cloudflare/kumo'
 import { isSnoozed, recordDismissal, type DismissalStorage } from './updateNoticeDismissal'
 import { useUpdateStatus } from './useUpdateStatus'
+import { useIntl } from 'react-intl'
 
 // Reaches `localStorage` only when called, inside the dismissal helpers' try/catch: merely reading
 // the global throws where storage is blocked.
@@ -17,6 +18,7 @@ const browserStorage: DismissalStorage = {
  * Updates tab without snoozing it. Renders nothing itself.
  */
 export const UpdateAvailableNotice = () => {
+  const { formatMessage } = useIntl()
   const status = useUpdateStatus()
   const navigate = useNavigate()
   const navigateRef = useRef(navigate)
@@ -37,8 +39,8 @@ export const UpdateAvailableNotice = () => {
     let closingOwnToast = false
     // No fixed id: Kumo drops an add whose id is still live or ending, which a remount would hit.
     const id: string = toastsRef.current.add({
-      title: 'Update available',
-      description: 'A newer release is available for this deployment.',
+      title: formatMessage({ id: 'updateAvailableNotice.updateAvailable', defaultMessage: 'Update available' }),
+      description: formatMessage({ id: 'updateAvailableNotice.aNewerReleaseIsAvailableFor', defaultMessage: 'A newer release is available for this deployment.' }),
       variant: 'info',
       timeout: 0,
       actions: [{

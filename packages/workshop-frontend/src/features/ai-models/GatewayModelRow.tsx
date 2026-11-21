@@ -20,6 +20,7 @@ import {
 } from './modelForm'
 import { useFieldErrorAlert } from '../../hooks/useFieldErrorAlert'
 import type { GatewayTestState } from './useGatewayTests'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /** Each mode's name and what it does to a model, as the Models tab words them. */
 export const MODES: Record<GatewayModelMode, { label: string; meaning: string }> = {
@@ -102,6 +103,7 @@ export const GatewayModelRow = ({
   /** Present for a model that can be removed. */
   onRemove?: () => void
 }) => {
+  const { formatMessage } = useIntl()
   // What is typed into the budget field, or null while the field shows the server's budget.
   const [budgetDraft, setBudgetDraft] = useState<string | null>(null)
   const budgetRef = useRef<HTMLInputElement>(null)
@@ -172,20 +174,20 @@ export const GatewayModelRow = ({
       <div className="min-w-0 flex-1 basis-56">
         <p className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 break-words text-sm font-medium text-kumo-default">{model.name}</span>
-          {isDecision && <Badge variant="secondary">Decision</Badge>}
-          {model.added && <Badge variant="secondary">Added</Badge>}
+          {isDecision && <Badge variant="secondary"><FormattedMessage id="gatewayModelRow.decision" defaultMessage="Decision" /></Badge>}
+          {model.added && <Badge variant="secondary"><FormattedMessage id="gatewayModelRow.added" defaultMessage="Added" /></Badge>}
           {(model.mode !== model.defaultMode || model.settings !== undefined) && (
-            <Badge variant="outline">Changed</Badge>
+            <Badge variant="outline"><FormattedMessage id="gatewayModelRow.changed" defaultMessage="Changed" /></Badge>
           )}
         </p>
         <p className="mt-0.5 break-all font-mono text-xs text-kumo-subtle">{model.id}</p>
         <p className="mt-0.5 text-xs text-kumo-subtle">
-          Context window: {tokenCount(model.contextWindow)}
+          <FormattedMessage id="gatewayModelRow.contextWindow" defaultMessage="Context window: {kenCount}" values={{ kenCount: tokenCount(model.contextWindow) }} />
           {model.outputLimit !== undefined && ` · Output limit: ${tokenCount(model.outputLimit)}`}
         </p>
         {model.behavesLike !== undefined && (
           <p className="mt-0.5 text-xs text-kumo-subtle">
-            Behaves like{' '}
+            <FormattedMessage id="gatewayModelRow.behavesLike" defaultMessage="Behaves like" />{' '}
             {behavesLikeName ?? <span className="break-all font-mono">{model.behavesLike}</span>}
             {model.runtimeKnown
               ? '. Not used: this version knows this model itself.'
@@ -195,7 +197,7 @@ export const GatewayModelRow = ({
         )}
         {stated.length > 0 && (
           <p className="mt-0.5 text-xs text-kumo-subtle">
-            Stated: {stated.join(' · ')}
+            <FormattedMessage id="gatewayModelRow.stated" defaultMessage="Stated: {value}" values={{ value: stated.join(' · ') }} />
             {model.runtimeKnown && '. Not used: this version knows this model itself.'}
           </p>
         )}
@@ -207,7 +209,7 @@ export const GatewayModelRow = ({
         disabled={busy}
         onValueChange={onModeChange}
       >
-        <Radio.Legend className="sr-only">How {model.name} is offered</Radio.Legend>
+        <Radio.Legend className="sr-only"><FormattedMessage id="gatewayModelRow.howIsOffered" defaultMessage="How {name} is offered" values={{ name: model.name }} /></Radio.Legend>
         {GATEWAY_MODEL_MODES.map((mode) => (
           <Radio.Item<GatewayModelMode>
             key={mode}
@@ -216,7 +218,7 @@ export const GatewayModelRow = ({
             label={
               <span title={MODES[mode].meaning}>
                 {MODES[mode].label}
-                {mode === model.defaultMode && <span className="text-kumo-subtle"> (default)</span>}
+                {mode === model.defaultMode && <span className="text-kumo-subtle"> <FormattedMessage id="gatewayModelRow.default" defaultMessage="(default)" /></span>}
               </span>
             }
           />
@@ -232,10 +234,10 @@ export const GatewayModelRow = ({
           variant="secondary"
           size="sm"
           disabled={busy}
-          aria-label={`Remove ${model.name}`}
+          aria-label={formatMessage({ id: 'gatewayModelRow.remove2', defaultMessage: 'Remove {name}' }, { name: model.name })}
           onClick={onRemove}
         >
-          Remove
+          <FormattedMessage id="gatewayModelRow.remove" defaultMessage="Remove" />
         </Button>
       )}
 
@@ -247,15 +249,15 @@ export const GatewayModelRow = ({
         <GatewayTestStatus test={test} subject="model" />
         <Collapsible.Root className="mt-2">
           <Collapsible.DefaultTrigger className="w-fit text-sm">
-            Settings<span className="sr-only"> for {model.name}</span>
+            <FormattedMessage id="gatewayModelRow.settingsFor" defaultMessage="Settings<span> for {name}</span>" values={{ name: model.name, span: (chunks) => <span className="sr-only">{chunks}</span> }} />
           </Collapsible.DefaultTrigger>
           <Collapsible.DefaultPanel>
             <div className="grid items-start gap-4 sm:grid-cols-2">
               {/* A level stored for a model that takes none can still be cleared. */}
               {takesLevels || ownLevel !== undefined ? (
                 <Select<ReasoningLevel | typeof DEPLOYMENT_DEFAULT>
-                  label="Reasoning level"
-                  aria-label={`Reasoning level for ${model.name}`}
+                  label={formatMessage({ id: 'gatewayModelRow.reasoningLevel', defaultMessage: 'Reasoning level' })}
+                  aria-label={formatMessage({ id: 'gatewayModelRow.reasoningLevelFor', defaultMessage: 'Reasoning level for {name}' }, { name: model.name })}
                   description={levelNote}
                   className="w-full"
                   disabled={busy}
@@ -289,9 +291,9 @@ export const GatewayModelRow = ({
                 <form noValidate onSubmit={saveBudget} className="grid content-start gap-2">
                   <Input
                     ref={budgetRef}
-                    label={<>Compaction budget<span className="sr-only"> for {model.name}</span></>}
+                    label={<><FormattedMessage id="gatewayModelRow.compactionBudgetFor" defaultMessage="Compaction budget<span> for {name}</span>" values={{ name: model.name, span: (chunks) => <span className="sr-only">{chunks}</span> }} /></>}
                     inputMode="numeric"
-                    placeholder={`${model.builtInCompactionInputBudget.toLocaleString()} (built-in)`}
+                    placeholder={formatMessage({ id: 'gatewayModelRow.builtIn', defaultMessage: '{value} (built-in)' }, { value: model.builtInCompactionInputBudget.toLocaleString() })}
                     value={budgetText}
                     disabled={busy}
                     onChange={(event) => editBudget(event.target.value)}
@@ -303,14 +305,11 @@ export const GatewayModelRow = ({
                       speak while the budget is being typed. */}
                   <div id={budgetFacts} className="grid gap-2 text-sm leading-snug text-kumo-subtle">
                     <p>
-                      Leave blank for the built-in budget of{' '}
-                      {tokenCount(model.builtInCompactionInputBudget)}. The maximum is{' '}
-                      {tokenCount(maxBudget)}. A chat on this model compacts at about{' '}
-                      {tokenCount(Math.round(COMPACTION_TRIGGER_RATIO * budgetInEffect))}.
+                      <FormattedMessage id="gatewayModelRow.leaveBlankForTheBuiltIn" defaultMessage="Leave blank for the built-in budget of {kenCount}. The maximum is {kenCount2}. A chat on this model compacts at about {kenCount3}." values={{ kenCount: tokenCount(model.builtInCompactionInputBudget), kenCount2: tokenCount(maxBudget), kenCount3: tokenCount(Math.round(COMPACTION_TRIGGER_RATIO * budgetInEffect)) }} />
                     </p>
                     {smallBudget && (
                       <p className="text-kumo-warning">
-                        A budget under {tokenCount(SMALL_BUDGET)} makes a chat compact very often.
+                        <FormattedMessage id="gatewayModelRow.aBudgetUnderMakesAChat" defaultMessage="A budget under {kenCount} makes a chat compact very often." values={{ kenCount: tokenCount(SMALL_BUDGET) }} />
                       </p>
                     )}
                   </div>
@@ -321,9 +320,9 @@ export const GatewayModelRow = ({
                       variant="secondary"
                       size="sm"
                       disabled={busy}
-                      aria-label={`Save the compaction budget of ${model.name}`}
+                      aria-label={formatMessage({ id: 'gatewayModelRow.saveTheCompactionBudgetOf', defaultMessage: 'Save the compaction budget of {name}' }, { name: model.name })}
                     >
-                      Save
+                      <FormattedMessage id="gatewayModelRow.save" defaultMessage="Save" />
                     </Button>
                     {ownBudget !== undefined && (
                       <Button
@@ -331,10 +330,10 @@ export const GatewayModelRow = ({
                         variant="ghost"
                         size="sm"
                         disabled={busy}
-                        aria-label={`Reset the compaction budget of ${model.name}`}
+                        aria-label={formatMessage({ id: 'gatewayModelRow.resetTheCompactionBudgetOf', defaultMessage: 'Reset the compaction budget of {name}' }, { name: model.name })}
                         onClick={resetBudget}
                       >
-                        Reset
+                        <FormattedMessage id="gatewayModelRow.reset" defaultMessage="Reset" />
                       </Button>
                     )}
                   </div>

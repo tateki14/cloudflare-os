@@ -6,6 +6,7 @@ import { logRpcFailure } from "../../rpcErrors";
 import {
   browserPushEnabled, browserPushSupport, disableBrowserPush, enableBrowserPush,
 } from "./browserPush";
+import { FormattedMessage, useIntl } from "react-intl";
 
 type Status = "loading" | "on" | "off" | "denied";
 
@@ -15,6 +16,7 @@ const readStatus = async (userId: string): Promise<Status> =>
 
 /** The profile page's notification settings: whether this browser shows push notifications. */
 export const NotificationSettings = () => {
+  const { formatMessage } = useIntl();
   const { authenticatedApi, currentUser, isCurrentUserConfirmed } = useAuthenticatedApi();
   const publicKey = useServerConfig()?.webPushPublicKey;
   const toasts = useKumoToastManager();
@@ -47,7 +49,7 @@ export const NotificationSettings = () => {
       }
     } catch (error) {
       logRpcFailure("Failed to update browser notifications:", error);
-      toasts.add({ title: "Failed to update browser notifications", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "notificationSettings.failedToUpdateBrowserNotifications", defaultMessage: "Failed to update browser notifications" }), variant: "error" });
       setStatus(await readStatus(userId));
     } finally {
       setPending(false);
@@ -57,31 +59,25 @@ export const NotificationSettings = () => {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="px-1 text-[12px] font-medium uppercase tracking-[0.08em] text-kumo-inactive">
-        Notifications
+        <FormattedMessage id="notificationSettings.notifications" defaultMessage="Notifications" />
       </h2>
       <div className="rounded-xl border border-kumo-line bg-kumo-base p-5">
         {support === "supported" ? (
           <div className="flex flex-col gap-2">
             <Switch
-              label="Browser notifications"
+              label={formatMessage({ id: "notificationSettings.browserNotifications", defaultMessage: "Browser notifications" })}
               checked={status === "on"}
               disabled={status === "loading" || status === "denied" || pending}
               transitioning={pending}
               onClick={() => void toggle()}
             />
             <p className="text-sm text-kumo-subtle">
-              {status === "on"
-                ? "This browser shows a notification when a task finishes or needs your permission while no Workshop tab is in view."
-                : status === "denied"
-                  ? "Notifications are blocked for this site in your browser's settings."
-                  : "Get a notification in this browser when a task finishes or needs your permission while no Workshop tab is in view."}
+              {status === "on" ? formatMessage({ id: "notificationSettings.thisBrowserShowsANotificationWhen", defaultMessage: "This browser shows a notification when a task finishes or needs your permission while no Workshop tab is in view." }) : status === "denied" ? formatMessage({ id: "notificationSettings.notificationsAreBlockedForThisSite", defaultMessage: "Notifications are blocked for this site in your browser's settings." }) : formatMessage({ id: "notificationSettings.getANotificationInThisBrowser", defaultMessage: "Get a notification in this browser when a task finishes or needs your permission while no Workshop tab is in view." })}
             </p>
           </div>
         ) : (
           <p className="text-sm text-kumo-subtle">
-            {support === "appleMobile"
-              ? "On iPhone and iPad, notifications come from the Cloudflare OS app."
-              : "Browser notifications aren't available on Android yet."}
+            {support === "appleMobile" ? formatMessage({ id: "notificationSettings.onIphoneAndIpadNotificationsCome", defaultMessage: "On iPhone and iPad, notifications come from the Cloudflare OS app." }) : formatMessage({ id: "notificationSettings.browserNotificationsArentAvailableOnAndroid", defaultMessage: "Browser notifications aren't available on Android yet." })}
           </p>
         )}
       </div>

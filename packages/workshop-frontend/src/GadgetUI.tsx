@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Text, Loader, Banner } from '@cloudflare/kumo'
 import { Sparkle } from '@phosphor-icons/react'
+import { FormattedMessage, useIntl } from 'react-intl'
 import { RpcStub, RpcTarget, newMessagePortRpcSession } from 'capnweb'
 import { GadgetClient, GadgetSnapshotClient, ConsoleLogEvent, type GadgetHost } from '@gadgets/workshop-shared/api'
 import { prepareUiPage, uiModuleKey, type UiPage } from '@gadgets/workshop-shared/ui-page'
@@ -240,6 +241,7 @@ export default function GadgetUI(props: GadgetUIProps) {
 }
 
 function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chatId, renderMode, onConsoleLog, onIframeEscape, onNoUiChange, onOpenAgentChat }: GadgetUIProps) {
+  const { formatMessage } = useIntl();
   const [sandboxedHtml, setSandboxedHtml] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   // A connection failure is tied to the client it was tried on, so a replacement gets its own try.
@@ -412,7 +414,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
       if (!isCurrent()) return
       loadGenerationRef.current++      // so a late reply can no longer write state
       setLoading(false)
-      setError({ message: 'Timed out loading this view.' })
+      setError({ message: formatMessage({ id: 'gadgetUI.timedOutLoadingThisView', defaultMessage: 'Timed out loading this view.' }) })
     }, UI_BUNDLE_LOAD_TIMEOUT_MS)
 
     const loadUiBundle = async () => {
@@ -535,7 +537,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
           port.close()
           if (!isCurrent()) return
           console.error('Failed to establish RPC connection:', caught)
-          setError({ message: 'Failed to connect gadget to server', stub: client })
+          setError({ message: formatMessage({ id: 'gadgetUI.failedToConnectGadgetToServer', defaultMessage: 'Failed to connect gadget to server' }), stub: client })
         } finally {
           if (handshakePendingRef.current === generation) handshakePendingRef.current = null
         }
@@ -566,7 +568,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
         style={{ height }}
       >
         <Text variant="secondary">
-          Switch to this tab to load the Gadget UI
+          <FormattedMessage id="gadgetUi.switchTabToLoad" defaultMessage="Switch to this tab to load the Gadget UI" />
         </Text>
       </div>
     )
@@ -596,7 +598,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
       }}>
         <Banner
           variant="error"
-          title="Error"
+          title={formatMessage({ id: 'gadgetUI.error', defaultMessage: 'Error' })}
           description={errorMessage}
           action={
             <Banner.Action
@@ -607,7 +609,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
                 setRetryNonce(n => n + 1)
               }}
             >
-              Try again
+              <FormattedMessage id="gadgetUi.tryAgain" defaultMessage="Try again" />
             </Banner.Action>
           }
         />
@@ -639,10 +641,10 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
           </div>
           <div className="space-y-1">
             <h2 className="text-[20px] leading-7 font-normal tracking-[-0.45px] text-kumo-default">
-              No gadget UI yet
+              <FormattedMessage id="gadgetUi.noGadgetUiYet" defaultMessage="No gadget UI yet" />
             </h2>
             <p className="text-[15px] leading-5 font-normal tracking-[-0.3px] text-kumo-subtle">
-              When the gadget builds one, it will appear here.
+              <FormattedMessage id="gadgetUi.gadgetUiWillAppearHere" defaultMessage="When the gadget builds one, it will appear here." />
             </p>
           </div>
         </div>
@@ -663,7 +665,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
           border: 'none'
         }}
         sandbox="allow-scripts allow-pointer-lock allow-popups allow-popups-to-escape-sandbox"
-        title="Gadget UI"
+        title={formatMessage({ id: 'gadgetUI.gadgetUi', defaultMessage: 'Gadget UI' })}
       />
     </div>
   )

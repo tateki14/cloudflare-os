@@ -1,5 +1,6 @@
 import { Switch, Tooltip } from '@cloudflare/kumo'
 import { rpcFailureDescription } from '../rpcErrors'
+import { useIntl } from 'react-intl'
 
 interface HookToggleProps {
   /** The hook's title, which names the switch; whether it is on is the switch's own state. */
@@ -13,8 +14,14 @@ interface HookToggleProps {
 
 /** Enable/disable toggle for bound hooks. Used in the Connections tab, Activity log, and inline chat. */
 export function HookToggle({ hookTitle, enabled, pending = false, onToggle, size = 'sm' }: HookToggleProps) {
+  const { formatMessage } = useIntl()
   return (
-    <Tooltip content={enabled ? 'Disable this hook.' : 'Enable this hook.'} asChild>
+    <Tooltip
+      content={enabled
+        ? formatMessage({ id: 'hookToggle.disableThisHook', defaultMessage: 'Disable this hook.' })
+        : formatMessage({ id: 'hookToggle.enableThisHook', defaultMessage: 'Enable this hook.' })}
+      asChild
+    >
       <span className="inline-flex items-center">
         <Switch
           checked={enabled}
@@ -27,7 +34,7 @@ export function HookToggle({ hookTitle, enabled, pending = false, onToggle, size
           onCheckedChange={(checked) => {
             if (!pending) onToggle(checked)
           }}
-          aria-label={`Hook: ${hookTitle}`}
+          aria-label={formatMessage({ id: 'hookToggle.hook', defaultMessage: 'Hook: {hookTitle}' }, { hookTitle: hookTitle })}
         />
       </span>
     </Tooltip>

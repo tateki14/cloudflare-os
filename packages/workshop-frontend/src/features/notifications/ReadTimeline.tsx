@@ -13,6 +13,7 @@ import { useUnreadState } from "./UnreadStateBridge";
 import { isChatVisible, subscribeVisibleChat } from "./visibleChat";
 
 import { TimelineContext } from "./readTimelineContext";
+import { FormattedMessage, useIntl } from "react-intl";
 
 /** A visit-scoped boundary stays in place as receipts advance; explicit unread moves it again. */
 export const ReadTimeline = ({
@@ -40,6 +41,7 @@ export const ReadTimeline = ({
   className: string;
   children: ReactNode;
 }) => {
+  const { formatMessage } = useIntl();
   const unread = useUnreadState();
   const readState = unread?.chats?.find(
     (item) => item.workspaceId === workspaceId && item.chatId === chatId,
@@ -295,9 +297,7 @@ export const ReadTimeline = ({
       <div ref={root} className={className}>
         {chat && chat.unreadMessageCount > 0 && (visit?.divider !== undefined || visit?.paused) && (
           <div ref={toolbar} className="sticky top-0 z-10 mb-3 flex flex-wrap items-center justify-center gap-2 rounded-md bg-kumo-base p-2 text-sm text-kumo-subtle">
-            {visit?.paused
-              ? "Marked unread — automatic reading paused until you leave this thread."
-              : "Unread activity"}
+            {visit?.paused ? formatMessage({ id: "readTimeline.markedUnreadAutomaticReadingPausedUntil", defaultMessage: "Marked unread — automatic reading paused until you leave this thread." }) : formatMessage({ id: "readTimeline.unreadActivity", defaultMessage: "Unread activity" })}
             <Button
               size="xs"
               onClick={() => {
@@ -307,7 +307,7 @@ export const ReadTimeline = ({
                 setJump((request) => request + 1);
               }}
             >
-              Jump to first unread
+              <FormattedMessage id="readTimeline.jumpToFirstUnread" defaultMessage="Jump to first unread" />
             </Button>
             <Button
               size="xs"
@@ -323,7 +323,7 @@ export const ReadTimeline = ({
                 }).catch(() => {});
               }}
             >
-              Mark thread read
+              <FormattedMessage id="readTimeline.markThreadRead" defaultMessage="Mark thread read" />
             </Button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { Button } from '@cloudflare/kumo'
 import { ArrowDown, ArrowUp } from '@phosphor-icons/react'
+import { useIntl } from 'react-intl'
 
 /** Selects the element holding one row's move buttons, so focus can pass from one to the other. */
 export const MOVE_BUTTONS_SELECTOR = '[data-move-buttons]'
@@ -30,14 +31,16 @@ export const MoveButtons = ({ name, move, busy }: {
   move: RowMove
   /** Whether the buttons are locked, because a write is in flight. */
   busy: boolean
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <div className="flex shrink-0 items-center gap-1" data-move-buttons="">
     <Button
       variant="ghost"
       shape="square"
       size="sm"
       icon={ArrowUp}
-      aria-label={`Move ${name} up`}
+      aria-label={formatMessage({ id: 'moveButtons.moveUp', defaultMessage: 'Move {name} up' }, { name: name })}
       disabled={busy || !move.onUp}
       onClick={move.onUp}
     />
@@ -46,9 +49,10 @@ export const MoveButtons = ({ name, move, busy }: {
       shape="square"
       size="sm"
       icon={ArrowDown}
-      aria-label={`Move ${name} down`}
+      aria-label={formatMessage({ id: 'moveButtons.moveDown', defaultMessage: 'Move {name} down' }, { name: name })}
       disabled={busy || !move.onDown}
       onClick={move.onDown}
     />
   </div>
 )
+}

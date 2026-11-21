@@ -5,6 +5,7 @@ import type { RpcStub } from 'capnweb'
 import type { ActionLogEntry, Overseer } from '@gadgets/workshop-shared/api'
 import { useResolveAction } from '../../../useResolveAction'
 import { PendingApprovalCard } from './PendingApprovalCard'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 /**
  * The request blocking a run, answered where the user met it.
@@ -28,6 +29,7 @@ export const RunApprovalPopover = ({
   /** The run's Review button, which opens this. */
   children: ReactElement
 }) => {
+  const { formatMessage } = useIntl()
   const [open, setOpen] = useState(false)
   const [processing, setProcessing] = useState<Set<number>>(new Set())
   const { resolveAction, creationAccountModal } = useResolveAction(overseer, setProcessing)
@@ -49,7 +51,7 @@ export const RunApprovalPopover = ({
         className="themed-floating-shadow !z-[1100] !w-[min(440px,calc(100vw-24px))] !min-w-0 overflow-hidden rounded-xl border border-kumo-line bg-kumo-base !p-0 !outline-none [&>:first-child]:hidden"
       >
         <Popover.Title className="block px-3.5 pb-1.5 pt-2.5 text-[11px] font-medium uppercase tracking-[0.06em] text-kumo-inactive">
-          {records.length === 1 ? 'Waiting on you' : `Waiting on you (${records.length})`}
+          {records.length === 1 ? formatMessage({ id: 'runApprovalPopover.waitingOnYou', defaultMessage: 'Waiting on you' }) : formatMessage({ id: 'runApprovalPopover.waitingOnYou2', defaultMessage: 'Waiting on you ({length})' }, { length: records.length })}
         </Popover.Title>
 
         <div className="flex max-h-[min(70vh,520px)] flex-col gap-2 overflow-y-auto px-3 pb-2">
@@ -70,7 +72,7 @@ export const RunApprovalPopover = ({
             onClick={() => { changeOpen(false); onOpenRun() }}
             className="flex w-full cursor-pointer items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[13px] leading-[18px] tracking-[-0.25px] text-kumo-default transition-colors hover:bg-kumo-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-kumo-ring"
           >
-            Open run
+            <FormattedMessage id="runApprovalPopover.openRun" defaultMessage="Open run" />
             <ArrowRight size={13} className="text-kumo-inactive" aria-hidden="true" />
           </button>
         </div>

@@ -10,6 +10,7 @@ import { ATTACHMENT_PREVIEWERS } from "./attachmentPreviewers";
 import type { AttachmentContentLoader, AttachmentFile } from "./attachmentFile";
 import { looksLikeText, previewFormat } from "./previewFormat";
 import { saveAttachment } from "./saveAttachment";
+import { FormattedMessage, useIntl } from "react-intl";
 
 const displayName = (attachment: AttachmentFile) => attachment.name ?? "Attached file";
 
@@ -44,7 +45,7 @@ const NoPreview = ({ attachment, message, onDownload }: {
         </div>
         <WorkshopButton onClick={onDownload}>
           <DownloadSimpleIcon size={14} className="mr-1.5" />
-          Download
+          <FormattedMessage id="attachmentViewer.download" defaultMessage="Download" />
         </WorkshopButton>
       </div>
     </div>
@@ -56,6 +57,7 @@ const AttachmentPreview = ({ attachment, loadContent, onDownload }: {
   loadContent: AttachmentContentLoader;
   onDownload: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const known = previewFormat(attachment.mimeType, attachment.name);
   const untyped = attachmentKind(attachment.mimeType, attachment.name) === "file";
   // A file with a type that has no previewer is never fetched just to say so.
@@ -65,7 +67,7 @@ const AttachmentPreview = ({ attachment, loadContent, onDownload }: {
     return (
       <NoPreview
         attachment={attachment}
-        message="There’s no preview for this kind of file."
+        message={formatMessage({ id: "attachmentViewer.theresNoPreviewForThisKind", defaultMessage: "There’s no preview for this kind of file." })}
         onDownload={onDownload}
       />
     );
@@ -95,6 +97,7 @@ export const AttachmentViewer = ({
   /** Forgets fetches that failed, so the download a person asks for fetches again. */
   onRetry: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const toasts = useKumoToastManager();
   const index = Math.max(0, attachments.findIndex((attachment) => attachment.id === openId));
   const attachment = attachments[index];
@@ -146,9 +149,7 @@ export const AttachmentViewer = ({
       .catch((error: unknown) => {
         console.error("Failed to download chat attachment:", error);
         toasts.add({
-          title: error instanceof Error && error.message
-            ? error.message
-            : "Failed to download attachment",
+          title: error instanceof Error && error.message ? error.message : formatMessage({ id: "attachmentViewer.failedToDownloadAttachment", defaultMessage: "Failed to download attachment" }),
           variant: "error",
         });
       });
@@ -176,7 +177,7 @@ export const AttachmentViewer = ({
             {attachments.length > 1 && (
               <div ref={navigationRef} className="flex shrink-0 items-center gap-0.5">
                 <WorkshopIconButton
-                  aria-label="Previous attachment"
+                  aria-label={formatMessage({ id: "attachmentViewer.previousAttachment", defaultMessage: "Previous attachment" })}
                   disabled={index === 0}
                   onClick={() => step(-1)}
                 >
@@ -186,7 +187,7 @@ export const AttachmentViewer = ({
                   {index + 1} of {attachments.length}
                 </span>
                 <WorkshopIconButton
-                  aria-label="Next attachment"
+                  aria-label={formatMessage({ id: "attachmentViewer.nextAttachment", defaultMessage: "Next attachment" })}
                   disabled={index === attachments.length - 1}
                   onClick={() => step(1)}
                 >
@@ -195,14 +196,14 @@ export const AttachmentViewer = ({
               </div>
             )}
             <div className="flex shrink-0 items-center gap-0.5">
-              <Tooltip content="Download" side="bottom" asChild>
-                <WorkshopIconButton aria-label="Download" onClick={download}>
+              <Tooltip content={formatMessage({ id: "attachmentViewer.download", defaultMessage: "Download" })} side="bottom" asChild>
+                <WorkshopIconButton aria-label={formatMessage({ id: "attachmentViewer.download", defaultMessage: "Download" })} onClick={download}>
                   <DownloadSimpleIcon size={16} />
                 </WorkshopIconButton>
               </Tooltip>
               <Dialog.Close
                 render={(props) => (
-                  <WorkshopIconButton {...props} aria-label="Close">
+                  <WorkshopIconButton {...props} aria-label={formatMessage({ id: "attachmentViewer.close", defaultMessage: "Close" })}>
                     <XIcon size={16} />
                   </WorkshopIconButton>
                 )}
@@ -219,7 +220,7 @@ export const AttachmentViewer = ({
             >
               <Suspense
                 fallback={(
-                  <div className="grid h-full place-items-center" role="status" aria-label="Loading preview">
+                  <div className="grid h-full place-items-center" role="status" aria-label={formatMessage({ id: "attachmentViewer.loadingPreview", defaultMessage: "Loading preview" })}>
                     <Loader size="base" />
                   </div>
                 )}

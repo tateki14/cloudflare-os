@@ -3,6 +3,7 @@ import { useKumoToastManager } from '@cloudflare/kumo'
 import { useSiteName } from '../../ServerConfigContext'
 import { entryScriptOf, fetchEntryScript, reloadPage } from './versionChecks'
 import { useSessionCheck } from './useSessionCheck'
+import { useIntl } from 'react-intl'
 
 /**
  * Tells the user, with a persistent toast, that a fresh load would serve a newer frontend than
@@ -10,6 +11,7 @@ import { useSessionCheck } from './useSessionCheck'
  * once per new frontend, on the session checks. Renders nothing itself.
  */
 export const PageUpdateNotice = () => {
+  const { formatMessage } = useIntl()
   const siteName = useSiteName()
   // The manager is a new object on every render, so the check reads it through a ref.
   const toasts = useKumoToastManager()
@@ -31,8 +33,8 @@ export const PageUpdateNotice = () => {
       notified.current = {
         entryScript: latest,
         toastId: toastsRef.current.add({
-          title: `${siteName} was updated`,
-          description: 'Reload to use the new version.',
+          title: formatMessage({ id: 'pageUpdateNotice.wasUpdated', defaultMessage: '{siteName} was updated' }, { siteName: siteName }),
+          description: formatMessage({ id: 'pageUpdateNotice.reloadToUseTheNewVersion', defaultMessage: 'Reload to use the new version.' }),
           variant: 'info',
           timeout: 0,
           actions: [{

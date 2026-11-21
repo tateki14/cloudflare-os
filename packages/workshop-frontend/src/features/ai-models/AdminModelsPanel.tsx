@@ -26,6 +26,7 @@ import { rpcFailureDescription } from '../../rpcErrors'
 import { PROVIDER_LABELS, REASONING_LEVEL_LABELS, allowedModelSuggestions } from './modelForm'
 import { fetchModelsDev, suggestModels } from './modelsDev'
 import { useGatewayTests } from './useGatewayTests'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 const CARD = 'rounded-xl border border-kumo-line bg-kumo-elevated p-6'
 const GROUP_HEADING = 'mb-2 text-sm font-semibold text-kumo-default'
@@ -121,7 +122,7 @@ const DefaultReasoningSetting = ({ level, disabled, onChange }: {
         }}
         renderValue={(value) => (value === BUILT_IN ? 'Built-in' : REASONING_LEVEL_LABELS[value])}
       >
-        <Select.Option value={BUILT_IN}>Built-in</Select.Option>
+        <Select.Option value={BUILT_IN}><FormattedMessage id="adminModelsPanel.builtIn" defaultMessage="Built-in" /></Select.Option>
         {REASONING_LEVELS.map((option) => (
           <Select.Option key={option} value={option}>{REASONING_LEVEL_LABELS[option]}</Select.Option>
         ))}
@@ -137,6 +138,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
   /** Re-read the settings after a write, so that the panel shows what the server holds. */
   onChanged: () => Promise<void>
 }) => {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   const [busy, setBusy] = useState(false)
   const [pendingRemoval, setPendingRemoval] = useState<AdminModel | null>(null)
@@ -170,11 +172,9 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
   if (!gatewayModels) {
     return (
       <div className={CARD}>
-        <h2 className="mb-1 text-lg font-semibold text-kumo-strong">Models</h2>
+        <h2 className="mb-1 text-lg font-semibold text-kumo-strong"><FormattedMessage id="adminModelsPanel.models" defaultMessage="Models" /></h2>
         <p className="text-sm text-kumo-subtle">
-          Models are managed here only when the deployment provides them through AI Gateway
-          (<code className="font-mono text-xs">CF_AI_GATEWAY</code>). Otherwise each user adds
-          their own models on their Providers page.
+          <FormattedMessage id="adminModelsPanel.modelsAreManagedHereOnlyWhen" defaultMessage="Models are managed here only when the deployment provides them through AI Gateway (<code>CF_AI_GATEWAY</code>). Otherwise each user adds their own models on their Providers page." values={{ code: (chunks) => <code className="font-mono text-xs">{chunks}</code> }} />
         </p>
       </div>
     )
@@ -302,11 +302,9 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
 
   return (
     <div className={CARD}>
-      <h2 className="mb-1 text-lg font-semibold text-kumo-strong">Models</h2>
+      <h2 className="mb-1 text-lg font-semibold text-kumo-strong"><FormattedMessage id="adminModelsPanel.models" defaultMessage="Models" /></h2>
       <p className="mb-4 text-sm text-kumo-subtle">
-        The models this deployment provides through AI Gateway: the catalog this version ships for
-        the providers that are on, plus the models this deployment added. A model left on
-        its default follows the catalog when the deployment is upgraded.
+        <FormattedMessage id="adminModelsPanel.theModelsThisDeploymentProvidesThrough" defaultMessage="The models this deployment provides through AI Gateway: the catalog this version ships for the providers that are on, plus the models this deployment added. A model left on its default follows the catalog when the deployment is upgraded." />
       </p>
 
       <SettingSwitch
@@ -315,10 +313,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
         disabled={busy}
         onChange={changeUserModels}
       >
-        When on, users can add models under their own IDs on their Providers page, and those run
-        through this deployment’s gateway. When off, only the models listed here can be used, and
-        the models users already added stop working until this is turned back on. Nothing is
-        deleted.
+        <FormattedMessage id="adminModelsPanel.whenOnUsersCanAddModels" defaultMessage="When on, users can add models under their own IDs on their Providers page, and those run through this deployment’s gateway. When off, only the models listed here can be used, and the models users already added stop working until this is turned back on. Nothing is deleted." />
       </SettingSwitch>
 
       <DefaultReasoningSetting
@@ -328,7 +323,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
       />
 
       <section className="mb-6">
-        <h3 className={GROUP_HEADING}>Providers</h3>
+        <h3 className={GROUP_HEADING}><FormattedMessage id="adminModelsPanel.providers" defaultMessage="Providers" /></h3>
         {/* A test is not a write: it changes nothing, so it neither takes nor waits for the lock. */}
         <GatewayProviders
           providers={gatewayModels.providerSettings}
@@ -348,14 +343,13 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
         ))}
       </dl>
       <p className="mb-6 text-sm text-kumo-subtle">
-        Test sends a model one request the way a chat turn would, with the reasoning level in
-        effect for it, and shows what came back. A test can use up to 2,048 output tokens.
+        <FormattedMessage id="adminModelsPanel.testSendsAModelOneRequest" defaultMessage="Test sends a model one request the way a chat turn would, with the reasoning level in effect for it, and shows what came back. A test can use up to 2,048 output tokens." />
       </p>
 
       <div className="flex flex-col gap-6">
         {byProvider.size === 0 && (
           <p className="text-sm text-kumo-subtle">
-            This version’s catalog has no models for the providers that are on.
+            <FormattedMessage id="adminModelsPanel.thisVersionsCatalogHasNoModels" defaultMessage="This version’s catalog has no models for the providers that are on." />
           </p>
         )}
 
@@ -388,24 +382,19 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
         ))}
 
         <section>
-          <h3 className={GROUP_HEADING}>Added by this deployment</h3>
+          <h3 className={GROUP_HEADING}><FormattedMessage id="adminModelsPanel.addedByThisDeployment" defaultMessage="Added by this deployment" /></h3>
           {added.length === 0 ? (
-            <p className="text-sm text-kumo-subtle">No models added.</p>
+            <p className="text-sm text-kumo-subtle"><FormattedMessage id="adminModelsPanel.noModelsAdded" defaultMessage="No models added." /></p>
           ) : (
             <p className="text-sm text-kumo-subtle">
-              The models this deployment added are listed under their providers, marked Added. To
-              shut one off, disable it. Removing a model frees its ID instead: gadget model
-              bindings made for it{' '}
-              {userModelsEnabled
-                ? 'then run, even if the model was disabled.'
-                : 'then stay stopped for as long as users may not add their own models.'}
+              <FormattedMessage id="adminModelsPanel.theModelsThisDeploymentAddedAre" defaultMessage="The models this deployment added are listed under their providers, marked Added. To shut one off, disable it. Removing a model frees its ID instead: gadget model bindings made for it {value}" values={{ value: userModelsEnabled ? formatMessage({ id: 'adminModelsPanel.thenRunEvenIfTheModel', defaultMessage: 'then run, even if the model was disabled.' }) : formatMessage({ id: 'adminModelsPanel.thenStayStoppedForAsLong', defaultMessage: 'then stay stopped for as long as users may not add their own models.' }) }} />
             </p>
           )}
 
-          <h4 className="mb-2 mt-5 text-sm font-medium text-kumo-default">Add a model</h4>
+          <h4 className="mb-2 mt-5 text-sm font-medium text-kumo-default"><FormattedMessage id="adminModelsPanel.addAModel" defaultMessage="Add a model" /></h4>
           {gatewayModels.providers.length === 0 ? (
             <p className="text-sm text-kumo-subtle">
-              No model can be added, because no provider is on. Turn one on under Providers.
+              <FormattedMessage id="adminModelsPanel.noModelCanBeAddedBecause" defaultMessage="No model can be added, because no provider is on. Turn one on under Providers." />
             </p>
           ) : (
             <>
@@ -415,9 +404,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
                 disabled={busy}
                 onChange={changeModelsDevSuggestions}
               >
-                While you add a model, your browser downloads models.dev’s public model list to
-                suggest model IDs, names, limits and what a model can do. A suggestion only fills
-                in the form: nothing is added until you select “Add model”.
+                <FormattedMessage id="adminModelsPanel.whileYouAddAModelYour" defaultMessage="While you add a model, your browser downloads models.dev’s public model list to suggest model IDs, names, limits and what a model can do. A suggestion only fills in the form: nothing is added until you select “Add model”." />
               </SettingSwitch>
               <AddGatewayModelForm
                 providers={gatewayModels.providers}
@@ -435,19 +422,13 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
 
       <DeleteConfirmationDialog
         open={pendingRemoval !== null}
-        title={`Remove “${pendingRemoval?.name ?? ''}”?`}
+        title={formatMessage({ id: 'adminModelsPanel.remove', defaultMessage: 'Remove “{value}”?' }, { value: pendingRemoval?.name ?? '' })}
         description={
           <>
-            Removing frees the ID <span className="break-all font-mono">{pendingRemoval?.id}</span>
-            : gadget model bindings made for the model{' '}
-            {userModelsEnabled
-              ? 'then run, even if it was disabled'
-              : 'then stay stopped for as long as users may not add their own models'}
-            , and a model added under the same ID takes its place in the chats that name it. To
-            shut a model off, disable it instead.
+            <FormattedMessage id="adminModelsPanel.removingFreesTheIdGadgetModel" defaultMessage="Removing frees the ID <span>{id}</span>: gadget model bindings made for the model {value}, and a model added under the same ID takes its place in the chats that name it. To shut a model off, disable it instead." values={{ id: pendingRemoval?.id, span: (chunks) => <span className="break-all font-mono">{chunks}</span>, value: userModelsEnabled ? formatMessage({ id: 'adminModelsPanel.thenRunEvenIfItWas', defaultMessage: 'then run, even if it was disabled' }) : formatMessage({ id: 'adminModelsPanel.thenStayStoppedForAsLong2', defaultMessage: 'then stay stopped for as long as users may not add their own models' }) }} />
           </>
         }
-        confirmLabel="Remove"
+        confirmLabel={formatMessage({ id: 'adminModelsPanel.remove2', defaultMessage: 'Remove' })}
         confirmingLabel="Removing…"
         isDeleting={busy}
         onOpenChange={(open) => { if (!open) setPendingRemoval(null) }}
@@ -456,16 +437,13 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
 
       <DeleteConfirmationDialog
         open={pendingDisable !== null}
-        title={`Disable “${pendingDisable?.name ?? ''}”?`}
+        title={formatMessage({ id: 'adminModelsPanel.disable', defaultMessage: 'Disable “{value}”?' }, { value: pendingDisable?.name ?? '' })}
         description={
           <>
-            Everything that uses this model stops working until it is enabled or hidden again:
-            chats, gadgets that call it, and scheduled tasks. A scheduled task that keeps failing
-            is eventually stopped for good, and enabling the model again won’t restart it. To take
-            the model out of the pickers without breaking anything, hide it instead.
+            <FormattedMessage id="adminModelsPanel.everythingThatUsesThisModelStops" defaultMessage="Everything that uses this model stops working until it is enabled or hidden again: chats, gadgets that call it, and scheduled tasks. A scheduled task that keeps failing is eventually stopped for good, and enabling the model again won’t restart it. To take the model out of the pickers without breaking anything, hide it instead." />
           </>
         }
-        confirmLabel="Disable"
+        confirmLabel={formatMessage({ id: 'adminModelsPanel.disable2', defaultMessage: 'Disable' })}
         confirmingLabel="Disabling…"
         isDeleting={busy}
         onOpenChange={(open) => { if (!open) setPendingDisable(null) }}

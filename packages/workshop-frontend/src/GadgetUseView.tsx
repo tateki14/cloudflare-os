@@ -18,6 +18,7 @@ import GadgetExportMenu from './GadgetExportMenu'
 import { GadgetSnapshotStatus } from './GadgetSnapshotStatus'
 import { GadgetSnapshotCard } from './GadgetSnapshotCard'
 import { GadgetUseTitle } from './GadgetUseTitle'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 // The minimal, "use"-only experience: a shared top bar plus the gadget's deployed UI, and nothing
 // else. Collaborators with the "use" role may only render and interact with the gadget's mainline
@@ -71,6 +72,7 @@ export default function GadgetUseView({
   authenticatedApi,
   currentUserId,
 }: Props) {
+  const { formatMessage } = useIntl()
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-kumo-base">
       {/* ═══ TOP BAR ════════════════════════════════════════════════════════════ */}
@@ -114,7 +116,7 @@ export default function GadgetUseView({
           <GadgetExportMenu
             gadget={gadgetOpenFailure === null ? gadget : null}
             gadgetTitle={gadgets.find(g => g.id === selectedGadgetId)?.title ?? 'Gadget'}
-            label={snapshot ? 'Export snapshot' : undefined}
+            label={snapshot ? formatMessage({ id: 'gadgetUseView.exportSnapshot', defaultMessage: 'Export snapshot' }) : undefined}
           />
           <span className="hidden md:inline-flex">
             <GadgetPresence
@@ -154,7 +156,7 @@ export default function GadgetUseView({
             {/* Verification denials list one line per failed connection, so preserve newlines. */}
             <p className="max-w-lg whitespace-pre-line text-sm text-kumo-danger">{gadgetOpenFailure}</p>
             <WorkshopButton tone="primary" onClick={onRetryGadget}>
-              Try again
+              <FormattedMessage id="gadgetUseView.tryAgain" defaultMessage="Try again" />
             </WorkshopButton>
           </div>
         ) : gadget ? (
@@ -179,7 +181,7 @@ export default function GadgetUseView({
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center">
             <p className="text-sm text-kumo-subtle">
-              {selectedGadgetId === null ? 'This workspace has no gadgets yet.' : 'Loading gadget…'}
+              {selectedGadgetId === null ? formatMessage({ id: 'gadgetUseView.noGadgetsYet', defaultMessage: 'This workspace has no gadgets yet.' }) : formatMessage({ id: 'gadgetUseView.loadingGadget', defaultMessage: 'Loading gadget…' })}
             </p>
           </div>
         )}

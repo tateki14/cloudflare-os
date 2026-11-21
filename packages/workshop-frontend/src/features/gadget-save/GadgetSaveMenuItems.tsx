@@ -6,6 +6,7 @@ import { getResourceTypeId } from '@gadgets/workshop-shared/gatekeeper'
 import { useAuthenticatedApi, useOptionalAuthenticatedApi } from '../../AuthContext'
 import { findSaveTargets, type SaveTarget } from './saveTargets'
 import { readSavedFile, savedFileKey, type SavedFile, type SaveScope } from './savedFiles'
+import { FormattedMessage } from 'react-intl'
 
 /** A save the user asked for: a new file, or with `saved` an update of that one. */
 export type SaveRequest = { target: SaveTarget; storageKey: string | null; saved?: SavedFile }
@@ -75,7 +76,7 @@ export const GadgetSaveMenuItems = ({ vendors, formats, scope, onSelect }: {
               onClick={() => onSelect({ target, storageKey, saved })}
               className={ITEM}
             >
-              Update “{saved.name}”…
+              <FormattedMessage id="gadgetSaveMenuItems.update" defaultMessage="Update “{name}”…" values={{ name: saved.name }} />
             </DropdownMenu.Item>
           ),
           <DropdownMenu.Item
@@ -86,7 +87,7 @@ export const GadgetSaveMenuItems = ({ vendors, formats, scope, onSelect }: {
             onClick={() => onSelect({ target, storageKey })}
             className={ITEM}
           >
-            Save to {target.resource.title}…
+            <FormattedMessage id="gadgetSaveMenuItems.saveTo" defaultMessage="Save to {title}…" values={{ title: target.resource.title }} />
           </DropdownMenu.Item>,
         ]
       })}

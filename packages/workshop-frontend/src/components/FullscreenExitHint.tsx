@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FormattedMessage } from 'react-intl'
 
 const HINT_DURATION_MS = 4000
 
@@ -22,7 +23,7 @@ export const FullscreenExitHint = () => {
       className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2 transform"
     >
       <div className="rounded-full border border-kumo-line bg-kumo-base/90 px-4 py-1.5 text-[13px] leading-[18px] text-kumo-default shadow-md backdrop-blur-sm">
-        Press <kbd className="rounded border border-kumo-line bg-kumo-elevated px-1.5 py-0.5 text-[11px] font-medium">Esc</kbd> to exit full screen
+        <FormattedMessage id="fullscreenExitHint.pressEscToExitFullScreen" defaultMessage="Press <kbd>Esc</kbd> to exit full screen" values={{ kbd: (chunks) => <kbd className="rounded border border-kumo-line bg-kumo-elevated px-1.5 py-0.5 text-[11px] font-medium">{chunks}</kbd> }} />
       </div>
     </div>
   )

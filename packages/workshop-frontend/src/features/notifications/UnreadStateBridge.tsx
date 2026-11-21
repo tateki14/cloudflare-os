@@ -11,6 +11,7 @@ import type {
 } from "@gadgets/workshop-shared/api";
 import { logRpcFailure } from "../../rpcErrors";
 import { nativeApp } from "../native-app/nativeApp";
+import { useIntl } from "react-intl";
 
 class UnreadSubscriber extends RpcTarget implements UnreadStateSubscriber {
   constructor(
@@ -83,6 +84,7 @@ export const UnreadStateBridge = ({
   scope: UnreadStateScope;
   children?: ReactNode;
 }) => {
+  const { formatMessage } = useIntl();
   const [snapshot, setSnapshot] = useState<{
     api: RpcStub<AuthenticatedApi>;
     scopeKey?: string;
@@ -209,7 +211,7 @@ export const UnreadStateBridge = ({
       return await operation;
     } catch (cause) {
       if (!logRpcFailure("Failed to update read state:", cause) && currentApi.current === authenticatedApi) {
-        toasts.add({ id: "unread-update-failed", title: "Couldn’t update read state", variant: "error" });
+        toasts.add({ id: "unread-update-failed", title: formatMessage({ id: "unreadStateBridge.couldntUpdateReadState", defaultMessage: "Couldn’t update read state" }), variant: "error" });
       }
       throw cause;
     }

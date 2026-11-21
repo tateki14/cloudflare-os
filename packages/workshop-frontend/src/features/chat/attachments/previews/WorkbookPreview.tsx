@@ -7,6 +7,7 @@ import { assertOpenXml } from "./assertOpenXml";
 import { readOffice } from "./officeReader";
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from "./DataGrid";
 import { SheetGrid } from "./SheetGrid";
+import { FormattedMessage } from "react-intl";
 
 /** A workbook's sheets, refusing a password-protected file. */
 export const readSheets = async (bytes: Uint8Array) => {
@@ -42,7 +43,7 @@ export const WorkbookPreview = ({ bytes }: AttachmentPreviewProps) => {
   if (!sheet) {
     return (
       <div className="grid h-full place-items-center text-[13px] text-kumo-subtle">
-        This workbook has no sheets to show.
+        <FormattedMessage id="workbookPreview.thisWorkbookHasNoSheetsTo" defaultMessage="This workbook has no sheets to show." />
       </div>
     );
   }
@@ -60,7 +61,7 @@ export const WorkbookPreview = ({ bytes }: AttachmentPreviewProps) => {
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1">
         {sheet.rowCount === 0
-          ? <div className="grid h-full place-items-center text-[13px] text-kumo-subtle">This sheet is empty.</div>
+          ? <div className="grid h-full place-items-center text-[13px] text-kumo-subtle"><FormattedMessage id="workbookPreview.thisSheetIsEmpty" defaultMessage="This sheet is empty." /></div>
           : <SheetGrid key={active} sheet={sheet} styles={styles} />}
       </div>
       {notices.length > 0 && (

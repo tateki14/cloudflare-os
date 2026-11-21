@@ -6,6 +6,7 @@ import type {
 } from '@gadgets/workshop-shared/api'
 import { CreationAccountModal } from './components/CreationAccountModal'
 import { rpcFailureDescription } from './rpcErrors'
+import { useIntl } from 'react-intl'
 
 type ActionDecision = 'approve' | 'deny'
 
@@ -18,6 +19,7 @@ export function useResolveAction(
   setProcessing: Dispatch<SetStateAction<Set<number>>>,
   onResolved?: (actionId: number, state: Extract<ActionState, 'approved' | 'rejected'>) => void,
 ) {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   const onResolvedRef = useRef(onResolved)
   onResolvedRef.current = onResolved
@@ -34,7 +36,7 @@ export function useResolveAction(
     } catch (error) {
       console.error(`Failed to ${decision} action:`, error)
       toasts.add({
-        title: `Failed to ${decision} action`,
+        title: formatMessage({ id: 'useResolveAction.failedToAction', defaultMessage: 'Failed to {decision} action' }, { decision: decision }),
         description: rpcFailureDescription(error),
         variant: 'error',
       })

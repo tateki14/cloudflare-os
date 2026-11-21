@@ -26,6 +26,7 @@ import {
 import { reportIssue } from '../../errorReporting'
 import { saveBlobToFile, saveTextToFile } from '../../fileTransfers'
 import { isTransientRpcError } from '../../rpcErrors'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 // The code view over a workpiece's git-backed files -- a gadget's code or a worktree's checkout.
 // The two differ here in exactly two places: which summary field names the *accepted commit*
@@ -219,6 +220,7 @@ export default function WorkpieceCodeInterface({
   liveRows, liveEditPreviews, pendingGadgetIds, streamingActiveFile, isAgentActive,
   isVisible = true, onHasCodeChange, onChatContentChange,
 }: WorkpieceCodeInterfaceProps) {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   const toastsRef = useRef(toasts)
   toastsRef.current = toasts
@@ -1226,19 +1228,19 @@ export default function WorkpieceCodeInterface({
   const handleFileCreate = (filename: string) => {
     if (isEditingLocked) return
     if (fileExists(filename)) {
-      toasts.add({ title: `File already exists: ${filename}`, variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileAlreadyExists', defaultMessage: 'File already exists: {filename}' }, { filename: filename }), variant: 'error' })
       return
     }
     if (applyLocalFileChanges([[filename, { set: '' }]])) {
       setActiveFile(filename)
-      toasts.add({ title: `Created file: ${filename}`, variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.createdFile', defaultMessage: 'Created file: {filename}' }, { filename: filename }), variant: 'success' })
     }
   }
 
   const handleFileDelete = (filename: string) => {
     if (isEditingLocked) return
     if (!fileExists(filename)) {
-      toasts.add({ title: 'File not found', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileNotFound', defaultMessage: 'File not found' }), variant: 'error' })
       return
     }
     if (applyLocalFileChanges([[filename, { remove: true }]])) {
@@ -1246,7 +1248,7 @@ export default function WorkpieceCodeInterface({
         const remaining = displayedFilesRef.current.filter(name => name !== filename)
         setActiveFile(remaining.length > 0 ? remaining[0] : null)
       }
-      toasts.add({ title: `Deleted file: ${filename}`, variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.deletedFile', defaultMessage: 'Deleted file: {filename}' }, { filename: filename }), variant: 'success' })
     }
   }
 
@@ -1256,11 +1258,11 @@ export default function WorkpieceCodeInterface({
     // FileBrowser for why an executable is among them), and this is the backstop.
     if (leafKindOf(oldName) !== 'file') return
     if (!fileExists(oldName)) {
-      toasts.add({ title: 'File not found', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileNotFound', defaultMessage: 'File not found' }), variant: 'error' })
       return
     }
     if (fileExists(newName)) {
-      toasts.add({ title: `File already exists: ${newName}`, variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileAlreadyExists2', defaultMessage: 'File already exists: {newName}' }, { newName: newName }), variant: 'error' })
       return
     }
     const target = { client, gadgetId: workpieceId, contentBase }
@@ -1277,23 +1279,23 @@ export default function WorkpieceCodeInterface({
     // untouched -- and refuse a destination that has since come to exist.
     const chatFilesNow = target.client.getFiles(target.gadgetId)
     if (!chatFilesNow?.has(oldName) && target.client.getRemovedPaths(target.gadgetId).has(oldName)) {
-      toasts.add({ title: 'File not found', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileNotFound', defaultMessage: 'File not found' }), variant: 'error' })
       return
     }
     const text = chatFilesNow?.get(oldName) ?? baseContent
     if (typeof text !== 'string') {
-      toasts.add({ title: 'Only text files can be renamed in this editor', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.onlyTextFilesCanBeRenamed', defaultMessage: 'Only text files can be renamed in this editor' }), variant: 'error' })
       return
     }
     if (chatFilesNow?.has(newName) || fileExists(newName)) {
-      toasts.add({ title: `File already exists: ${newName}`, variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.fileAlreadyExists2', defaultMessage: 'File already exists: {newName}' }, { newName: newName }), variant: 'error' })
       return
     }
     if (applyLocalFileChanges([[oldName, { remove: true }], [newName, { set: text }]])) {
       if (activeFile === oldName) {
         setActiveFile(newName)
       }
-      toasts.add({ title: `Renamed file: ${oldName} \u2192 ${newName}`, variant: 'success' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.renamedFile', defaultMessage: 'Renamed file: {oldName} → {newName}' }, { oldName: oldName, newName: newName }), variant: 'success' })
     }
   }
 
@@ -1306,7 +1308,7 @@ export default function WorkpieceCodeInterface({
     const blob = content === null ? null : await reader.readBlob(content.oid)
       .then(stream => new Response(stream).blob()).catch(() => null)
     if (blob === null) {
-      toasts.add({ title: `Could not download ${filename}`, variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'workpieceCodeInterface.couldNotDownload', defaultMessage: 'Could not download {filename}' }, { filename: filename }), variant: 'error' })
       return
     }
     saveBlobToFile(blob, filename)
@@ -1338,14 +1340,14 @@ export default function WorkpieceCodeInterface({
         style={{ height }}
       >
         <p className="m-0 text-sm text-kumo-danger">
-          Failed to load this {workpieceNoun}&apos;s code.
+          <FormattedMessage id="workpieceCodeInterface.failedToLoadThisSCode" defaultMessage="Failed to load this {workpieceNoun}'s code." values={{ workpieceNoun: workpieceNoun }} />
         </p>
         <WorkshopButton
           tone="secondary"
           className="!h-8"
           onClick={() => setTreeRetryToken(token => token + 1)}
         >
-          Try again
+          <FormattedMessage id="workpieceCodeInterface.tryAgain" defaultMessage="Try again" />
         </WorkshopButton>
       </div>
     )
@@ -1357,7 +1359,7 @@ export default function WorkpieceCodeInterface({
         className="flex justify-center items-center px-6 text-center text-kumo-danger text-sm"
         style={{ height }}
       >
-        Failed to load this conversation&apos;s code changes. Try reloading the page.
+        <FormattedMessage id="workpieceCodeInterface.failedToLoadThisConversationsCode" defaultMessage="Failed to load this conversation's code changes. Try reloading the page." />
       </div>
     )
   }
@@ -1368,7 +1370,7 @@ export default function WorkpieceCodeInterface({
         className="flex justify-center items-center text-kumo-subtle"
         style={{ height }}
       >
-        Loading code files...
+        <FormattedMessage id="workpieceCodeInterface.loadingCodeFiles" defaultMessage="Loading code files..." />
       </div>
     )
   }
@@ -1426,14 +1428,14 @@ export default function WorkpieceCodeInterface({
       {hasUnsavedChanges && (
         <div className="bg-kumo-tint border-b border-kumo-line px-4 py-2 flex items-center gap-2 text-sm text-kumo-warning">
           <span className="text-base">&#9888;&#65039;</span>
-          <span>Connection issue - changes will be saved when connection is restored</span>
+          <span><FormattedMessage id="workpieceCodeInterface.connectionIssueChangesWillBeSaved" defaultMessage="Connection issue - changes will be saved when connection is restored" /></span>
         </div>
       )}
       <div className="relative flex min-h-0 flex-1">
         {fileDrawerOpen && (
           <button
             type="button"
-            aria-label="Close files"
+            aria-label={formatMessage({ id: 'workpieceCodeInterface.closeFiles', defaultMessage: 'Close files' })}
             onClick={() => setFileDrawerOpen(false)}
             className="absolute inset-0 z-20 bg-black/25 md:hidden"
           />
@@ -1442,7 +1444,7 @@ export default function WorkpieceCodeInterface({
           ref={fileDrawerRef}
           role={compactLayout ? 'dialog' : undefined}
           aria-modal={compactLayout ? true : undefined}
-          aria-label={compactLayout ? 'Files' : undefined}
+          aria-label={compactLayout ? formatMessage({ id: 'workpieceCodeInterface.files', defaultMessage: 'Files' }) : undefined}
           aria-hidden={compactLayout && !fileDrawerOpen ? true : undefined}
           inert={compactLayout && !fileDrawerOpen ? true : undefined}
           tabIndex={compactLayout ? -1 : undefined}
@@ -1488,8 +1490,8 @@ export default function WorkpieceCodeInterface({
         >
           <div className={`${activeFile ? 'flex' : 'flex md:hidden'} h-11 shrink-0 items-center justify-between gap-2 border-b border-kumo-line bg-kumo-base px-2 md:h-9 md:px-3`}>
             <WorkshopIconButton
-              aria-label="Open files"
-              title="Files"
+              aria-label={formatMessage({ id: 'workpieceCodeInterface.openFiles', defaultMessage: 'Open files' })}
+              title={formatMessage({ id: 'workpieceCodeInterface.files', defaultMessage: 'Files' })}
               onClick={() => setFileDrawerOpen(true)}
               ref={fileDrawerTriggerRef}
               className="!h-9 !w-9 md:!hidden"
@@ -1506,9 +1508,7 @@ export default function WorkpieceCodeInterface({
               // view shows as changed is relative to the accepted commit, never to this.
               <span
                 className="flex shrink-0 items-center gap-1 rounded bg-kumo-tint px-1.5 py-0.5 font-mono text-[11px] leading-4 text-kumo-subtle"
-                title={summary.headCommit === summary.baseCommit
-                  ? `HEAD ${summary.headCommit} (no commits since the worktree was created)`
-                  : `HEAD ${summary.headCommit}\nCreated at ${summary.baseCommit}`}
+                title={summary.headCommit === summary.baseCommit ? formatMessage({ id: 'workpieceCodeInterface.headNoCommitsSinceTheWorktree', defaultMessage: 'HEAD {headCommit} (no commits since the worktree was created)' }, { headCommit: summary.headCommit }) : formatMessage({ id: 'workpieceCodeInterface.headCreatedAt', defaultMessage: 'HEAD {headCommit}\nCreated at {baseCommit}' }, { headCommit: summary.headCommit, baseCommit: summary.baseCommit })}
               >
                 <GitBranch size={11} aria-hidden="true" />
                 <span className="sr-only">HEAD </span>
@@ -1517,8 +1517,8 @@ export default function WorkpieceCodeInterface({
             )}
             {activeFile && (
               <WorkshopIconButton
-                aria-label={`Download ${activeFile}`}
-                title="Download file"
+                aria-label={formatMessage({ id: 'workpieceCodeInterface.download', defaultMessage: 'Download {activeFile}' }, { activeFile: activeFile })}
+                title={formatMessage({ id: 'workpieceCodeInterface.downloadFile', defaultMessage: 'Download file' })}
                 onClick={() => handleFileDownload(activeFile)}
                 disabled={!activeFileDownloadable}
                 className="!h-9 !w-9 md:!h-6 md:!w-6"
@@ -1534,10 +1534,10 @@ export default function WorkpieceCodeInterface({
             <Banner
               variant="error"
               size="sm"
-              title="Some of this draft's changes could not be loaded"
+              title={formatMessage({ id: 'workpieceCodeInterface.someOfThisDraftsChangesCould', defaultMessage: 'Some of this draft\'s changes could not be loaded' })}
               action={
                 <Banner.Action onClick={() => setMergedRetryToken(token => token + 1)}>
-                  Try again
+                  <FormattedMessage id="workpieceCodeInterface.tryAgain" defaultMessage="Try again" />
                 </Banner.Action>
               }
               className="m-2 w-auto shrink-0"
@@ -1548,12 +1548,10 @@ export default function WorkpieceCodeInterface({
               <div className="flex h-full flex-col items-center justify-center bg-kumo-base px-6 text-center">
                 <div className="max-w-[360px]">
                   <p className="m-0 text-[15px] leading-[22px] font-semibold tracking-[-0.3px] text-kumo-default">
-                    No files yet
+                    <FormattedMessage id="workpieceCodeInterface.noFilesYet" defaultMessage="No files yet" />
                   </p>
                   <p className="mt-1.5 mb-0 text-[13px] leading-[19px] tracking-[-0.25px] text-kumo-subtle">
-                    {branchMode
-                      ? 'Keep building with the agent in chat and files will appear here as it works, or create one yourself.'
-                      : 'Open a conversation and build with the agent, and its accepted files will appear here.'}
+                    {branchMode ? formatMessage({ id: 'workpieceCodeInterface.keepBuildingWithTheAgentIn', defaultMessage: 'Keep building with the agent in chat and files will appear here as it works, or create one yourself.' }) : formatMessage({ id: 'workpieceCodeInterface.openAConversationAndBuildWith', defaultMessage: 'Open a conversation and build with the agent, and its accepted files will appear here.' })}
                   </p>
                   {branchMode && (
                     <div className="mt-4 flex justify-center">
@@ -1563,7 +1561,7 @@ export default function WorkpieceCodeInterface({
                         tone="primary"
                         className="!h-8"
                       >
-                        New file
+                        <FormattedMessage id="workpieceCodeInterface.newFile" defaultMessage="New file" />
                       </WorkshopButton>
                     </div>
                   )}
@@ -1572,18 +1570,18 @@ export default function WorkpieceCodeInterface({
             ) : activeResolved === undefined || activeReviewLoading ? (
               activeFileError !== null ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 bg-kumo-base px-6 text-center">
-                  <p className="m-0 text-sm text-kumo-danger">Failed to load this file.</p>
+                  <p className="m-0 text-sm text-kumo-danger"><FormattedMessage id="workpieceCodeInterface.failedToLoadThisFile" defaultMessage="Failed to load this file." /></p>
                   <WorkshopButton
                     tone="secondary"
                     className="!h-8"
                     onClick={() => setFileRetryToken(token => token + 1)}
                   >
-                    Try again
+                    <FormattedMessage id="workpieceCodeInterface.tryAgain" defaultMessage="Try again" />
                   </WorkshopButton>
                 </div>
               ) : (
                 <div className="flex h-full items-center justify-center bg-kumo-base text-kumo-subtle">
-                  Loading file...
+                  <FormattedMessage id="workpieceCodeInterface.loadingFile" defaultMessage="Loading file..." />
                 </div>
               )
             ) : activeResolved.kind === 'blob' && activeFile !== null ? (

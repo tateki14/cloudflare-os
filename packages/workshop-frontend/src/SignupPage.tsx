@@ -1,3 +1,4 @@
+import { FormattedMessage, useIntl } from 'react-intl'
 import { useState, FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { RpcStub } from "capnweb";
@@ -24,7 +25,8 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
   const serverConfigError = useServerConfigError();
   const siteName = useSiteName();
   const connectionLost = useConnectionLost();
-  useDocumentTitle("Create account");
+  const { formatMessage } = useIntl();
+  useDocumentTitle(formatMessage({ id: "signupPage.documentTitle", defaultMessage: "Create account" }));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,17 +39,17 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
 
   const usernameError =
     username && !/^[a-z0-9_-]+$/i.test(username)
-      ? "Letters, numbers, underscores, and hyphens only"
+      ? formatMessage({ id: "signupPage.usernameFormatError", defaultMessage: "Letters, numbers, underscores, and hyphens only" })
       : undefined;
 
   const passwordError =
     password && password.length < 8
-      ? "Must be at least 8 characters"
+      ? formatMessage({ id: "signupPage.passwordTooShort", defaultMessage: "Must be at least 8 characters" })
       : undefined;
 
   const confirmError =
     confirmPassword && confirmPassword !== password
-      ? "Passwords do not match"
+      ? formatMessage({ id: "signupPage.passwordsDoNotMatch", defaultMessage: "Passwords do not match" })
       : undefined;
 
   const canSubmit =
@@ -76,10 +78,12 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
         localStorage.setItem("authToken", token);
         handleSignupSuccess();
       } else {
-        setError("Username already exists");
+        setError(formatMessage({ id: "signupPage.usernameAlreadyExists", defaultMessage: "Username already exists" }));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Account creation failed");
+      setError(err instanceof Error
+        ? err.message
+        : formatMessage({ id: "signupPage.accountCreationFailed", defaultMessage: "Account creation failed" }));
     } finally {
       setLoading(false);
     }
@@ -93,9 +97,11 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
           className="flex h-full min-h-0 flex-col items-center justify-center gap-4 overflow-y-auto bg-kumo-base px-4 py-8"
         >
           <p className="text-sm text-kumo-danger text-center">
-            Couldn&apos;t load deployment settings.
+            <FormattedMessage id="signupPage.deploymentSettingsLoadFailed" defaultMessage="Couldn’t load deployment settings." />
           </p>
-          <Button variant="secondary" onClick={() => window.location.reload()}>Reload</Button>
+          <Button variant="secondary" onClick={() => window.location.reload()}>
+            <FormattedMessage id="signupPage.reload" defaultMessage="Reload" />
+          </Button>
         </div>
       );
     }
@@ -103,7 +109,9 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-4 overflow-y-auto bg-kumo-base px-4 py-8">
         <Loader size="lg" />
         <p className="text-sm text-kumo-subtle text-center">
-          {connectionLost ? "Can't reach the server. Retrying…" : "Loading…"}
+          {connectionLost
+            ? <FormattedMessage id="signupPage.retryingConnection" defaultMessage="Can't reach the server. Retrying…" />
+            : <FormattedMessage id="signupPage.loading" defaultMessage="Loading…" />}
         </p>
       </div>
     );
@@ -141,16 +149,21 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
           <h1 className="text-xl font-semibold text-kumo-default">
             {siteName}
           </h1>
-          <p className="text-sm text-kumo-subtle mt-1">Create your account</p>
+          <p className="text-sm text-kumo-subtle mt-1">
+            <FormattedMessage id="signupPage.createYourAccount" defaultMessage="Create your account" />
+          </p>
         </div>
 
         {!signupsEnabled && (
           <Banner
             variant="default"
-            title="Signups are closed"
+            title={formatMessage({ id: "signupPage.signupsClosed", defaultMessage: "Signups are closed" })}
             className="mb-4"
           >
-            New account registration is currently disabled on this deployment.
+            <FormattedMessage
+              id="signupPage.signupsClosedBody"
+              defaultMessage="New account registration is currently disabled on this deployment."
+            />
           </Banner>
         )}
 
@@ -160,20 +173,20 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input
                 className="w-full"
-                label="Username"
+                label={formatMessage({ id: "signupPage.usernameLabel", defaultMessage: "Username" })}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoFocus
                 autoComplete="username"
                 disabled={loading}
-                placeholder="your-username"
+                placeholder={formatMessage({ id: "signupPage.usernamePlaceholder", defaultMessage: "your-username" })}
                 error={usernameError}
               />
 
               <Input
                 className="w-full"
                 type="password"
-                label="Password"
+                label={formatMessage({ id: "signupPage.passwordLabel", defaultMessage: "Password" })}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -185,7 +198,7 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
               <Input
                 className="w-full"
                 type="password"
-                label="Confirm Password"
+                label={formatMessage({ id: "signupPage.confirmPasswordLabel", defaultMessage: "Confirm Password" })}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 autoComplete="new-password"
@@ -203,7 +216,7 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
                 loading={loading}
                 className="w-full justify-center"
               >
-                Create account
+                <FormattedMessage id="signupPage.createAccount" defaultMessage="Create account" />
               </Button>
             </form>
           </>
@@ -215,7 +228,9 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
             {passwordAuthEnabled && (
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-px flex-1 bg-kumo-line" />
-                <span className="text-xs text-kumo-subtle">or</span>
+                <span className="text-xs text-kumo-subtle">
+                  <FormattedMessage id="signupPage.or" defaultMessage="or" />
+                </span>
                 <div className="h-px flex-1 bg-kumo-line" />
               </div>
             )}
@@ -229,14 +244,11 @@ export default function SignupPage({ rpcStub }: SignupPageProps) {
 
         {passwordAuthEnabled && (
           <p className="text-center text-sm text-kumo-subtle mt-6">
-            Already have an account?{" "}
-            <Link
+            <FormattedMessage id="signupPage.alreadyHaveAnAccountSignIn" defaultMessage="Already have an account? <link>Sign in</link>" values={{ link: (chunks) => <Link
               to="/"
               search={deviceSessionSearch(window.location.search)}
               className="text-kumo-brand hover:underline font-medium"
-            >
-              Sign in
-            </Link>
+            >{chunks}</Link> }} />
           </p>
         )}
       </div>

@@ -22,6 +22,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { reportIssue } from './errorReporting'
+import { createIntl, FormattedMessage, useIntl, type IntlShape } from "react-intl";
 import {
   Dialog,
   DropdownMenu,
@@ -113,7 +114,7 @@ import DeleteConfirmationDialog from "./components/DeleteConfirmationDialog";
 import AutoApproveConfirmDialog from "./components/AutoApproveConfirmDialog";
 import { AlwaysApproveButton, ResolveButton } from "./components/ResolveButton";
 import { RestrictedApprovalNotice } from "./components/RestrictedApprovalNotice";
-import { PENDING_CHECKING_COPY, PENDING_ERROR_COPY } from "./Activity";
+import { PENDING_CHECKING_MESSAGE, PENDING_ERROR_MESSAGE } from "./Activity";
 import { WorkshopButton, WorkshopIconButton, WorkshopInput } from "./components/WorkshopControls";
 import { WebFetchRequestCard } from "./features/web-fetch/WebFetchRequestCard";
 import { PendingChangesTray } from "./features/approvals/PendingChangesTray";
@@ -277,12 +278,15 @@ type CreatedWorkpieceCardInfo = {
 
 // The card's caption: what the workpiece is and what clicking does. A worktree has no app to
 // preview; opening it lands on its code.
-function describeCreatedWorkpiece(created: CreatedWorkpieceCardInfo): string {
-  if (created.type === "worktree") return "Worktree · Click to open its code";
+function describeCreatedWorkpiece(
+  created: CreatedWorkpieceCardInfo,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
+  if (created.type === "worktree") return formatMessage({ id: "chatInterface.createdWorktreeClickToOpen", defaultMessage: "Worktree · Click to open its code" });
   const noun = formatOf(created.output).noun;
   return created.isPending
-    ? `New ${noun.toLowerCase()} · Click to preview`
-    : `${noun} · Click to open`;
+    ? formatMessage({ id: "chatInterface.createdNewClickToPreview", defaultMessage: "New {noun} · Click to preview" }, { noun: noun.toLowerCase() })
+    : formatMessage({ id: "chatInterface.createdClickToOpen", defaultMessage: "{noun} · Click to open" }, { noun });
 }
 
 function CreatedWorkpieceChatCard({
@@ -292,6 +296,7 @@ function CreatedWorkpieceChatCard({
   created: CreatedWorkpieceCardInfo;
   onOpen: () => void;
 }) {
+  const { formatMessage } = useIntl();
   return (
     <div className="group/createdApp relative w-full max-w-[440px]">
       <button
@@ -320,10 +325,10 @@ function CreatedWorkpieceChatCard({
             <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-kumo-subtle">
               {created.type === "gadget" && created.isPending && (
                 <span className="rounded-full bg-kumo-fill px-1.5 py-0.5 text-[10px] font-medium leading-none">
-                  Draft
+                  <FormattedMessage id="chatInterface.draft" defaultMessage="Draft" />
                 </span>
               )}
-              <span>{describeCreatedWorkpiece(created)}</span>
+              <span>{describeCreatedWorkpiece(created, formatMessage)}</span>
             </span>
           </span>
           <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-kumo-inactive transition-all duration-150 group-hover:bg-kumo-tint group-hover:text-kumo-default">
@@ -628,15 +633,22 @@ export function resolveToolCallOutput(
   return typeof gadgetId === "number" ? outputOfWorkpiece(gadgetId) : undefined;
 }
 
+// Fallback for module-scope helpers below when called without an intl context (e.g. from tests
+// that exercise `buildChatDisplayEntries` directly). Production call sites always thread the real
+// `formatMessage` from `useIntl()` through instead. It renders the English `defaultMessage`
+// (ICU plurals included), matching what the helpers returned before localization.
+const fallbackFormatMessage: IntlShape['formatMessage'] = createIntl({ locale: "en", onError: () => {} }).formatMessage;
+
 function getToolCallSummary(
   tc: AiToolCall,
   outputOf?: ToolOutputResolver,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): { verb: string; target?: string } {
   switch (tc.toolName) {
     case "readFile":
-      return { verb: "Read", target: tc.input.filename };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbRead", defaultMessage: "Read" }), target: tc.input.filename };
     case "writeFile":
-      return { verb: "Wrote", target: tc.input.filename };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbWrote", defaultMessage: "Wrote" }), target: tc.input.filename };
     case "editFile":
       return { verb: "Edited", target: tc.input.filename };
     case "grep":
@@ -650,26 +662,32 @@ function getToolCallSummary(
       };
     case "setBindingHook":
       return {
-        verb: "Connected",
+        verb: formatMessage({ id: "chatInterface.toolVerbConnected", defaultMessage: "Connected" }),
         target: tc.input.entrypoint
           ? `${tc.input.bindingName} → ${tc.input.entrypoint}`
           : tc.input.bindingName,
       };
     case "setGadgetBinding":
       return {
-        verb: "Wired up",
+        verb: formatMessage({ id: "chatInterface.toolVerbWiredUp", defaultMessage: "Wired up" }),
         target: formatGadgetBindingTarget(tc.input.gadget, tc.input.name ?? tc.input.source),
       };
     // Obsolete predecessor of `setGadgetBinding`; appears only in old chat logs.
     case "saveCapsuleAsBinding":
-      return { verb: "Saved resource", target: tc.input.bindingName };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbSavedResource", defaultMessage: "Saved resource" }), target: tc.input.bindingName };
     case "createGadget": {
 
       const output = outputOf?.(tc);
-      return { verb: `Created ${output?.noun ?? "gadget"}`, target: tc.input.title };
+      return {
+        verb: formatMessage(
+          { id: "chatInterface.toolVerbCreatedNoun", defaultMessage: "Created {noun}" },
+          { noun: output?.noun ?? formatMessage({ id: "chatInterface.gadgetNounFallback", defaultMessage: "gadget" }) },
+        ),
+        target: tc.input.title,
+      };
     }
     case "createWorktree":
-      return { verb: "Created worktree", target: tc.input.title };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbCreatedWorktree", defaultMessage: "Created worktree" }), target: tc.input.title };
     case "executeCode": {
       // Prefer the first non-empty line as a preview. `code` may be absent while the tool call's
       // input is still streaming in, so guard against undefined.
@@ -678,7 +696,7 @@ function getToolCallSummary(
         .map((line) => line.trim())
         .find((line) => line.length > 0);
       return {
-        verb: "Ran code",
+        verb: formatMessage({ id: "chatInterface.toolVerbRanCode", defaultMessage: "Ran code" }),
         target: firstLine
           ? firstLine.length > 60
             ? `${firstLine.slice(0, 57)}…`
@@ -687,7 +705,7 @@ function getToolCallSummary(
       };
     }
     case "giveUp":
-      return { verb: "Stopped" };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbStopped", defaultMessage: "Stopped" }) };
     case "webFetch": {
       let target = tc.input.url;
       try {
@@ -695,14 +713,17 @@ function getToolCallSummary(
       } catch {
         // Leave as the raw URL.
       }
-      return { verb: "Fetched", target };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbFetched", defaultMessage: "Fetched" }), target };
     }
     case "observeUserChanges":
-      return { verb: "Observed user changes" };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbObservedUserChanges", defaultMessage: "Observed user changes" }) };
     case "listBlueprints":
-      return { verb: "Listed blueprints" };
+      return { verb: formatMessage({ id: "chatInterface.toolVerbListedBlueprints", defaultMessage: "Listed blueprints" }) };
     case "listConnectableResources":
-      return { verb: "Listed connectable resources", target: tc.input.vendorId };
+      return {
+        verb: formatMessage({ id: "chatInterface.toolVerbListedConnectableResources", defaultMessage: "Listed connectable resources" }),
+        target: tc.input.vendorId,
+      };
     case "requestConnection":
       return { verb: "Requested connection", target: tc.input.vendorId };
     case "createExternalResource":
@@ -758,56 +779,58 @@ function lowerFirst(text: string): string {
   return text ? text[0].toLowerCase() + text.slice(1) : text;
 }
 
-function pluralize(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+function describeObservationCount(
+  count: number,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
+  return formatMessage(
+    { id: "chatInterface.observationCount", defaultMessage: "{count, plural, one {Read 1 resource} other {# resource reads}}" },
+    { count },
+  );
 }
 
-function formatTimes(count: number): string {
-  return pluralize(count, "time");
-}
-
-function describeObservationCount(count: number): string {
-  return count === 1 ? "Read 1 resource" : `${count} resource reads`;
-}
-
-function describeToolCallCount(toolName: AiToolCall["toolName"], count: number): string {
+function describeToolCallCount(
+  toolName: AiToolCall["toolName"],
+  count: number,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
   switch (toolName) {
     case "readFile":
-      return `Read ${pluralize(count, "file")}`;
+      return formatMessage({ id: "chatInterface.toolCountRead", defaultMessage: "{count, plural, one {Read # file} other {Read # files}}" }, { count });
     case "writeFile":
-      return `Wrote ${pluralize(count, "file")}`;
+      return formatMessage({ id: "chatInterface.toolCountWrote", defaultMessage: "{count, plural, one {Wrote # file} other {Wrote # files}}" }, { count });
     case "editFile":
-      return count === 1 ? "Made 1 edit" : `Made ${count} edits`;
+      return formatMessage({ id: "chatInterface.toolCountEdited", defaultMessage: "{count, plural, one {Made # edit} other {Made # edits}}" }, { count });
     case "grep":
-      return count === 1 ? "Searched files" : `Searched files ${formatTimes(count)}`;
+      return formatMessage({ id: "chatInterface.toolCountSearched", defaultMessage: "{count, plural, one {Searched files} other {Searched files # times}}" }, { count });
     case "webFetch":
-      return `Fetched ${pluralize(count, "page")}`;
+      return formatMessage({ id: "chatInterface.toolCountFetched", defaultMessage: "{count, plural, one {Fetched # page} other {Fetched # pages}}" }, { count });
     case "executeCode":
-      return count === 1 ? "Ran code" : `Ran code ${formatTimes(count)}`;
+      return formatMessage({ id: "chatInterface.toolCountRanCode", defaultMessage: "{count, plural, one {Ran code} other {Ran code # times}}" }, { count });
     case "describeBinding":
-      return `Inspected ${pluralize(count, "binding")}`;
+      return formatMessage({ id: "chatInterface.toolCountInspected", defaultMessage: "{count, plural, one {Inspected # binding} other {Inspected # bindings}}" }, { count });
     case "setBindingHook":
-      return `Connected ${pluralize(count, "binding")}`;
+      return formatMessage({ id: "chatInterface.toolCountConnected", defaultMessage: "{count, plural, one {Connected # binding} other {Connected # bindings}}" }, { count });
     case "setGadgetBinding":
-      return `Wired up ${pluralize(count, "binding")}`;
+      return formatMessage({ id: "chatInterface.toolCountWiredUp", defaultMessage: "{count, plural, one {Wired up # binding} other {Wired up # bindings}}" }, { count });
     case "saveCapsuleAsBinding":
-      return `Saved ${pluralize(count, "resource")}`;
+      return formatMessage({ id: "chatInterface.toolCountSaved", defaultMessage: "{count, plural, one {Saved # resource} other {Saved # resources}}" }, { count });
     case "createGadget":
-      return `Created ${pluralize(count, "gadget")}`;
+      return formatMessage({ id: "chatInterface.toolCountCreated", defaultMessage: "{count, plural, one {Created # gadget} other {Created # gadgets}}" }, { count });
     case "createWorktree":
-      return `Created ${pluralize(count, "worktree")}`;
+      return formatMessage({ id: "chatInterface.toolCountCreatedWorktree", defaultMessage: "{count, plural, one {Created # worktree} other {Created # worktrees}}" }, { count });
     case "observeUserChanges":
-      return `Observed ${pluralize(count, "change set")}`;
+      return formatMessage({ id: "chatInterface.toolCountObserved", defaultMessage: "{count, plural, one {Observed # change set} other {Observed # change sets}}" }, { count });
     case "giveUp":
-      return count === 1 ? "Stopped" : `Stopped ${count} times`;
+      return formatMessage({ id: "chatInterface.toolCountStopped", defaultMessage: "{count, plural, one {Stopped} other {Stopped # times}}" }, { count });
     case "listBlueprints":
-      return `Listed blueprints`;
+      return formatMessage({ id: "chatInterface.toolVerbListedBlueprints", defaultMessage: "Listed blueprints" });
     case "listConnectableResources":
-      return `Listed connectable resources`;
+      return formatMessage({ id: "chatInterface.toolVerbListedConnectableResources", defaultMessage: "Listed connectable resources" });
     case "requestConnection":
-      return count === 1 ? "Requested a connection" : `Requested ${count} connections`;
+      return formatMessage({ id: "chatInterface.toolCountRequested", defaultMessage: "{count, plural, one {Requested a connection} other {Requested # connections}}" }, { count });
     case "createExternalResource":
-      return `Created ${pluralize(count, "external resource")}`;
+      return formatMessage({ id: "chatInterface.toolCountCreatedExternal", defaultMessage: "{count, plural, one {Created # external resource} other {Created # external resources}}" }, { count });
   }
   const _exhaustive: never = toolName;
   return _exhaustive;
@@ -853,93 +876,106 @@ function getToolIcon(
 
 const userBubbleClassName = `themed-user-bubble-shadow w-fit max-w-[min(680px,78%)] rounded-[24px] rounded-br-lg border border-transparent bg-kumo-bubble-user px-4 py-2.5 text-[14px] leading-[22px] tracking-[-0.25px] text-kumo-default ${styles.markdownContent}`;
 
-function getProvisionalToolLabel(toolName: AiToolCall["toolName"] | null | undefined) {
+function getProvisionalToolLabel(
+  toolName: AiToolCall["toolName"] | null | undefined,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+) {
   switch (toolName) {
     case "readFile":
-      return "Reading file";
+      return formatMessage({ id: "chatInterface.provisionalReadingFile", defaultMessage: "Reading file" });
     case "writeFile":
-      return "Writing file";
+      return formatMessage({ id: "chatInterface.provisionalWritingFile", defaultMessage: "Writing file" });
     case "editFile":
-      return "Editing file";
+      return formatMessage({ id: "chatInterface.provisionalEditingFile", defaultMessage: "Editing file" });
     case "grep":
-      return "Searching files";
+      return formatMessage({ id: "chatInterface.provisionalSearchingFiles", defaultMessage: "Searching files" });
     case "describeBinding":
-      return "Inspecting binding";
+      return formatMessage({ id: "chatInterface.provisionalInspectingBinding", defaultMessage: "Inspecting binding" });
     case "setBindingHook":
-      return "Connecting binding";
+      return formatMessage({ id: "chatInterface.provisionalConnectingBinding", defaultMessage: "Connecting binding" });
     case "setGadgetBinding":
-      return "Wiring up binding";
+      return formatMessage({ id: "chatInterface.provisionalWiringUpBinding", defaultMessage: "Wiring up binding" });
     case "saveCapsuleAsBinding":
-      return "Saving resource";
+      return formatMessage({ id: "chatInterface.provisionalSavingResource", defaultMessage: "Saving resource" });
     case "createGadget":
-      return "Creating gadget";
+      return formatMessage({ id: "chatInterface.provisionalCreatingGadget", defaultMessage: "Creating gadget" });
     case "createWorktree":
-      return "Creating worktree";
+      return formatMessage({ id: "chatInterface.provisionalCreatingWorktree", defaultMessage: "Creating worktree" });
     case "executeCode":
-      return "Running code";
+      return formatMessage({ id: "chatInterface.provisionalRunningCode", defaultMessage: "Running code" });
     case "webFetch":
-      return "Fetching web page";
+      return formatMessage({ id: "chatInterface.provisionalFetchingWebPage", defaultMessage: "Fetching web page" });
     case "observeUserChanges":
-      return "Observing user changes";
+      return formatMessage({ id: "chatInterface.provisionalObservingUserChanges", defaultMessage: "Observing user changes" });
     case "giveUp":
-      return "Stopping";
+      return formatMessage({ id: "chatInterface.provisionalStopping", defaultMessage: "Stopping" });
     default:
-      return "Using tool";
+      return formatMessage({ id: "chatInterface.provisionalUsingTool", defaultMessage: "Using tool" });
   }
 }
 
-function getToolTarget(tc: AiToolCall): string | undefined {
-  return getToolCallSummary(tc).target;
+function getToolTarget(
+  tc: AiToolCall,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string | undefined {
+  return getToolCallSummary(tc, undefined, formatMessage).target;
 }
 
 // Present-tense verb for an in-progress tool call.
-function getProvisionalToolVerb(toolName: AiToolCall["toolName"]): string {
+function getProvisionalToolVerb(
+  toolName: AiToolCall["toolName"],
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
   switch (toolName) {
-    case "readFile": return "Reading";
-    case "writeFile": return "Writing";
-    case "editFile": return "Editing";
-    case "grep": return "Searching";
-    case "describeBinding": return "Inspecting";
-    case "setBindingHook": return "Connecting";
-    case "setGadgetBinding": return "Wiring up";
-    case "saveCapsuleAsBinding": return "Saving";
-    case "createGadget": return "Creating gadget";
-    case "createWorktree": return "Creating worktree";
-    case "executeCode": return "Running code";
-    case "webFetch": return "Fetching";
-    case "observeUserChanges": return "Observing user changes";
-    case "giveUp": return "Stopping";
-    case "listBlueprints": return "Listing blueprints";
-    case "listConnectableResources": return "Listing connectable resources";
-    case "requestConnection": return "Requesting a connection";
-    case "createExternalResource": return "Creating external resource";
+    case "readFile": return formatMessage({ id: "chatInterface.provisionalVerbReading", defaultMessage: "Reading" });
+    case "writeFile": return formatMessage({ id: "chatInterface.provisionalVerbWriting", defaultMessage: "Writing" });
+    case "editFile": return formatMessage({ id: "chatInterface.provisionalVerbEditing", defaultMessage: "Editing" });
+    case "grep": return formatMessage({ id: "chatInterface.provisionalVerbSearching", defaultMessage: "Searching" });
+    case "describeBinding": return formatMessage({ id: "chatInterface.provisionalVerbInspecting", defaultMessage: "Inspecting" });
+    case "setBindingHook": return formatMessage({ id: "chatInterface.provisionalVerbConnecting", defaultMessage: "Connecting" });
+    case "setGadgetBinding": return formatMessage({ id: "chatInterface.provisionalVerbWiringUp", defaultMessage: "Wiring up" });
+    case "saveCapsuleAsBinding": return formatMessage({ id: "chatInterface.provisionalVerbSaving", defaultMessage: "Saving" });
+    case "createGadget": return formatMessage({ id: "chatInterface.provisionalCreatingGadget", defaultMessage: "Creating gadget" });
+    case "createWorktree": return formatMessage({ id: "chatInterface.provisionalCreatingWorktree", defaultMessage: "Creating worktree" });
+    case "executeCode": return formatMessage({ id: "chatInterface.provisionalRunningCode", defaultMessage: "Running code" });
+    case "webFetch": return formatMessage({ id: "chatInterface.provisionalVerbFetching", defaultMessage: "Fetching" });
+    case "observeUserChanges": return formatMessage({ id: "chatInterface.provisionalObservingUserChanges", defaultMessage: "Observing user changes" });
+    case "giveUp": return formatMessage({ id: "chatInterface.provisionalStopping", defaultMessage: "Stopping" });
+    case "listBlueprints": return formatMessage({ id: "chatInterface.provisionalVerbListingBlueprints", defaultMessage: "Listing blueprints" });
+    case "listConnectableResources": return formatMessage({ id: "chatInterface.provisionalVerbListingConnectableResources", defaultMessage: "Listing connectable resources" });
+    case "requestConnection": return formatMessage({ id: "chatInterface.provisionalVerbRequestingConnection", defaultMessage: "Requesting a connection" });
+    case "createExternalResource": return formatMessage({ id: "chatInterface.provisionalVerbCreatingExternalResource", defaultMessage: "Creating external resource" });
   }
   const _exhaustive: never = toolName;
   return _exhaustive;
 }
 
 // Present-tense, count-aware label mirroring describeToolCallCount (e.g. "Writing 5 files").
-function describeProvisionalToolCount(toolName: AiToolCall["toolName"], count: number): string {
-  if (count <= 1) return getProvisionalToolLabel(toolName);
+function describeProvisionalToolCount(
+  toolName: AiToolCall["toolName"],
+  count: number,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
+  if (count <= 1) return getProvisionalToolLabel(toolName, formatMessage);
   switch (toolName) {
-    case "readFile": return `Reading ${pluralize(count, "file")}`;
-    case "writeFile": return `Writing ${pluralize(count, "file")}`;
-    case "editFile": return `Making ${count} edits`;
-    case "grep": return `Searching files ${formatTimes(count)}`;
-    case "webFetch": return `Fetching ${pluralize(count, "page")}`;
-    case "executeCode": return count === 1 ? "Running code" : `Running code ${formatTimes(count)}`;
-    case "describeBinding": return `Inspecting ${pluralize(count, "binding")}`;
-    case "setBindingHook": return `Connecting ${pluralize(count, "binding")}`;
-    case "setGadgetBinding": return `Wiring up ${pluralize(count, "binding")}`;
-    case "saveCapsuleAsBinding": return `Saving ${pluralize(count, "resource")}`;
-    case "createGadget": return `Creating ${pluralize(count, "gadget")}`;
-    case "createWorktree": return `Creating ${pluralize(count, "worktree")}`;
-    case "observeUserChanges": return `Observing ${pluralize(count, "change set")}`;
-    case "giveUp": return "Stopping";
-    case "listBlueprints": return "Listing blueprints";
-    case "listConnectableResources": return "Listing connectable resources";
-    case "requestConnection": return `Requesting ${pluralize(count, "connection")}`;
-    case "createExternalResource": return `Creating ${pluralize(count, "external resource")}`;
+    case "readFile": return formatMessage({ id: "chatInterface.provisionalCountReading", defaultMessage: "{count, plural, one {Reading # file} other {Reading # files}}" }, { count });
+    case "writeFile": return formatMessage({ id: "chatInterface.provisionalCountWriting", defaultMessage: "{count, plural, one {Writing # file} other {Writing # files}}" }, { count });
+    case "editFile": return formatMessage({ id: "chatInterface.provisionalCountEditing", defaultMessage: "{count, plural, one {Making # edit} other {Making # edits}}" }, { count });
+    case "grep": return formatMessage({ id: "chatInterface.provisionalCountSearching", defaultMessage: "{count, plural, one {Searching files} other {Searching files # times}}" }, { count });
+    case "webFetch": return formatMessage({ id: "chatInterface.provisionalCountFetching", defaultMessage: "{count, plural, one {Fetching # page} other {Fetching # pages}}" }, { count });
+    case "executeCode": return formatMessage({ id: "chatInterface.provisionalCountRunningCode", defaultMessage: "{count, plural, one {Running code} other {Running code # times}}" }, { count });
+    case "describeBinding": return formatMessage({ id: "chatInterface.provisionalCountInspecting", defaultMessage: "{count, plural, one {Inspecting # binding} other {Inspecting # bindings}}" }, { count });
+    case "setBindingHook": return formatMessage({ id: "chatInterface.provisionalCountConnecting", defaultMessage: "{count, plural, one {Connecting # binding} other {Connecting # bindings}}" }, { count });
+    case "setGadgetBinding": return formatMessage({ id: "chatInterface.provisionalCountWiringUp", defaultMessage: "{count, plural, one {Wiring up # binding} other {Wiring up # bindings}}" }, { count });
+    case "saveCapsuleAsBinding": return formatMessage({ id: "chatInterface.provisionalCountSaving", defaultMessage: "{count, plural, one {Saving # resource} other {Saving # resources}}" }, { count });
+    case "createGadget": return formatMessage({ id: "chatInterface.provisionalCountCreating", defaultMessage: "{count, plural, one {Creating # gadget} other {Creating # gadgets}}" }, { count });
+    case "createWorktree": return formatMessage({ id: "chatInterface.provisionalCountCreatingWorktree", defaultMessage: "{count, plural, one {Creating # worktree} other {Creating # worktrees}}" }, { count });
+    case "observeUserChanges": return formatMessage({ id: "chatInterface.provisionalCountObserving", defaultMessage: "{count, plural, one {Observing # change set} other {Observing # change sets}}" }, { count });
+    case "giveUp": return formatMessage({ id: "chatInterface.provisionalStopping", defaultMessage: "Stopping" });
+    case "listBlueprints": return formatMessage({ id: "chatInterface.provisionalVerbListingBlueprints", defaultMessage: "Listing blueprints" });
+    case "listConnectableResources": return formatMessage({ id: "chatInterface.provisionalVerbListingConnectableResources", defaultMessage: "Listing connectable resources" });
+    case "requestConnection": return formatMessage({ id: "chatInterface.provisionalCountRequesting", defaultMessage: "{count, plural, one {Requesting # connection} other {Requesting # connections}}" }, { count });
+    case "createExternalResource": return formatMessage({ id: "chatInterface.provisionalCountCreatingExternal", defaultMessage: "{count, plural, one {Creating # external resource} other {Creating # external resources}}" }, { count });
   }
   const _exhaustive: never = toolName;
   return _exhaustive;
@@ -948,10 +984,17 @@ function describeProvisionalToolCount(toolName: AiToolCall["toolName"], count: n
 // Builds the label + detail lines for the in-progress tool-call row.
 function buildProvisionalToolSummary(
   calls: ProvisionalToolCallState[],
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): { label: string; detailLines: string[] } {
 
   if (calls.length === 1 && calls[0].outputFormat) {
-    return { label: `Creating ${calls[0].outputFormat.noun}`, detailLines: [] };
+    return {
+      label: formatMessage(
+        { id: "chatInterface.creatingFormatNoun", defaultMessage: "Creating {noun}" },
+        { noun: calls[0].outputFormat.noun },
+      ),
+      detailLines: [],
+    };
   }
   const toolNames = Array.from(
     new Set(calls.map((c) => c.toolName).filter((n): n is AiToolCall["toolName"] => !!n)),
@@ -961,7 +1004,7 @@ function buildProvisionalToolSummary(
   );
 
   if (toolNames.length === 0) {
-    return { label: "Using tool", detailLines: [] };
+    return { label: formatMessage({ id: "chatInterface.provisionalUsingTool", defaultMessage: "Using tool" }), detailLines: [] };
   }
 
   if (toolNames.length > 1) {
@@ -969,6 +1012,7 @@ function buildProvisionalToolSummary(
       describeProvisionalToolCount(
         toolName,
         calls.filter((c) => c.toolName === toolName).length,
+        formatMessage,
       ),
     );
     return {
@@ -981,15 +1025,15 @@ function buildProvisionalToolSummary(
   if (calls.length === 1) {
     const target = detailLines[0];
     return {
-      label: target ? `${getProvisionalToolVerb(toolName)} ${target}` : getProvisionalToolLabel(toolName),
+      label: target ? `${getProvisionalToolVerb(toolName, formatMessage)} ${target}` : getProvisionalToolLabel(toolName, formatMessage),
       detailLines: [],
     };
   }
 
   const label =
     detailLines.length === 1
-      ? `${getProvisionalToolVerb(toolName)} ${detailLines[0]}`
-      : describeProvisionalToolCount(toolName, calls.length);
+      ? `${getProvisionalToolVerb(toolName, formatMessage)} ${detailLines[0]}`
+      : describeProvisionalToolCount(toolName, calls.length, formatMessage);
   return { label, detailLines };
 }
 
@@ -997,12 +1041,13 @@ function buildToolCallGroups(
   toolCalls: AiToolCall[],
   observations: ObservationChatMessage[] = [],
   outputOf?: ToolOutputResolver,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): ToolCallGroup[] {
   if (toolCalls.length === 0 && observations.length === 0) return [];
 
   const distinctToolNames = Array.from(new Set(toolCalls.map((tc) => tc.toolName)));
   const targets = toolCalls
-    .map((tc) => getToolTarget(tc))
+    .map((tc) => getToolTarget(tc, formatMessage))
     .filter((target): target is string => Boolean(target));
   const observationTargets = observations
     .map((msg) => msg.actionLog.resourceTitle)
@@ -1011,24 +1056,27 @@ function buildToolCallGroups(
   const labelParts: string[] = [];
 
   if (toolCalls.length === 1) {
-    const summary = getToolCallSummary(toolCalls[0], outputOf);
+    const summary = getToolCallSummary(toolCalls[0], outputOf, formatMessage);
     labelParts.push(`${summary.verb}${summary.target ? ` ${summary.target}` : ""}`);
   } else if (toolCalls.length > 1 && distinctToolNames.length === 1) {
-    const summary = getToolCallSummary(toolCalls[0], outputOf);
+    const summary = getToolCallSummary(toolCalls[0], outputOf, formatMessage);
     labelParts.push(detailLines.length === 1 && summary.target && observations.length === 0
       ? `${summary.verb} ${summary.target}`
-      : describeToolCallCount(toolCalls[0].toolName, toolCalls.length));
+      : describeToolCallCount(toolCalls[0].toolName, toolCalls.length, formatMessage));
   } else if (toolCalls.length > 1 && distinctToolNames.length <= 3) {
     labelParts.push(...distinctToolNames.map((toolName) => {
       const count = toolCalls.filter((tc) => tc.toolName === toolName).length;
-      return describeToolCallCount(toolName, count);
+      return describeToolCallCount(toolName, count, formatMessage);
     }));
   } else if (toolCalls.length > 0) {
-    labelParts.push(`${toolCalls.length} tool calls`);
+    labelParts.push(formatMessage(
+      { id: "chatInterface.toolCallsCount", defaultMessage: "{count, plural, one {# tool call} other {# tool calls}}" },
+      { count: toolCalls.length },
+    ));
   }
 
   if (observations.length > 0) {
-    labelParts.push(describeObservationCount(observations.length));
+    labelParts.push(describeObservationCount(observations.length, formatMessage));
   }
 
   const firstToolCall = toolCalls[0];
@@ -1191,6 +1239,7 @@ function FormatMention({ format }: { format: MessageFormatRef }) {
 }
 
 function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
+  const { formatMessage } = useIntl();
   const code = isValidElement<{ children?: ReactNode }>(children) &&
       typeof children.props.children === "string"
     ? children.props.children.replace(/\n$/, "")
@@ -1203,8 +1252,8 @@ function CodeBlock({ children, ...props }: ComponentPropsWithoutRef<"pre">) {
         type="button"
         className={styles.codeCopyButton}
         onClick={() => void copyToClipboard(code)}
-        aria-label="Copy code"
-        title="Copy code"
+        aria-label={formatMessage({ id: "chatInterface.copyCode", defaultMessage: "Copy code" })}
+        title={formatMessage({ id: "chatInterface.copyCode", defaultMessage: "Copy code" })}
       >
         <ClipboardIcon size={16} />
       </button>
@@ -1378,7 +1427,7 @@ const ToolCallDetails = memo(function ToolCallDetails(
       {tc.toolName === "executeCode" ? (
         <>
           <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]">
-            Code
+            <FormattedMessage id="chatInterface.code" defaultMessage="Code" />
           </span>
           <pre className="max-h-56 overflow-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-3 font-mono text-[12px] leading-[18px] text-kumo-subtle whitespace-pre-wrap">
             {tc.input.code}
@@ -1386,7 +1435,7 @@ const ToolCallDetails = memo(function ToolCallDetails(
           {tc.output && (
             <>
               <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]">
-                Output
+                <FormattedMessage id="chatInterface.output" defaultMessage="Output" />
               </span>
               <pre className="max-h-56 overflow-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-3 font-mono text-[12px] leading-[18px] text-kumo-subtle whitespace-pre-wrap">
                 {tc.output}
@@ -1460,8 +1509,9 @@ const NestedToolCallRow = memo(function NestedToolCallRow({
   onToggle: (key: string) => void;
   outputOf?: ToolOutputResolver;
 }) {
+  const { formatMessage } = useIntl();
   const key = `call-${tc.toolCallId}`;
-  const summary = getToolCallSummary(tc, outputOf);
+  const summary = getToolCallSummary(tc, outputOf, formatMessage);
   const label = `${summary.verb}${summary.target ? ` ${summary.target}` : ""}`;
   const Icon = getToolIcon(tc.toolName, outputOf?.(tc));
 
@@ -1480,7 +1530,7 @@ const NestedToolCallRow = memo(function NestedToolCallRow({
           <span className="min-w-0 truncate">{label}</span>
           {tc.error && (
             <span className="flex-shrink-0 rounded-full bg-kumo-danger-tint px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-kumo-danger">
-              Error
+              <FormattedMessage id="chatInterface.error" defaultMessage="Error" />
             </span>
           )}
           <CaretRight
@@ -1508,9 +1558,13 @@ const NestedObservationRow = memo(function NestedObservationRow({
   open: boolean;
   onToggle: (key: string) => void;
 }) {
+  const { formatMessage } = useIntl();
   const key = `observation-${observation.chatId}-${observation.sequence}`;
   const log = observation.actionLog;
-  const label = `Read ${log.description.title || log.resourceTitle || "resource"}`;
+  const label = formatMessage(
+    { id: "chatInterface.readTarget", defaultMessage: "Read {target}" },
+    { target: log.description.title || log.resourceTitle || formatMessage({ id: "chatInterface.resourceFallback", defaultMessage: "resource" }) },
+  );
 
   return (
     <div className="group/nested">
@@ -1580,8 +1634,9 @@ const ToolGroupRow = memo(function ToolGroupRow({
   onFooterRevert?: (sequence: number) => void;
   outputOf?: ToolOutputResolver;
 }) {
+  const { formatMessage } = useIntl();
   const footerLabel = footerChangeSequence !== undefined
-    ? getDiscardLabel(footerIsTrailing, footerCreatedWorkpieces)
+    ? getDiscardLabel(footerIsTrailing, footerCreatedWorkpieces, formatMessage)
     : null;
   return (
     <div className="group -ml-0.5">
@@ -1599,7 +1654,7 @@ const ToolGroupRow = memo(function ToolGroupRow({
             <span className="min-w-0 truncate">{group.label}</span>
             {group.hasError && (
               <span className="flex-shrink-0 rounded-full bg-kumo-danger-tint px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-kumo-danger">
-                Error
+                <FormattedMessage id="chatInterface.error" defaultMessage="Error" />
               </span>
             )}
             <CaretRight
@@ -1821,31 +1876,42 @@ function appendWorkParts(target: WorkMessageParts, source: WorkMessageParts) {
 
 // Suffix appended to discard labels when the discarded changes include gadget creations, since
 // reverting also deletes the created gadgets: " (deletes gadgets “A”, “B”)".
-function describeCreatedWorkpieceDeletion(created: CreatedWorkpieceName[] | undefined): string {
+function describeCreatedWorkpieceDeletion(
+  created: CreatedWorkpieceName[] | undefined,
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
+): string {
   if (!created || created.length === 0) return "";
   const titles = created.map((c) => `“${c.title}”`);
-  return ` (deletes ${titles.length === 1 ? "gadget" : "gadgets"} ${titles.join(", ")})`;
+  return formatMessage(
+    {
+      id: "chatInterface.deletesGadgetsSuffix",
+      defaultMessage: " (deletes {count, plural, one {gadget} other {gadgets}} {names})",
+    },
+    { count: titles.length, names: titles.join(", ") },
+  );
 }
 
 // Label for the per-turn discard-changes button.
 function getDiscardLabel(
   isTrailing: boolean | undefined,
   createdWorkpieces?: CreatedWorkpieceName[],
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): string {
   const base = isTrailing
-    ? "Discard changes from this response"
-    : "Discard changes from this response and later responses";
-  return base + describeCreatedWorkpieceDeletion(createdWorkpieces);
+    ? formatMessage({ id: "chatInterface.discardChangesTrailing", defaultMessage: "Discard changes from this response" })
+    : formatMessage({ id: "chatInterface.discardChangesNonTrailing", defaultMessage: "Discard changes from this response and later responses" });
+  return base + describeCreatedWorkpieceDeletion(createdWorkpieces, formatMessage);
 }
 
 function getSavedEditsDiscardLabel(
   isTrailing: boolean | undefined,
   createdWorkpieces?: CreatedWorkpieceName[],
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): string {
   const base = isTrailing
-    ? "Discard saved edits"
-    : "Discard saved edits and later changes";
-  return base + describeCreatedWorkpieceDeletion(createdWorkpieces);
+    ? formatMessage({ id: "chatInterface.discardSavedEditsTrailing", defaultMessage: "Discard saved edits" })
+    : formatMessage({ id: "chatInterface.discardSavedEditsNonTrailing", defaultMessage: "Discard saved edits and later changes" });
+  return base + describeCreatedWorkpieceDeletion(createdWorkpieces, formatMessage);
 }
 
 function DiscardPendingChangesPopover({
@@ -1861,6 +1927,7 @@ function DiscardPendingChangesPopover({
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
+  const { formatMessage } = useIntl();
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <Popover.Trigger
@@ -1870,7 +1937,7 @@ function DiscardPendingChangesPopover({
             disabled={disabled}
             className="inline-flex h-[30px] cursor-pointer items-center justify-center rounded-md border border-kumo-fill bg-kumo-base px-2.5 text-[12px] font-medium leading-[18px] tracking-[-0.25px] text-kumo-default transition-colors enabled:hover:bg-kumo-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Discard…
+            <FormattedMessage id="chatInterface.discardEllipsis" defaultMessage="Discard…" />
           </button>
         }
       />
@@ -1883,14 +1950,20 @@ function DiscardPendingChangesPopover({
       >
         <div className="px-3.5 pb-2.5 pt-3">
           <Popover.Title className="text-[13px] font-medium leading-[18px] tracking-[-0.25px] text-kumo-default">
-            Discard all pending changes?
+            <FormattedMessage id="chatInterface.discardAllPendingChangesTitle" defaultMessage="Discard all pending changes?" />
           </Popover.Title>
           <p className="mt-0.5 text-[11.5px] leading-4 tracking-[-0.15px] text-kumo-subtle">
-            Return to the last accepted version. Any gadgets or worktrees created by these
-            changes will be permanently deleted. Pending changes can&apos;t be restored.
+            <FormattedMessage id="chatInterface.returnToTheLastAcceptedVersion" defaultMessage="Return to the last accepted version. Any gadgets or worktrees created by these changes will be permanently deleted. Pending changes can't be restored." />
           </p>
           <p className="mt-2 border-t border-kumo-line pt-2 text-[11px] leading-[15px] tracking-[-0.1px] text-kumo-inactive">
-            Use the <ArrowUUpLeft size={12} className="mx-0.5 inline-block align-[-2px]" aria-hidden="true" /><span className="sr-only">undo arrow</span> under any agent response to discard from that turn onward.
+            <FormattedMessage
+              id="chatInterface.discardUndoArrowHint"
+              defaultMessage="Use the {arrow}{srOnly} under any agent response to discard from that turn onward."
+              values={{
+                arrow: <ArrowUUpLeft size={12} className="mx-0.5 inline-block align-[-2px]" aria-hidden="true" />,
+                srOnly: <span className="sr-only">{formatMessage({ id: "chatInterface.undoArrow", defaultMessage: "undo arrow" })}</span>,
+              }}
+            />
           </p>
         </div>
         <div className="flex items-center justify-end gap-0.5 border-t border-kumo-line px-2 py-1.5">
@@ -1900,7 +1973,7 @@ function DiscardPendingChangesPopover({
             onClick={() => onOpenChange(false)}
             className="flex h-6 cursor-pointer items-center rounded-md px-2 text-[12px] font-medium tracking-[-0.15px] text-kumo-inactive transition-colors enabled:hover:bg-kumo-tint enabled:hover:text-kumo-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Cancel
+            <FormattedMessage id="chatInterface.cancel" defaultMessage="Cancel" />
           </button>
           <button
             type="button"
@@ -1908,7 +1981,9 @@ function DiscardPendingChangesPopover({
             onClick={onConfirm}
             className="flex h-6 cursor-pointer items-center rounded-md px-2 text-[12px] font-medium tracking-[-0.15px] text-kumo-default transition-colors enabled:hover:bg-kumo-tint enabled:hover:text-kumo-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {isDiscarding ? "Discarding..." : "Discard changes"}
+            {isDiscarding
+              ? <FormattedMessage id="chatInterface.discardingEllipsis" defaultMessage="Discarding..." />
+              : <FormattedMessage id="chatInterface.discardChangesButton" defaultMessage="Discard changes" />}
           </button>
         </div>
       </Popover.Content>
@@ -1945,6 +2020,7 @@ export function buildChatDisplayEntries(
   // Answers this session watched stream in: the row key each stored one keeps, by sequence, and
   // the one streaming now.
   answers: {keys?: ReadonlyMap<number, string>; streaming?: StreamingAnswer} = {},
+  formatMessage: IntlShape['formatMessage'] = fallbackFormatMessage,
 ): ChatDisplayEntry[] {
   // Catalog changes are for the agent alone (see the "catalogChange" message).
   messages = messages.filter(msg => msg.type !== "catalogChange");
@@ -2120,6 +2196,7 @@ export function buildChatDisplayEntries(
           transcriptToolCalls(workParts.toolCalls),
           workParts.observations,
           outputOf,
+          formatMessage,
         ),
         lastMessageSequence: workParts.lastAgentMessageSequence ?? workParts.lastWorkSequence,
         lastMessageTimestamp: workParts.lastWorkTimestamp,
@@ -2161,6 +2238,7 @@ export function buildChatDisplayEntries(
             transcriptToolCalls(workParts.toolCalls),
             workParts.observations,
             outputOf,
+            formatMessage,
           ),
           lastMessageSequence: workParts.lastAgentMessageSequence ?? msg.sequence,
         });
@@ -2470,11 +2548,11 @@ function chatHasProposedChanges(meta: AiChatMetadata): boolean {
 // Bucket a chat's lastActive into a time grouping for the chat list.
 type ChatTimeBucket = "today" | "yesterday" | "thisWeek" | "earlier";
 
-const CHAT_TIME_BUCKET_LABELS: Record<ChatTimeBucket, string> = {
-  today: "Today",
-  yesterday: "Yesterday",
-  thisWeek: "Earlier this week",
-  earlier: "Earlier",
+const CHAT_TIME_BUCKET_LABEL_MESSAGES: Record<ChatTimeBucket, { id: string; defaultMessage: string }> = {
+  today: { id: "chatInterface.timeBucketToday", defaultMessage: "Today" },
+  yesterday: { id: "chatInterface.timeBucketYesterday", defaultMessage: "Yesterday" },
+  thisWeek: { id: "chatInterface.timeBucketEarlierThisWeek", defaultMessage: "Earlier this week" },
+  earlier: { id: "chatInterface.timeBucketEarlier", defaultMessage: "Earlier" },
 };
 const CHAT_TIME_BUCKET_ORDER: ChatTimeBucket[] = [
   "today",
@@ -2658,6 +2736,7 @@ function ChatInterface({
   onOpenGadget,
   outputOfWorkpiece,
 }: ChatInterfaceProps) {
+  const { formatMessage } = useIntl();
   // Persistent cache that survives reconnects
   const toasts = useKumoToastManager();
   const { authenticatedApi, currentUser, isCurrentUserConfirmed } = useAuthenticatedApi();
@@ -3198,9 +3277,9 @@ function ChatInterface({
               ? {key: streamingKey, chatId: selectedChatId, author: streamingAuthor,
                  text: streamingText, reasoning: streamingReasoning, embeds: streamingEmbeds}
               : undefined,
-          }),
+          }, formatMessage),
     [currentMessages, messageStates, currentCompactions, resolveToolOutput, selectedChatId,
-     streamingKey, streamingAuthor, streamingText, streamingReasoning, streamingEmbeds],
+     streamingKey, streamingAuthor, streamingText, streamingReasoning, streamingEmbeds, formatMessage],
   );
 
   const entryTopClasses = useMemo(() => {
@@ -3768,7 +3847,10 @@ function ChatInterface({
           provisional.compacting = false;
           if (event.nothingToCompact) {
             toastsRef.current.add({
-              title: "Nothing to compact — there are no earlier messages to summarize.",
+              title: formatMessage({
+                id: "chatInterface.toastNothingToCompact",
+                defaultMessage: "Nothing to compact — there are no earlier messages to summarize.",
+              }),
             });
           }
           break;
@@ -3944,7 +4026,7 @@ function ChatInterface({
         if (isMounted) setModelsLoading(false);
         if (!logRpcFailure("Failed to subscribe to chats:", err)) {
           reportIssue('chat.subscription-load', err)
-          toasts.add({ title: "Unable to load conversations", variant: "error" });
+          toasts.add({ title: formatMessage({ id: "chatInterface.toastUnableToLoadConversations", defaultMessage: "Unable to load conversations" }), variant: "error" });
         }
       }
     };
@@ -4127,7 +4209,7 @@ function ChatInterface({
       forceUpdate();
     } catch (err) {
       console.error("Failed to load earlier messages:", err);
-      toasts.add({ title: "Failed to load earlier messages", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToLoadEarlierMessages", defaultMessage: "Failed to load earlier messages" }), variant: "error" });
     } finally {
       setIsLoadingEarlier(false);
     }
@@ -4169,7 +4251,7 @@ function ChatInterface({
     } catch (err) {
       if (!logRpcFailure("Failed to send message:", err, { reportSite: "chat.send" })) {
         toasts.add({
-          title: "Failed to send message",
+          title: formatMessage({ id: "chatInterface.toastFailedToSendMessage", defaultMessage: "Failed to send message" }),
           description: rpcFailureDescription(err),
           variant: "error",
         });
@@ -4196,7 +4278,7 @@ function ChatInterface({
     } catch (err) {
       if (!logRpcFailure("Failed to create new chat:", err, { reportSite: "chat.new" })) {
         toasts.add({
-          title: "Failed to start conversation",
+          title: formatMessage({ id: "chatInterface.toastFailedToStartConversation", defaultMessage: "Failed to start conversation" }),
           description: rpcFailureDescription(err),
           variant: "error",
         });
@@ -4219,7 +4301,7 @@ function ChatInterface({
       await overseer.stopAgent(selectedChatId);
     } catch (err) {
       console.error("Failed to stop agent:", err);
-      toasts.add({ title: "Failed to stop agent", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToStopAgent", defaultMessage: "Failed to stop agent" }), variant: "error" });
       throw err;
     }
   };
@@ -4244,10 +4326,10 @@ function ChatInterface({
       }
 
       setIsEditingTitle(false);
-      toasts.add({ title: "Chat title updated successfully", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChatTitleUpdated", defaultMessage: "Chat title updated successfully" }), variant: "success" });
     } catch (err) {
       console.error("Failed to update chat title:", err);
-      toasts.add({ title: "Failed to update chat title", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToUpdateChatTitle", defaultMessage: "Failed to update chat title" }), variant: "error" });
     }
   };
 
@@ -4261,7 +4343,7 @@ function ChatInterface({
   // chat list (with explicit chatId/title).
   const handleDeleteChat = (chatId?: number, chatTitle?: string) => {
     const id = chatId ?? selectedChatId;
-    const title = chatTitle ?? currentChatMetadata?.title ?? "this chat";
+    const title = chatTitle ?? currentChatMetadata?.title ?? formatMessage({ id: "chatInterface.thisChat", defaultMessage: "this chat" });
     if (id === null || id === undefined) return;
     setDeleteTarget({ id, title });
   };
@@ -4271,10 +4353,10 @@ function ChatInterface({
     setIsDeleting(true);
     try {
       await overseer.deleteChat(deleteTarget.id);
-      toasts.add({ title: "Chat deleted successfully", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChatDeleted", defaultMessage: "Chat deleted successfully" }), variant: "success" });
     } catch (err) {
       console.error("Failed to delete chat:", err);
-      toasts.add({ title: "Failed to delete chat", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToDeleteChat", defaultMessage: "Failed to delete chat" }), variant: "error" });
     }
     setIsDeleting(false);
     setDeleteTarget(null);
@@ -4313,10 +4395,10 @@ function ChatInterface({
         bumpChatListVersion();
         forceUpdate();
       }
-      toasts.add({ title: "Chat title updated successfully", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChatTitleUpdated", defaultMessage: "Chat title updated successfully" }), variant: "success" });
     } catch (err) {
       console.error("Failed to update chat title:", err);
-      toasts.add({ title: "Failed to update chat title", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToUpdateChatTitle", defaultMessage: "Failed to update chat title" }), variant: "error" });
     }
   };
 
@@ -4334,11 +4416,11 @@ function ChatInterface({
         setStaleAcceptChatId(selectedChatId);
         return;
       }
-      toasts.add({ title: "Changes accepted", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChangesAccepted", defaultMessage: "Changes accepted" }), variant: "success" });
     } catch (err) {
       console.error("Failed to accept changes:", err);
       toasts.add({
-        title: "Failed to accept changes",
+        title: formatMessage({ id: "chatInterface.toastFailedToAcceptChanges", defaultMessage: "Failed to accept changes" }),
         description: rpcFailureDescription(err),
         variant: "error",
       });
@@ -4367,7 +4449,7 @@ function ChatInterface({
       // one that removed the last marker.
       if (conflicted.length > 0 && reader.hasLocalEdits()) {
         toasts.add({
-          title: "Your latest edits are still being saved. Try accepting again in a moment.",
+          title: formatMessage({ id: "chatInterface.yourLatestEditsAreStillBeing", defaultMessage: "Your latest edits are still being saved. Try accepting again in a moment." }),
         });
         return;
       }
@@ -4380,7 +4462,7 @@ function ChatInterface({
           (commitId, paths) => commitFileStore.readFiles(overseerFileReader, commitId, paths));
       } catch (err) {
         console.error("Failed to check for merge conflicts:", err);
-        toasts.add({ title: "Failed to check the changes for merge conflicts", variant: "error" });
+        toasts.add({ title: formatMessage({ id: "chatInterface.failedToCheckTheChangesFor", defaultMessage: "Failed to check the changes for merge conflicts" }), variant: "error" });
         return;
       }
       if (selectedChatIdRef.current !== chatId) return;
@@ -4405,14 +4487,21 @@ function ChatInterface({
       setStaleAcceptChatId(null);
       if (conflictPaths.length > 0) {
         toasts.add({
-          title: `Updated this draft with the gadget's latest changes. ` +
-            `${conflictPaths.length} ${conflictPaths.length === 1 ? "file has" : "files have"} ` +
-            `conflicts marked in the code -- resolve them (or ask the agent to), then accept again.`,
+          title: formatMessage(
+            {
+              id: "chatInterface.toastUpdatedDraftWithConflicts",
+              defaultMessage: "Updated this draft with the gadget's latest changes. {count, plural, one {# file has} other {# files have}} conflicts marked in the code -- resolve them (or ask the agent to), then accept again.",
+            },
+            { count: conflictPaths.length },
+          ),
           variant: "warning",
         });
       } else {
         toasts.add({
-          title: "Updated this draft with the gadget's latest changes. Review and accept again.",
+          title: formatMessage({
+            id: "chatInterface.toastUpdatedDraftReviewAndAccept",
+            defaultMessage: "Updated this draft with the gadget's latest changes. Review and accept again.",
+          }),
           variant: "success",
         });
       }
@@ -4421,8 +4510,7 @@ function ChatInterface({
       // naming the file and what to do about it (see Overseer.updateChatFromMainline()).
       console.error("Failed to update from mainline:", err);
       toasts.add({
-        title: err instanceof Error && err.message
-          ? err.message : "Failed to bring in the latest changes",
+        title: err instanceof Error && err.message ? err.message : formatMessage({ id: "chatInterface.toastFailedToBringInLatestChanges", defaultMessage: "Failed to bring in the latest changes" }),
         variant: "error",
       });
     } finally {
@@ -4435,10 +4523,10 @@ function ChatInterface({
 
     try {
       await overseer.finalizeChatDraft(selectedChatId);
-      toasts.add({ title: "Changes saved", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChangesSaved", defaultMessage: "Changes saved" }), variant: "success" });
     } catch (err) {
       console.error("Failed to save changes:", err);
-      toasts.add({ title: "Failed to save changes", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToSaveChanges", defaultMessage: "Failed to save changes" }), variant: "error" });
     }
   };
 
@@ -4449,10 +4537,10 @@ function ChatInterface({
       // The destructive generation bump this causes prunes the buffered rows when its
       // metadata arrives (see the metadata handler).
       await overseer.discardChatDraftChanges(selectedChatId);
-      toasts.add({ title: "Changes discarded", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastChangesDiscarded", defaultMessage: "Changes discarded" }), variant: "success" });
     } catch (err) {
       console.error("Failed to discard changes:", err);
-      toasts.add({ title: "Failed to discard changes", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToDiscardChanges", defaultMessage: "Failed to discard changes" }), variant: "error" });
     }
   };
 
@@ -4469,13 +4557,14 @@ function ChatInterface({
       setDiscardChangesTarget((current) =>
         current?.chatId === target.chatId ? null : current,
       );
-      toasts.add({ title: "Pending changes discarded", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastPendingChangesDiscarded", defaultMessage: "Pending changes discarded" }), variant: "success" });
     } catch (err) {
       console.error("Failed to discard pending changes:", err);
       // See handleRevertChanges: the server's refusals are instructive, so surface them.
       toasts.add({
         title: err instanceof Error && err.message
-          ? err.message : "Failed to discard pending changes",
+          ? err.message
+          : formatMessage({ id: "chatInterface.toastFailedToDiscardPendingChanges", defaultMessage: "Failed to discard pending changes" }),
         variant: "error",
       });
     } finally {
@@ -4574,17 +4663,19 @@ function ChatInterface({
 
     try {
       await overseer.revertChanges(selectedChatId, revertFrom);
-      toasts.add({ title: "Draft rewound", variant: "success" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastDraftRewound", defaultMessage: "Draft rewound" }), variant: "success" });
     } catch (err) {
       console.error("Failed to rewind draft:", err);
       // The server's refusals here are instructive (e.g. a still-proposed update-from-mainline
       // batch can't be reverted), so surface them rather than a generic failure.
       toasts.add({
-        title: err instanceof Error && err.message ? err.message : "Failed to rewind draft",
+        title: err instanceof Error && err.message
+          ? err.message
+          : formatMessage({ id: "chatInterface.toastFailedToRewindDraft", defaultMessage: "Failed to rewind draft" }),
         variant: "error",
       });
     }
-  }, [overseer, selectedChatId, toasts]);
+  }, [overseer, selectedChatId, toasts, formatMessage]);
 
   // Pending "always approve this type" confirmation, opened from a pending action card.
   const [autoApproveConfirm, setAutoApproveConfirm] = useState<
@@ -4732,7 +4823,7 @@ function ChatInterface({
       <div className={`themed-surface-inset relative flex items-center gap-2 overflow-hidden border-b border-kumo-line bg-kumo-elevated px-3.5 py-2 ${isTop ? "rounded-t-[calc(1rem-1px)]" : ""}`}>
         <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-kumo-brand/40 to-transparent" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium leading-4 tracking-[-0.2px] text-kumo-default">
-          Pending changes
+          <FormattedMessage id="chatInterface.pendingChanges" defaultMessage="Pending changes" />
         </span>
         <DiscardPendingChangesPopover
           open={discardChangesTarget?.chatId === chat.id}
@@ -4744,11 +4835,7 @@ function ChatInterface({
           }}
           onConfirm={handleDiscardPendingChanges}
         />
-        <Tooltip content={isAgentActive
-          ? "Wait for the agent to finish before accepting changes."
-          : isDiscardingChanges
-            ? "Wait for pending changes to finish discarding."
-            : "Keep this draft and make it the gadget's current version."} asChild>
+        <Tooltip content={isAgentActive ? formatMessage({ id: "chatInterface.waitForAgentBeforeAccepting", defaultMessage: "Wait for the agent to finish before accepting changes." }) : isDiscardingChanges ? formatMessage({ id: "chatInterface.waitForPendingChangesToDiscard", defaultMessage: "Wait for pending changes to finish discarding." }) : formatMessage({ id: "chatInterface.keepDraftMakeCurrentVersion", defaultMessage: "Keep this draft and make it the gadget's current version." })} asChild>
           <WorkshopButton
             disabled={changesActionsDisabled}
             onClick={() => { void handleAcceptChanges(); }}
@@ -4756,7 +4843,7 @@ function ChatInterface({
             className="!h-7 !cursor-pointer !rounded-md !border-transparent !shadow-none gap-1 text-[12px]"
           >
             <Check size={11} weight="bold" />
-            Accept changes
+            <FormattedMessage id="chatInterface.acceptChanges" defaultMessage="Accept changes" />
           </WorkshopButton>
         </Tooltip>
       </div>
@@ -4817,7 +4904,7 @@ function ChatInterface({
       setConnectionAccept(null);
     } catch (err) {
       console.error("Failed to finalize connection:", err);
-      toasts.add({ title: "Failed to add connection", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToAddConnection", defaultMessage: "Failed to add connection" }), variant: "error" });
     } finally {
       gk[Symbol.dispose]();
       setProcessingConnections((prev) => {
@@ -4838,7 +4925,7 @@ function ChatInterface({
       }
     } catch (err) {
       console.error("Failed to deny connection:", err);
-      toasts.add({ title: "Failed to deny connection", variant: "error" });
+      toasts.add({ title: formatMessage({ id: "chatInterface.toastFailedToDenyConnection", defaultMessage: "Failed to deny connection" }), variant: "error" });
     } finally {
       setProcessingConnections((prev) => {
         const next = new Set(prev);
@@ -4919,7 +5006,7 @@ function ChatInterface({
     } catch (err) {
       console.error("Failed to retry agent:", err);
       toasts.add({
-        title: "Failed to retry agent",
+        title: formatMessage({ id: "chatInterface.toastFailedToRetryAgent", defaultMessage: "Failed to retry agent" }),
         description: rpcFailureDescription(err),
         variant: "error",
       });
@@ -4929,10 +5016,12 @@ function ChatInterface({
   const handleCopyMessage = useCallback(async (message: string) => {
     const ok = await copyToClipboard(message);
     toasts.add({
-      title: ok ? "Copied message" : "Unable to copy message",
+      title: ok
+        ? formatMessage({ id: "chatInterface.toastCopiedMessage", defaultMessage: "Copied message" })
+        : formatMessage({ id: "chatInterface.toastUnableToCopyMessage", defaultMessage: "Unable to copy message" }),
       variant: ok ? "success" : "error",
     });
-  }, [toasts]);
+  }, [toasts, formatMessage]);
 
   const lastDurablePendingChange = useMemo(
     () => {
@@ -5171,7 +5260,11 @@ function ChatInterface({
     const isDenied = msg.state === "denied";
     const isProc = processingConnections.has(msg.requestId);
 
-    const stateLabel = isAccepted ? "Connected" : isDenied ? "Denied" : null;
+    const stateLabel = isAccepted
+      ? formatMessage({ id: "chatInterface.connectionStateConnected", defaultMessage: "Connected" })
+      : isDenied
+        ? formatMessage({ id: "chatInterface.connectionStateDenied", defaultMessage: "Denied" })
+        : null;
     const stateLabelCls = isDenied ? "text-kumo-danger" : "text-kumo-success";
     const scope = msg.resourceTitle ?? msg.resourceUrl;
 
@@ -5187,7 +5280,11 @@ function ChatInterface({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="font-medium text-kumo-default">
-                  Connect {msg.vendorName}
+                  <FormattedMessage
+                    id="chatInterface.connectVendor"
+                    defaultMessage="Connect {vendor}"
+                    values={{ vendor: msg.vendorName }}
+                  />
                 </span>
                 {scope && (
                   <span className="rounded-full bg-kumo-tint px-2 py-0.5 text-[11px] leading-4 text-kumo-subtle">
@@ -5214,7 +5311,7 @@ function ChatInterface({
                   disabled={isProc}
                   className="cursor-pointer rounded-md px-2 py-1 font-medium text-kumo-inactive transition-colors duration-150 ease-out hover:text-kumo-danger focus-visible:text-kumo-danger focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Deny
+                  <FormattedMessage id="chatInterface.deny" defaultMessage="Deny" />
                 </button>
                 <button
                   type="button"
@@ -5222,7 +5319,7 @@ function ChatInterface({
                   disabled={isProc}
                   className="cursor-pointer rounded-md bg-kumo-brand px-3 py-1 font-medium text-white transition-[opacity,transform] duration-150 ease-out hover:opacity-90 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Set up
+                  <FormattedMessage id="chatInterface.setUp" defaultMessage="Set up" />
                 </button>
               </div>
             )}
@@ -5250,10 +5347,10 @@ function ChatInterface({
     if (log.type === "bindHook") {
       const isDeleted = log.hookId === undefined;
       const stateLabel = isDeleted
-        ? "Deleted"
+        ? formatMessage({ id: "chatInterface.hookStateDeleted", defaultMessage: "Deleted" })
         : log.enabled
-          ? "Enabled"
-          : "Disabled";
+          ? formatMessage({ id: "chatInterface.hookStateEnabled", defaultMessage: "Enabled" })
+          : formatMessage({ id: "chatInterface.hookStateDisabled", defaultMessage: "Disabled" });
       const stateLabelCls = isDeleted
         ? "text-kumo-inactive"
         : log.enabled
@@ -5271,7 +5368,11 @@ function ChatInterface({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="font-medium text-kumo-default">
-                    Hook: {log.description.title}
+                    <FormattedMessage
+                      id="chatInterface.hookTitle"
+                      defaultMessage="Hook: {title}"
+                      values={{ title: log.description.title }}
+                    />
                   </span>
                   <span className={`text-[12px] font-medium ${stateLabelCls}`}>
                     {stateLabel}
@@ -5382,7 +5483,7 @@ function ChatInterface({
     const showDescription = decideHere || open;
     const metadata = log.resourceTitle;
     const stateLabel = isApproved
-      ? "Approved"
+      ? formatMessage({ id: "chatInterface.actionStateApproved", defaultMessage: "Approved" })
       : isRejected
         ? "Denied"
         : decidedInTray
@@ -5433,7 +5534,7 @@ function ChatInterface({
     const actionControls = decideHere ? (
       <>
         {autoApproveTarget && (
-          <Tooltip content="Always approve this type of action on this connection, without future prompts." asChild>
+          <Tooltip content={formatMessage({ id: "chatInterface.alwaysApproveTooltip", defaultMessage: "Always approve this type of action on this connection, without future prompts." })} asChild>
             <span className="flex">
               <AlwaysApproveButton
                 onClick={() => setAutoApproveConfirm(autoApproveTarget)}
@@ -5607,7 +5708,7 @@ function ChatInterface({
           agents.length === 0 ? (
             <div className="py-8 text-center">
               <p className="text-[13px] leading-[18px] text-kumo-inactive">
-                No agents have run yet
+                <FormattedMessage id="chatInterface.noAgentsHaveRunYet" defaultMessage="No agents have run yet" />
               </p>
             </div>
           ) : (
@@ -5638,14 +5739,14 @@ function ChatInterface({
                   is stuck. Say so instead, as the Activity pane and its bell do. */}
               {pendingStatus !== "ready" && (
                 <p className="m-0 px-1 py-3 text-center text-[12px] leading-4 text-kumo-inactive">
-                  {pendingStatus === "error" ? PENDING_ERROR_COPY : PENDING_CHECKING_COPY}
+                  <FormattedMessage {...(pendingStatus === "error" ? PENDING_ERROR_MESSAGE : PENDING_CHECKING_MESSAGE)} />
                 </p>
               )}
             </div>
           )
         ) : chatList.length === 0 ? (
           <p className="text-sm text-kumo-inactive text-center py-8">
-            No conversations yet
+            <FormattedMessage id="chatInterface.noConversationsYet" defaultMessage="No conversations yet" />
           </p>
         ) : (
           <div className="flex flex-col gap-1">
@@ -5654,14 +5755,14 @@ function ChatInterface({
               // while the Agents tab has all of them.
               <div className="py-8 text-center">
                 <p className="text-[13px] leading-[18px] text-kumo-inactive">
-                  No conversations of your own yet
+                  <FormattedMessage id="chatInterface.noConversationsOfYourOwnYet" defaultMessage="No conversations of your own yet" />
                 </p>
                 <button
                   type="button"
                   onClick={() => setListTab("agents")}
                   className="mt-2 cursor-pointer rounded-md px-2 py-1 text-[12px] leading-4 font-medium text-kumo-subtle transition-colors duration-150 ease-out hover:text-kumo-default focus-visible:text-kumo-default focus-visible:outline-none"
                 >
-                  See agents
+                  <FormattedMessage id="chatInterface.seeAgents" defaultMessage="See agents" />
                 </button>
               </div>
             ) : (
@@ -5669,7 +5770,7 @@ function ChatInterface({
                 {bucketedVisibleChats.map(({ bucket, items }) => (
                   <section key={bucket} className="flex flex-col gap-0.5">
                     <p className="mb-1 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-kumo-inactive">
-                      {CHAT_TIME_BUCKET_LABELS[bucket]}
+                      {formatMessage(CHAT_TIME_BUCKET_LABEL_MESSAGES[bucket])}
                     </p>
                     {items.map((chat) => (
               <div key={chat.id} className="relative">
@@ -5713,7 +5814,10 @@ function ChatInterface({
                             spellCheck={false}
                             autoCapitalize="off"
                             autoCorrect="off"
-                            aria-label={`Rename ${chat.title}`}
+                            aria-label={formatMessage(
+                              { id: "chatInterface.renameChatTitle", defaultMessage: "Rename {title}" },
+                              { title: chat.title },
+                            )}
                             className="min-w-0 flex-1 bg-transparent text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-default outline-none placeholder:text-kumo-inactive"
                           />
                         ) : (
@@ -5733,13 +5837,13 @@ function ChatInterface({
                         {!isRenaming && chat.activeAgent ? (
                           <span className="inline-flex flex-shrink-0 cursor-pointer items-center gap-1 text-[11px] leading-4 font-medium text-kumo-brand">
                             <span className="h-1.5 w-1.5 rounded-full bg-kumo-brand animate-pulse" />
-                            Working
+                            <FormattedMessage id="chatInterface.working" defaultMessage="Working" />
                           </span>
                         ) : !isRenaming && chatHasProposedChanges(chat) ? (
-                          <Tooltip content="This conversation has pending changes" asChild>
+                          <Tooltip content={formatMessage({ id: "chatInterface.hasPendingChangesTooltip", defaultMessage: "This conversation has pending changes" })} asChild>
                             <span className="inline-flex flex-shrink-0 cursor-pointer items-center gap-1 text-[11px] leading-4 font-medium text-kumo-warning">
                               <span className="h-1.5 w-1.5 rounded-full bg-kumo-warning" />
-                              Pending changes
+                              <FormattedMessage id="chatInterface.pendingChanges" defaultMessage="Pending changes" />
                             </span>
                           </Tooltip>
                         ) : null}
@@ -5779,7 +5883,10 @@ function ChatInterface({
                         <DropdownMenu.Trigger
                           render={
                             <WorkshopIconButton
-                              aria-label={`Actions for ${chat.title}`}
+                              aria-label={formatMessage(
+                                { id: "chatInterface.actionsForChat", defaultMessage: "Actions for {title}" },
+                                { title: chat.title },
+                              )}
                               onClick={(e) => e.stopPropagation()}
                               className="!h-9 !w-9 flex-shrink-0 text-kumo-inactive opacity-100 focus:opacity-100 group-hover:opacity-100 data-[popup-open]:opacity-100 sm:!h-7 sm:!w-7 sm:opacity-0"
                             >
@@ -5793,10 +5900,10 @@ function ChatInterface({
                         >
                           <DropdownMenu.Item disabled={!unread?.chats || unreadMessageCount === 0} onClick={() => {
                             void unread?.markRead(overseer, chat.id).catch(() => {});
-                          }}>Mark thread read</DropdownMenu.Item>
+                          }}><FormattedMessage id="chatInterface.markThreadRead" defaultMessage="Mark thread read" /></DropdownMenu.Item>
                           <DropdownMenu.Item disabled={!unread?.chats || unreadMessageCount > 0} onClick={() => {
                             void unread?.markUnread(overseer, chat.id).catch(() => {});
-                          }}>Mark thread unread</DropdownMenu.Item>
+                          }}><FormattedMessage id="chatInterface.markThreadUnread" defaultMessage="Mark thread unread" /></DropdownMenu.Item>
                           <ChatNotificationsMenu overseer={overseer} chatId={chat.id}
                             enabled={notificationsEnabled} override={readState?.notificationsEnabledOverride}
                             disabled={!unread?.chats} />
@@ -5805,7 +5912,7 @@ function ChatInterface({
                             onClick={() => startListRename(chat.id, chat.title)}
                             className="!h-auto rounded-md !px-2.5 !py-1.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-default transition-colors data-highlighted:bg-kumo-tint"
                           >
-                            Rename
+                            <FormattedMessage id="chatInterface.rename" defaultMessage="Rename" />
                           </DropdownMenu.Item>
                           <DropdownMenu.Item
                             icon={<Trash className="size-3" />}
@@ -5813,7 +5920,7 @@ function ChatInterface({
                             onClick={() => handleDeleteChat(chat.id, chat.title)}
                             className="!h-auto rounded-md !px-2.5 !py-1.5 text-[12px] leading-4 tracking-[-0.2px] transition-colors data-highlighted:bg-kumo-danger-tint"
                           >
-                            Delete
+                            <FormattedMessage id="chatInterface.delete" defaultMessage="Delete" />
                           </DropdownMenu.Item>
                         </DropdownMenu.Content>
                       </DropdownMenu>
@@ -5927,7 +6034,7 @@ function ChatInterface({
                     : "font-normal text-kumo-subtle hover:text-kumo-default"
                 }`}
               >
-                Chat
+                <FormattedMessage id="chatInterface.chatTab" defaultMessage="Chat" />
               </button>
               <button
                 type="button"
@@ -5938,7 +6045,7 @@ function ChatInterface({
                     : "font-normal text-kumo-subtle hover:text-kumo-default"
                 }`}
               >
-                Connections
+                <FormattedMessage id="chatInterface.connectionsTab" defaultMessage="Connections" />
               </button>
             </div>
           )}
@@ -5983,14 +6090,14 @@ function ChatInterface({
                         onClick={handleSaveChatTitle}
                         disabled={!titleInput.trim()}
                         className="!h-8 !w-8 hover:text-kumo-brand disabled:opacity-30"
-                        aria-label="Save chat title"
+                        aria-label={formatMessage({ id: "chatInterface.saveChatTitle", defaultMessage: "Save chat title" })}
                       >
                         <Check size={13} />
                       </WorkshopIconButton>
                       <WorkshopIconButton
                         onClick={handleCancelTitleEdit}
                         className="!h-8 !w-8"
-                        aria-label="Cancel title edit"
+                        aria-label={formatMessage({ id: "chatInterface.cancelTitleEdit", defaultMessage: "Cancel title edit" })}
                       >
                         <X size={13} />
                       </WorkshopIconButton>
@@ -5998,13 +6105,13 @@ function ChatInterface({
                   ) : (
                     <>
                       <span className="min-w-0 flex-1 truncate text-[13px] leading-[18px] font-medium tracking-[-0.25px] text-kumo-default">
-                        {currentChatMetadata?.title || "Chat"}
+                        {currentChatMetadata?.title || formatMessage({ id: "chatInterface.chatFallbackTitle", defaultMessage: "Chat" })}
                       </span>
                       <WorkshopIconButton
                         onClick={() => setIsEditingTitle(true)}
                         className="!h-8 !w-8 flex-shrink-0 text-kumo-inactive hover:text-kumo-subtle"
-                        title="Rename chat"
-                        aria-label="Rename chat"
+                        title={formatMessage({ id: "chatInterface.renameChat", defaultMessage: "Rename chat" })}
+                        aria-label={formatMessage({ id: "chatInterface.renameChat", defaultMessage: "Rename chat" })}
                       >
                         <Pencil size={11} />
                       </WorkshopIconButton>
@@ -6015,8 +6122,8 @@ function ChatInterface({
                     onClick={() => handleDeleteChat()}
                     danger
                     className="!h-8 !w-8 flex-shrink-0 text-kumo-inactive"
-                    title="Delete chat"
-                    aria-label="Delete chat"
+                    title={formatMessage({ id: "chatInterface.deleteChat", defaultMessage: "Delete chat" })}
+                    aria-label={formatMessage({ id: "chatInterface.deleteChat", defaultMessage: "Delete chat" })}
                   >
                     <Trash size={14} />
                   </WorkshopIconButton>
@@ -6049,7 +6156,7 @@ function ChatInterface({
                   >
                     {isLoadingEarlier && (
                       <div className="mx-auto mb-6 text-[12px] leading-4 font-medium text-kumo-inactive">
-                        Loading earlier messages…
+                        <FormattedMessage id="chatInterface.loadingEarlierMessages" defaultMessage="Loading earlier messages…" />
                       </div>
                     )}
 
@@ -6064,7 +6171,7 @@ function ChatInterface({
                             <div className="flex items-center gap-3" role="separator">
                               <span className="h-px flex-1 bg-kumo-line/60" aria-hidden="true" />
                               <span className="flex-shrink-0 text-[11px] leading-4 font-medium tracking-[0.6px] text-kumo-inactive uppercase">
-                                Kept in full from here
+                                <FormattedMessage id="chatInterface.keptInFullFromHere" defaultMessage="Kept in full from here" />
                               </span>
                               <span className="h-px flex-1 bg-kumo-line/60" aria-hidden="true" />
                             </div>
@@ -6081,10 +6188,15 @@ function ChatInterface({
                               // Says what the agent traded away and what it still has, since the
                               // marker sits at the request rather than at the cut it describes.
                               <p className="mb-3 text-[12px] leading-[17px] text-kumo-subtle">
-                                The agent reads this in place of everything earlier in the chat.{" "}
-                                {kept === 0
-                                  ? "Nothing after it was kept."
-                                  : `The ${kept === 1 ? "message" : `${kept} messages`} after the cut ${kept === 1 ? "was" : "were"} kept in full.`}
+                                <FormattedMessage
+                                  id="chatInterface.agentReadsInPlaceOf"
+                                  defaultMessage="The agent reads this in place of everything earlier in the chat."
+                                />{" "}
+                                <FormattedMessage
+                                  id="chatInterface.keptAfterCut"
+                                  defaultMessage="{count, plural, =0 {Nothing after it was kept.} one {The message after the cut was kept in full.} other {The # messages after the cut were kept in full.}}"
+                                  values={{ count: kept }}
+                                />
                               </p>
                             )}
                             <div className={`min-w-0 text-[13px] leading-[19px] ${styles.markdownContent}`}>
@@ -6109,7 +6221,11 @@ function ChatInterface({
                                   <Brain size={16} />
                                 </span>
                                 <span className="font-medium">
-                                  {entry.requestedBy.name} compacted the context
+                                  <FormattedMessage
+                                    id="chatInterface.authorCompactedContext"
+                                    defaultMessage="{name} compacted the context"
+                                    values={{ name: entry.requestedBy.name }}
+                                  />
                                 </span>
                                 <CaretRight
                                   size={11}
@@ -6124,7 +6240,7 @@ function ChatInterface({
 
                         return (
                           <div key={entry.key} className={`${entryTopClass} mb-4 max-w-[860px]`}>
-                            <div className="flex items-center gap-3" role="separator" aria-label="Context compacted">
+                            <div className="flex items-center gap-3" role="separator" aria-label={formatMessage({ id: "chatInterface.contextCompacted", defaultMessage: "Context compacted" })}>
                               <span className="h-px flex-1 bg-kumo-line" aria-hidden="true" />
                               <button
                                 type="button"
@@ -6133,7 +6249,7 @@ function ChatInterface({
                                 className="flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] leading-4 font-medium tracking-[0.6px] text-kumo-inactive uppercase transition-colors duration-150 ease-out hover:text-kumo-default focus-visible:text-kumo-default focus-visible:outline-none"
                               >
                                 <Brain size={13} aria-hidden="true" />
-                                Context compacted
+                                <FormattedMessage id="chatInterface.contextCompacted" defaultMessage="Context compacted" />
                                 <CaretRight
                                   size={11}
                                   weight="bold"
@@ -6155,7 +6271,11 @@ function ChatInterface({
                                 <Swap size={16} />
                               </span>
                               <span className="min-w-0 truncate">
-                                Switched to {entry.author.name}
+                                <FormattedMessage
+                                  id="chatInterface.switchedToAuthor"
+                                  defaultMessage="Switched to {name}"
+                                  values={{ name: entry.author.name }}
+                                />
                               </span>
                             </div>
                           </div>
@@ -6164,7 +6284,9 @@ function ChatInterface({
 
                       if (entry.type === "savedChanges") {
                         const isOwnChange = entry.message.author.id === currentUser?.id;
-                        const actor = isOwnChange ? "You" : entry.message.author.name;
+                        const actor = isOwnChange
+                          ? formatMessage({ id: "chatInterface.actorYou", defaultMessage: "You" })
+                          : entry.message.author.name;
                         // A user-authored creation is recorded as a "changes" message carrying
                         // createdGadgets over a no-op update, so label it as a creation rather
                         // than as saved edits.
@@ -6175,10 +6297,24 @@ function ChatInterface({
                         const mainlineMerge = entry.message.mainlineMerge;
                         const conflictCount = mainlineMerge?.conflictPaths.length ?? 0;
                         const label = mainlineMerge
-                          ? `${actor} brought the gadget's latest changes into this draft${
-                              conflictCount > 0
-                                ? ` — ${conflictCount} ${conflictCount === 1 ? "file has" : "files have"} conflicts marked in the code`
-                                : ""}`
+                          ? formatMessage(
+                              {
+                                id: "chatInterface.actorBroughtMainlineChanges",
+                                defaultMessage: "{actor} brought the gadget's latest changes into this draft{conflictSuffix}",
+                              },
+                              {
+                                actor,
+                                conflictSuffix: conflictCount > 0
+                                  ? formatMessage(
+                                      {
+                                        id: "chatInterface.mainlineMergeConflictSuffix",
+                                        defaultMessage: " — {count, plural, one {# file has} other {# files have}} conflicts marked in the code",
+                                      },
+                                      { count: conflictCount },
+                                    )
+                                  : "",
+                              },
+                            )
                           : createdGadgets.length > 0
                           ? `${actor} created ${createdGadgets.length === 1 ? "gadget" : "gadgets"} ${
                               createdGadgets.map((g) => `“${g.title}”`).join(", ")}`
@@ -6194,11 +6330,12 @@ function ChatInterface({
                           ? "This update can't be discarded: it brought in changes already accepted elsewhere. Edit the files instead."
                           : mainlineMerge
                           ? entry.message.sequence === lastDurablePendingChange?.sequence
-                            ? "Discard this update"
-                            : "Discard this update and later changes"
+                            ? formatMessage({ id: "chatInterface.discardThisUpdate", defaultMessage: "Discard this update" })
+                            : formatMessage({ id: "chatInterface.discardThisUpdateAndLater", defaultMessage: "Discard this update and later changes" })
                           : getSavedEditsDiscardLabel(
                               entry.message.sequence === lastDurablePendingChange?.sequence,
                               createdWorkpiecesOf(entry.message),
+                              formatMessage,
                             );
                         return (
                           <div key={entry.key} className={`${entryTopClass} group/savedChanges max-w-[860px] py-1 text-[14px] leading-5 tracking-[-0.25px] text-kumo-subtle`}>
@@ -6451,12 +6588,12 @@ function ChatInterface({
                                     : "opacity-100 sm:opacity-0 sm:group-hover/agentMessage:opacity-100 sm:group-focus-within/agentMessage:opacity-100"
                                 }`}>
                                   {hasMessageText && (
-                                    <Tooltip content="Copy message" asChild>
+                                    <Tooltip content={formatMessage({ id: "chatInterface.copyMessage", defaultMessage: "Copy message" })} asChild>
                                       <button
                                         type="button"
                                         onClick={() => handleCopyMessage(msg.message)}
                                         className="flex cursor-pointer items-center rounded-md p-1 text-kumo-inactive transition-[color,transform] duration-150 ease-out hover:text-kumo-default focus-visible:text-kumo-default focus-visible:outline-none active:scale-[0.96]"
-                                        aria-label="Copy message"
+                                        aria-label={formatMessage({ id: "chatInterface.copyMessage", defaultMessage: "Copy message" })}
                                       >
                                         <Copy size={15} />
                                       </button>
@@ -6466,6 +6603,7 @@ function ChatInterface({
                                     const label = getDiscardLabel(
                                       pendingChange.through === lastDurablePendingChange?.sequence,
                                       pendingChange.createdWorkpieces,
+                                      formatMessage,
                                     );
                                     return (
                                     <Tooltip content={label} asChild>
@@ -6553,8 +6691,18 @@ function ChatInterface({
                                 <Tooltip
                                   content={
                                     isMerge
-                                      ? `Accepted draft changes${ts ? ` through ${formatFullTimestamp(ts)}` : ""}.`
-                                      : `Returned to the gadget state before the prompt sent ${ts ? `at ${ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "earlier"}.`
+                                      ? ts
+                                        ? formatMessage(
+                                            { id: "chatInterface.acceptedDraftChangesThrough", defaultMessage: "Accepted draft changes through {time}." },
+                                            { time: formatFullTimestamp(ts) },
+                                          )
+                                        : formatMessage({ id: "chatInterface.acceptedDraftChanges", defaultMessage: "Accepted draft changes." })
+                                      : ts
+                                        ? formatMessage(
+                                            { id: "chatInterface.returnedToStateBeforePromptAt", defaultMessage: "Returned to the gadget state before the prompt sent at {time}." },
+                                            { time: ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+                                          )
+                                        : formatMessage({ id: "chatInterface.returnedToStateBeforePromptEarlier", defaultMessage: "Returned to the gadget state before the prompt sent earlier." })
                                   }
                                   asChild
                                 >
@@ -6563,10 +6711,17 @@ function ChatInterface({
                                       {isMerge ? <Check size={16} /> : <ArrowUUpLeft size={16} />}
                                     </span>
                                     <span className="font-medium">
-                                      {msg.author.name}{" "}
                                       {isMerge
-                                        ? "accepted changes"
-                                        : "discarded changes"}
+                                        ? <FormattedMessage
+                                            id="chatInterface.authorAcceptedChanges"
+                                            defaultMessage="{name} accepted changes"
+                                            values={{ name: msg.author.name }}
+                                          />
+                                        : <FormattedMessage
+                                            id="chatInterface.authorDiscardedChanges"
+                                            defaultMessage="{name} discarded changes"
+                                            values={{ name: msg.author.name }}
+                                          />}
                                     </span>
                                   </span>
                                 </Tooltip>
@@ -6588,12 +6743,18 @@ function ChatInterface({
 
                         {msg.type === "useGadget" && (
                           <div className="max-w-[860px] text-[14px] leading-5 tracking-[-0.25px] text-kumo-subtle">
-                            <Tooltip content={`Used the gadget at ${formatFullTimestamp(msg.timestamp)}`} asChild>
+                            <Tooltip
+                              content={formatMessage(
+                                { id: "chatInterface.usedGadgetAt", defaultMessage: "Used the gadget at {time}" },
+                                { time: formatFullTimestamp(msg.timestamp) },
+                              )}
+                              asChild
+                            >
                               <span className="inline-flex items-center gap-3 px-1.5 py-1">
                                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-kumo-inactive" aria-hidden="true">
                                   <Plug size={16} />
                                 </span>
-                                <span>Used the gadget</span>
+                                <span><FormattedMessage id="chatInterface.usedGadget" defaultMessage="Used the gadget" /></span>
                               </span>
                             </Tooltip>
                           </div>
@@ -6615,7 +6776,7 @@ function ChatInterface({
                                         <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-kumo-inactive" aria-hidden="true">
                                           <StopCircle size={16} weight="fill" />
                                         </span>
-                                        <span className="min-w-0 truncate">Stopped</span>
+                                        <span className="min-w-0 truncate"><FormattedMessage id="chatInterface.toolVerbStopped" defaultMessage="Stopped" /></span>
                                       </span>
                                     </Tooltip>
                                   ) : (
@@ -6632,7 +6793,7 @@ function ChatInterface({
                                           </span>
                                           <span className="flex min-w-0 flex-1 items-center gap-1">
                                             <span className="min-w-0 truncate">
-                                              <span className="font-medium text-kumo-danger">Error: </span>
+                                              <span className="font-medium text-kumo-danger"><FormattedMessage id="chatInterface.error2" defaultMessage="Error:" /> </span>
                                               <span className="text-kumo-subtle">{msg.message}</span>
                                             </span>
                                             <CaretRight
@@ -6646,19 +6807,19 @@ function ChatInterface({
                                     </button>
                                   )}
                                   {isLast && msg.code === "usage_limit" && (
-                                    <Tooltip content="Add credits to continue." asChild>
+                                    <Tooltip content={formatMessage({ id: "chatInterface.addCreditsToContinue", defaultMessage: "Add credits to continue." })} asChild>
                                       <button
                                         type="button"
                                         onClick={() => setUsageModalOpen(true)}
                                         className="flex flex-shrink-0 cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px] leading-4 font-medium text-kumo-default transition-[color,opacity,transform] duration-150 ease-out hover:text-kumo-default-hover focus-visible:text-kumo-default-hover focus-visible:outline-none active:scale-[0.98]"
                                       >
                                         <Lightning size={12} weight="bold" />
-                                        Continue
+                                        <FormattedMessage id="chatInterface.continue" defaultMessage="Continue" />
                                       </button>
                                     </Tooltip>
                                   )}
                                   {isLast && msg.code !== "usage_limit" && (
-                                    <Tooltip content={msg.code === "stopped" ? "Continue where the agent stopped." : "Retry the last action."} asChild>
+                                    <Tooltip content={msg.code === "stopped" ? formatMessage({ id: "chatInterface.continueWhereTheAgentStopped", defaultMessage: "Continue where the agent stopped." }) : formatMessage({ id: "chatInterface.retryLastAction", defaultMessage: "Retry the last action." })} asChild>
                                       <button
                                         type="button"
                                         onClick={() => handleRetry()}
@@ -6666,7 +6827,7 @@ function ChatInterface({
                                         className="flex flex-shrink-0 cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-[13px] leading-4 font-medium text-kumo-default transition-[color,opacity,transform] duration-150 ease-out hover:text-kumo-default-hover focus-visible:text-kumo-default-hover focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                       >
                                         <ArrowsClockwise size={12} weight="bold" />
-                                        {msg.code === "stopped" ? "Continue" : "Retry"}
+                                        {msg.code === "stopped" ? formatMessage({ id: "chatInterface.continue", defaultMessage: "Continue" }) : formatMessage({ id: "chatInterface.retry", defaultMessage: "Retry" })}
                                       </button>
                                     </Tooltip>
                                   )}
@@ -6684,7 +6845,7 @@ function ChatInterface({
 
                         {msg.type === "agentCallback" && (
                           <div className="max-w-[860px] text-[14px] leading-5 tracking-[-0.25px] text-kumo-subtle">
-                            <Tooltip content={`Call received at ${formatFullTimestamp(msg.timestamp)}`} asChild>
+                            <Tooltip content={formatMessage({ id: "chatInterface.callReceivedAt", defaultMessage: "Call received at {fullTimestamp}" }, { fullTimestamp: formatFullTimestamp(msg.timestamp) })} asChild>
                               <div className="flex items-center gap-3 px-1.5 py-1">
                                 <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-kumo-inactive" aria-hidden="true">
                                   <Code size={16} />
@@ -6734,32 +6895,40 @@ function ChatInterface({
                               <Pencil size={16} />
                             </span>
                             <Tooltip
-                              content={`Your edits are still a live draft.${lastEditedAt !== null ? ` Last edited ${formatFullTimestamp(lastEditedAt)}` : ''}`}
+                              content={lastEditedAt !== null
+                                ? formatMessage(
+                                    { id: "chatInterface.descriptionLastEdited", defaultMessage: "{description} Last edited {time}" },
+                                    {
+                                      description: formatMessage({ id: "chatInterface.editsStillLiveDraft", defaultMessage: "Your edits are still a live draft." }),
+                                      time: formatFullTimestamp(lastEditedAt),
+                                    },
+                                  )
+                                : formatMessage({ id: "chatInterface.editsStillLiveDraft", defaultMessage: "Your edits are still a live draft." })}
                               asChild
                             >
                               <span className="font-medium text-kumo-subtle">
-                                Draft changes pending
+                                <FormattedMessage id="chatInterface.draftChangesPending" defaultMessage="Draft changes pending" />
                               </span>
                             </Tooltip>
                             <div className="flex flex-wrap items-center gap-2 text-[13px] leading-4">
-                              <Tooltip content="Throw away these draft edits." asChild>
+                              <Tooltip content={formatMessage({ id: "chatInterface.throwAwayDraftEdits", defaultMessage: "Throw away these draft edits." })} asChild>
                                 <button
                                   type="button"
                                   disabled={isAgentActive}
                                   onClick={handleDiscardDraftChanges}
                                   className="cursor-pointer rounded-md px-1 py-0.5 font-medium text-kumo-inactive transition-colors duration-150 ease-out hover:text-kumo-danger focus-visible:text-kumo-danger focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                  Discard
+                                  <FormattedMessage id="chatInterface.discard" defaultMessage="Discard" />
                                 </button>
                               </Tooltip>
-                              <Tooltip content="Save these edits as a draft version. They won't affect the gadget until you accept changes." asChild>
+                              <Tooltip content={formatMessage({ id: "chatInterface.saveDraftTooltip", defaultMessage: "Save these edits as a draft version. They won't affect the gadget until you accept changes." })} asChild>
                                 <button
                                   type="button"
                                   disabled={isAgentActive}
                                   onClick={handleFinalizeDraftChanges}
                                   className="cursor-pointer rounded-md px-1 py-0.5 font-medium text-kumo-default transition-[color,opacity,transform] duration-150 ease-out hover:text-kumo-default-hover focus-visible:text-kumo-default-hover focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                  Save draft
+                                  <FormattedMessage id="chatInterface.saveDraft" defaultMessage="Save draft" />
                                 </button>
                               </Tooltip>
                             </div>
@@ -6817,20 +6986,20 @@ function ChatInterface({
                         <div className={`group/agent min-w-0 w-full max-w-[860px] space-y-2 ${provisionalTopClass}`}>
                           {isCompacting && (
                             <div className={`inline-flex px-1.5 py-1 text-[14px] leading-5 tracking-[-0.25px] ${styles.thinkingShimmer}`}>
-                              Compacting…
+                              <FormattedMessage id="chatInterface.compacting" defaultMessage="Compacting…" />
                             </div>
                           )}
 
                           {showThinking && (
                             <div className={`inline-flex px-1.5 py-1 text-[14px] leading-5 tracking-[-0.25px] ${styles.thinkingShimmer}`}>
-                              Thinking
+                              <FormattedMessage id="chatInterface.thinking" defaultMessage="Thinking" />
                             </div>
                           )}
 
                           {provisionalToolCalls.length > 0 && (() => {
                             const first = provisionalToolCalls[0];
                             const { label, detailLines } =
-                              buildProvisionalToolSummary(provisionalToolCalls);
+                              buildProvisionalToolSummary(provisionalToolCalls, formatMessage);
                             const expansionKey = `group-${first.toolCallId}`;
                             const isExpanded = expandedToolCalls.has(expansionKey);
                             const detailCalls = provisionalToolCalls.filter(
@@ -6873,7 +7042,7 @@ function ChatInterface({
                                         >
                                           {toolCall.code && (
                                             <>
-                                              <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]">Code</span>
+                                              <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]"><FormattedMessage id="chatInterface.code" defaultMessage="Code" /></span>
                                               <pre className="max-h-56 overflow-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-3 font-mono text-[12px] leading-[18px] text-kumo-subtle whitespace-pre-wrap">
                                                 {toolCall.code}
                                               </pre>
@@ -6881,7 +7050,7 @@ function ChatInterface({
                                           )}
                                           {toolCall.output && (
                                             <>
-                                              <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]">Output</span>
+                                              <span className="font-mono text-[11px] leading-4 text-kumo-inactive uppercase tracking-[0.08em]"><FormattedMessage id="chatInterface.output" defaultMessage="Output" /></span>
                                               <pre className="max-h-56 overflow-auto rounded-xl border border-kumo-line/70 bg-kumo-base p-3 font-mono text-[12px] leading-[18px] text-kumo-subtle whitespace-pre-wrap">
                                                 {toolCall.output}
                                               </pre>
@@ -6911,7 +7080,7 @@ function ChatInterface({
                               {!(hideOwnUserName && steer.author.id === currentUser?.id) && (
                                 <span className="font-medium">{steer.author.name}</span>
                               )}
-                              {!next && <span>Not read yet</span>}
+                              {!next && <span><FormattedMessage id="chatInterface.notReadYet" defaultMessage="Not read yet" /></span>}
                             </div>
                           )}
                         </div>
@@ -6983,7 +7152,11 @@ function ChatInterface({
                   <div className="-mt-1 flex min-h-[1.25rem] items-start justify-end gap-4 px-4 pb-1 font-mono text-[11px] leading-4 text-kumo-inactive">
                     {currentChatMetadata?.totalTokens != null && (
                       <span>
-                        {currentChatMetadata.totalTokens.toLocaleString()} tokens
+                        <FormattedMessage
+                          id="chatInterface.tokenCount"
+                          defaultMessage="{count} tokens"
+                          values={{ count: currentChatMetadata.totalTokens.toLocaleString() }}
+                        />
                       </span>
                     )}
                     {currentChatMetadata?.totalCost != null && (
@@ -7012,13 +7185,13 @@ function ChatInterface({
           <div className="flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
             <div className="min-w-0">
               <Dialog.Title className="text-[15px] leading-5 font-medium tracking-[-0.3px] text-kumo-default">
-                The gadget changed since this draft started
+                <FormattedMessage id="chatInterface.gadgetChangedSinceDraftStarted" defaultMessage="The gadget changed since this draft started" />
               </Dialog.Title>
               <Dialog.Description className="mt-1 text-[12px] leading-4 font-normal tracking-[-0.2px] text-kumo-subtle">
-                Someone else&apos;s changes were accepted in the meantime, so this draft&apos;s
-                changes can&apos;t be applied as-is. Bring the latest changes into this draft
-                first; any conflicts will be marked in the code for you (or the agent) to resolve
-                before accepting again.
+                <FormattedMessage
+                  id="chatInterface.gadgetChangedSinceDraftStartedDescription"
+                  defaultMessage="Someone else’s changes were accepted in the meantime, so this draft’s changes can’t be applied as-is. Bring the latest changes into this draft first; any conflicts will be marked in the code for you (or the agent) to resolve before accepting again."
+                />
               </Dialog.Description>
             </div>
             <Dialog.Close
@@ -7027,7 +7200,7 @@ function ChatInterface({
                   {...props}
                   className="!h-7 !w-7"
                   disabled={isUpdatingFromMainline}
-                  aria-label="Close"
+                  aria-label={formatMessage({ id: "chatInterface.close", defaultMessage: "Close" })}
                 >
                   <X size={16} />
                 </WorkshopIconButton>
@@ -7043,7 +7216,7 @@ function ChatInterface({
                   className="!h-9"
                   disabled={isUpdatingFromMainline}
                 >
-                  Not now
+                  <FormattedMessage id="chatInterface.notNow" defaultMessage="Not now" />
                 </WorkshopButton>
               )}
             />
@@ -7053,7 +7226,9 @@ function ChatInterface({
               disabled={isUpdatingFromMainline}
               className="!h-9 min-w-[64px]"
             >
-              {isUpdatingFromMainline ? "Updating..." : "Bring in latest changes"}
+              {isUpdatingFromMainline
+                ? <FormattedMessage id="chatInterface.updatingEllipsis" defaultMessage="Updating..." />
+                : <FormattedMessage id="chatInterface.bringInLatestChanges" defaultMessage="Bring in latest changes" />}
             </WorkshopButton>
           </div>
         </Dialog>
@@ -7072,8 +7247,16 @@ function ChatInterface({
 
       <DeleteConfirmationDialog
         open={deleteTarget !== null}
-        title="Delete conversation?"
-        description={<>This removes <span className="font-medium text-kumo-default">{deleteTarget?.title}</span>. You can&apos;t undo this.</>}
+        title={formatMessage({ id: "chatInterface.deleteConversationTitle", defaultMessage: "Delete conversation?" })}
+        description={
+          <FormattedMessage
+            id="chatInterface.deleteConversationDescription"
+            defaultMessage="This removes {title}. You can't undo this."
+            values={{
+              title: <span className="font-medium text-kumo-default">{deleteTarget?.title}</span>,
+            }}
+          />
+        }
         isDeleting={isDeleting}
         onOpenChange={(open) => {
           if (!open) setDeleteTarget(null);

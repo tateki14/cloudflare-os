@@ -11,6 +11,7 @@ import {
 } from './auditFilter'
 import { KIND_NAMES } from './KindBadge'
 import { TypedFilterField } from './TypedFilterField'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 // The Action filter's choices: each group's methods, in alphabetical order, as Base UI groups them.
 type ActionGroup = { value: string; items: AuditMethod[] }
@@ -36,6 +37,7 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
   workspaceLabel: string | undefined
   onFilterChange: (filter: AuditFilter) => void
 }) => {
+  const { formatMessage } = useIntl()
   // Kumo's Autocomplete hands out no ref to its input, so it is found through this wrapper: the
   // workspace chip and Clear filters remove themselves, and give focus to the admin field rather
   // than drop it.
@@ -48,11 +50,11 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="search" aria-label="Filter admin activity">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="search" aria-label={formatMessage({ id: 'auditFilters.filterAdminActivity', defaultMessage: 'Filter admin activity' })}>
         <div ref={adminField} data-filter-field="admin">
           <TypedFilterField
-            label="Admin"
-            placeholder="Any admin (press Enter)"
+            label={formatMessage({ id: 'auditFilters.admin', defaultMessage: 'Admin' })}
+            placeholder={formatMessage({ id: 'auditFilters.anyAdminPressEnter', defaultMessage: 'Any admin (press Enter)' })}
             value={filter.admin}
             clears={clears}
             suggestions={adminSuggestions}
@@ -60,14 +62,14 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
           />
         </div>
         <Combobox
-          label="Action"
+          label={formatMessage({ id: 'auditFilters.action', defaultMessage: 'Action' })}
           items={ACTION_GROUPS}
           value={filter.method ?? null}
           onValueChange={(method) => onFilterChange({ ...filter, method: (method as AuditMethod | null) ?? undefined })}
         >
-          <Combobox.TriggerInput placeholder="Search actions…" clearLabel="Any action" />
+          <Combobox.TriggerInput placeholder={formatMessage({ id: 'auditFilters.searchActions', defaultMessage: 'Search actions…' })} clearLabel="Any action" />
           <Combobox.Content>
-            <Combobox.Empty>No action matches.</Combobox.Empty>
+            <Combobox.Empty><FormattedMessage id="auditFilters.noActionMatches" defaultMessage="No action matches." /></Combobox.Empty>
             <Combobox.List>
               {(group: ActionGroup) => (
                 <Combobox.Group key={group.value} items={group.items}>
@@ -85,7 +87,7 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
           </Combobox.Content>
         </Combobox>
         <Select<KindChoice>
-          label="Kind"
+          label={formatMessage({ id: 'auditFilters.kind', defaultMessage: 'Kind' })}
           className="w-full"
           value={filter.kind ?? ANY_KIND}
           onValueChange={(kind) => {
@@ -94,15 +96,15 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
           }}
           renderValue={(kind) => kind === ANY_KIND ? 'Any kind' : KIND_NAMES[kind]}
         >
-          <Select.Option value={ANY_KIND}>Any kind</Select.Option>
+          <Select.Option value={ANY_KIND}><FormattedMessage id="auditFilters.anyKind" defaultMessage="Any kind" /></Select.Option>
           {AUDIT_KINDS.map((kind) => (
             <Select.Option key={kind} value={kind}>{KIND_NAMES[kind]}</Select.Option>
           ))}
         </Select>
         <div data-filter-field="owner">
           <TypedFilterField
-            label="Target user"
-            placeholder="Any user (press Enter)"
+            label={formatMessage({ id: 'auditFilters.targetUser', defaultMessage: 'Target user' })}
+            placeholder={formatMessage({ id: 'auditFilters.anyUserPressEnter', defaultMessage: 'Any user (press Enter)' })}
             value={filter.owner}
             clears={clears}
             suggestions={targetSuggestions}
@@ -117,13 +119,13 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
               variant="secondary"
               size="sm"
               icon={X}
-              aria-label={`Show every workspace, not only ${workspaceLabel ?? filter.workspace}`}
+              aria-label={formatMessage({ id: 'auditFilters.showEveryWorkspaceNotOnly', defaultMessage: 'Show every workspace, not only {value}' }, { value: workspaceLabel ?? filter.workspace })}
               onClick={() => {
                 onFilterChange({ ...filter, workspace: undefined })
                 focusAdminField()
               }}
             >
-              <span className="max-w-64 truncate">Workspace: {workspaceLabel ?? filter.workspace}</span>
+              <span className="max-w-64 truncate"><FormattedMessage id="auditFilters.workspace" defaultMessage="Workspace:" /> {workspaceLabel ?? filter.workspace}</span>
             </Button>
           )}
           <Button
@@ -136,7 +138,7 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
               focusAdminField()
             }}
           >
-            Clear filters
+            <FormattedMessage id="auditFilters.clearFilters" defaultMessage="Clear filters" />
           </Button>
         </div>
       )}

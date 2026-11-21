@@ -18,6 +18,7 @@ import {
 } from '@phosphor-icons/react'
 import { openCommandPalette } from './commandPaletteBus'
 import { useKumoToastManager } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl } from 'react-intl'
 import type { RpcStub } from 'capnweb'
 import {
   WorkspaceMetadataWithTimestamps,
@@ -73,6 +74,7 @@ function useWorkspacesContext(): WorkspacesContextValue {
 export function SidebarWorkspacesProvider({ children }: { children: ReactNode }) {
   const { authenticatedApi } = useAuthenticatedApi()
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const [gadgets, setGadgets] = useState<WorkspaceMetadataWithTimestamps[]>([])
   const [gadgetsLoading, setGadgetsLoading] = useState(true)
@@ -149,9 +151,9 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
     } catch (err) {
       console.error('Failed to toggle pin:', err)
       setGadgets((prev) => prev.map((x) => (x.id === g.id ? { ...x, pinned: g.pinned } : x)))
-      toasts.add({ title: 'Failed to update favorite', variant: 'error' })
+      toasts.add({ title: formatMessage({ id: 'sidebarWorkspaces.toastFailedToUpdateFavorite', defaultMessage: 'Failed to update favorite' }), variant: 'error' })
     }
-  }, [authenticatedApi, toasts])
+  }, [authenticatedApi, toasts, formatMessage])
 
   const onRename = useCallback(async (g: WorkspaceMetadataWithTimestamps, newTitle: string) => {
     setGadgets((prev) => prev.map((x) => (x.id === g.id ? { ...x, title: newTitle } : x)))
@@ -161,11 +163,14 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
     } catch (err) {
       console.error('Failed to rename:', err)
       setGadgets((prev) => prev.map((x) => (x.id === g.id ? { ...x, title: g.title } : x)))
-      toasts.add({ title: 'Failed to rename workspace', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'sidebarWorkspaces.toastFailedToRenameWorkspace', defaultMessage: 'Failed to rename workspace' }),
+        variant: 'error',
+      })
     } finally {
       overseer[Symbol.dispose]()
     }
-  }, [authenticatedApi, toasts])
+  }, [authenticatedApi, toasts, formatMessage])
 
   const onShare = useCallback(async (g: WorkspaceMetadataWithTimestamps) => {
     let overseer: RpcStub<Overseer> | null = null
@@ -178,9 +183,12 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
     } catch (err) {
       overseer?.[Symbol.dispose]()
       console.error('Failed to open workspace for sharing:', err)
-      toasts.add({ title: 'Failed to open share settings', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'sidebarWorkspaces.toastFailedToOpenShareSettings', defaultMessage: 'Failed to open share settings' }),
+        variant: 'error',
+      })
     }
-  }, [authenticatedApi, toasts])
+  }, [authenticatedApi, toasts, formatMessage])
 
   const onNotificationMuteChange = (g: WorkspaceMetadataWithTimestamps, mute: NotificationMute | undefined) =>
     setGadgets((prev) => prev.map((x) => (x.id === g.id ? { ...x, notificationMute: mute } : x)))
@@ -201,17 +209,22 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
       }
       setGadgets((prev) => prev.filter((x) => x.id !== deleteTarget.id))
       toasts.add({
-        title: deleteTarget.owner ? 'Workspace removed' : 'Workspace deleted',
+        title: deleteTarget.owner
+          ? formatMessage({ id: 'sidebarWorkspaces.toastWorkspaceRemoved', defaultMessage: 'Workspace removed' })
+          : formatMessage({ id: 'sidebarWorkspaces.toastWorkspaceDeleted', defaultMessage: 'Workspace deleted' }),
         variant: 'success',
       })
     } catch (err) {
       console.error('Failed to delete workspace:', err)
-      toasts.add({ title: 'Failed to delete workspace', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'sidebarWorkspaces.toastFailedToDeleteWorkspace', defaultMessage: 'Failed to delete workspace' }),
+        variant: 'error',
+      })
     } finally {
       setIsDeleting(false)
       setDeleteTarget(null)
     }
-  }, [authenticatedApi, deleteTarget, toasts])
+  }, [authenticatedApi, deleteTarget, toasts, formatMessage])
 
   const value: WorkspacesContextValue = {
     search,
@@ -236,14 +249,29 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
         isDeleting={isDeleting}
-        title={deleteTarget?.owner ? 'Remove workspace' : 'Delete workspace'}
+        title={deleteTarget?.owner
+          ? formatMessage({ id: 'sidebarWorkspaces.removeWorkspaceTitle', defaultMessage: 'Remove workspace' })
+          : formatMessage({ id: 'sidebarWorkspaces.deleteWorkspaceTitle', defaultMessage: 'Delete workspace' })}
         description={
           deleteTarget?.owner
-            ? `Remove "${deleteTarget?.title || 'Untitled workspace'}" from your list? You can still access it via its link.`
-            : `Delete "${deleteTarget?.title || 'Untitled workspace'}"? This cannot be undone.`
+            ? formatMessage(
+                {
+                  id: 'sidebarWorkspaces.removeWorkspaceDescription',
+                  defaultMessage: 'Remove "{title}" from your list? You can still access it via its link.',
+                },
+                { title: deleteTarget?.title || formatMessage({ id: 'sidebarWorkspaces.untitledWorkspace', defaultMessage: 'Untitled workspace' }) },
+              )
+            : formatMessage(
+                { id: 'sidebarWorkspaces.deleteWorkspaceDescription', defaultMessage: 'Delete "{title}"? This cannot be undone.' },
+                { title: deleteTarget?.title || formatMessage({ id: 'sidebarWorkspaces.untitledWorkspace', defaultMessage: 'Untitled workspace' }) },
+              )
         }
-        confirmLabel={deleteTarget?.owner ? 'Remove' : 'Delete'}
-        confirmingLabel={deleteTarget?.owner ? 'Removing...' : 'Deleting...'}
+        confirmLabel={deleteTarget?.owner
+          ? formatMessage({ id: 'sidebarWorkspaces.remove', defaultMessage: 'Remove' })
+          : formatMessage({ id: 'sidebarWorkspaces.delete', defaultMessage: 'Delete' })}
+        confirmingLabel={deleteTarget?.owner
+          ? formatMessage({ id: 'sidebarWorkspaces.removingEllipsis', defaultMessage: 'Removing...' })
+          : formatMessage({ id: 'sidebarWorkspaces.deletingEllipsis', defaultMessage: 'Deleting...' })}
         onConfirm={handleDeleteConfirm}
       />
 
@@ -270,6 +298,7 @@ export function SidebarWorkspacesProvider({ children }: { children: ReactNode })
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function SidebarWorkspacesTools({ collapsed = false }: { collapsed?: boolean }) {
+  const { formatMessage } = useIntl()
   // No "New workspace" button: Home *is* the new-workspace launcher, so it would be redundant.
   // Search lives as a magnifying-glass icon in the brand row when expanded; when collapsed the
   // brand-row buttons are hidden, so we surface a compact search icon here instead.
@@ -280,8 +309,8 @@ export function SidebarWorkspacesTools({ collapsed = false }: { collapsed?: bool
       <button
         type="button"
         onClick={() => openCommandPalette()}
-        aria-label="Search"
-        title="Search (⌘K)"
+        aria-label={formatMessage({ id: 'sidebarWorkspaces.search', defaultMessage: 'Search' })}
+        title={formatMessage({ id: 'sidebarWorkspaces.searchShortcutTitle', defaultMessage: 'Search (⌘K)' })}
         className="press flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-kumo-subtle transition-colors hover:bg-kumo-tint hover:text-kumo-default"
       >
         <MagnifyingGlass size={15} />
@@ -297,6 +326,7 @@ export function SidebarWorkspacesTools({ collapsed = false }: { collapsed?: bool
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: boolean }) {
+  const { formatMessage } = useIntl()
   const {
     search,
     favorites,
@@ -339,7 +369,7 @@ export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: bool
     <div className="flex flex-col pb-3">
       {/* Favorites */}
       <SidebarSection
-        label="Favorites"
+        label={formatMessage({ id: 'sidebarWorkspaces.favorites', defaultMessage: 'Favorites' })}
         count={favorites.length}
         open={favOpen}
         onToggle={() => setFavOpen((o) => !o)}
@@ -347,7 +377,7 @@ export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: bool
       >
         {favorites.length === 0 ? (
           <p className="px-2.5 py-1.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-inactive">
-            Favorite a workspace to keep it here.
+            <FormattedMessage id="sidebarWorkspaces.favoriteEmptyState" defaultMessage="Favorite a workspace to keep it here." />
           </p>
         ) : (
           <div className="flex flex-col">
@@ -368,7 +398,7 @@ export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: bool
 
       {/* Recent workspaces — no count here; the "Show all (N)" link already carries it. */}
       <SidebarSection
-        label="Recent workspaces"
+        label={formatMessage({ id: 'sidebarWorkspaces.recentWorkspaces', defaultMessage: 'Recent workspaces' })}
         open={recentOpen}
         onToggle={() => setRecentOpen((o) => !o)}
       >
@@ -380,7 +410,9 @@ export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: bool
           </div>
         ) : recent.length === 0 ? (
           <p className="px-2.5 py-1.5 text-[12px] leading-4 tracking-[-0.2px] text-kumo-inactive">
-            {search ? 'No matches.' : 'No workspaces yet.'}
+            {search
+              ? <FormattedMessage id="sidebarWorkspaces.noMatches" defaultMessage="No matches." />
+              : <FormattedMessage id="sidebarWorkspaces.noWorkspacesYet" defaultMessage="No workspaces yet." />}
           </p>
         ) : (
           <>
@@ -401,7 +433,9 @@ export function SidebarWorkspacesLists({ collapsed = false }: { collapsed?: bool
               to="/workspaces"
               className="mt-0.5 flex h-7 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium tracking-[-0.2px] text-kumo-subtle transition-colors hover:bg-kumo-tint hover:text-kumo-default"
             >
-              {recentHidden > 0 ? `Show all (${recent.length})` : 'Show all'}
+              {recentHidden > 0
+                ? formatMessage({ id: 'sidebarWorkspaces.showAllCount', defaultMessage: 'Show all ({count})' }, { count: recent.length })
+                : formatMessage({ id: 'sidebarWorkspaces.showAll', defaultMessage: 'Show all' })}
               <ArrowRight size={11} weight="bold" />
             </Link>
           </>

@@ -8,6 +8,7 @@ import { rpcFailureDescription } from '../../rpcErrors'
 import { formatFullTimestamp } from '../../utils/formatTimestamp'
 import { DurationSetting } from '../../components/DurationSetting'
 import { probeRouterTag } from './probeRouterTag'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type AdminUpdatesPanelProps = {
   admin: RpcStub<AdminApi>
@@ -54,6 +55,7 @@ const checkOutcome = (status: DeploymentUpdateStatus): string =>
 
 /** The admin Updates tab: which release this deployment runs, the newest one, and a way to update. */
 export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPanelProps) => {
+  const { formatMessage } = useIntl()
   const toasts = useKumoToastManager()
   const [savingChecks, setSavingChecks] = useState(false)
   // A switch value the server took, shown while `status` is the one it was written over: after a
@@ -137,7 +139,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
           role="alert"
           variant="error"
           icon={<Warning />}
-          title="This deployment was changed outside the deploy flow"
+          title={formatMessage({ id: 'adminUpdatesPanel.thisDeploymentWasChangedOutsideThe', defaultMessage: 'This deployment was changed outside the deploy flow' })}
           description={
             `Not running what the deploy flow installed: ${workerList(status.modifiedWorkers)}. The ` +
             'deploy flow will refuse to upgrade this deployment until that change is undone.'
@@ -146,24 +148,23 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
       )}
 
       <div className={CARD}>
-        <h2 className="text-lg font-semibold text-kumo-strong mb-1">Release</h2>
+        <h2 className="text-lg font-semibold text-kumo-strong mb-1"><FormattedMessage id="adminUpdatesPanel.release" defaultMessage="Release" /></h2>
         <p className="text-sm text-kumo-subtle mb-5">
-          New releases are installed through the deploy flow, where anyone with access to this
-          deployment&rsquo;s Cloudflare account can finish the upgrade.
+          <FormattedMessage id="adminUpdatesPanel.newReleasesAreInstalledThroughThe" defaultMessage="New releases are installed through the deploy flow, where anyone with access to this deployment’s Cloudflare account can finish the upgrade." />
         </p>
 
         <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-          <dt className="text-kumo-subtle">Running release</dt>
+          <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.runningRelease" defaultMessage="Running release" /></dt>
           <dd className="font-mono text-kumo-default">{status.currentReleaseId}</dd>
-          <dt className="text-kumo-subtle">Newest release</dt>
+          <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.newestRelease" defaultMessage="Newest release" /></dt>
           <dd className={status.latestReleaseId === undefined ? 'text-kumo-default' : 'font-mono text-kumo-default'}>
             {status.latestReleaseId ?? 'No check has succeeded yet'}
           </dd>
-          <dt className="text-kumo-subtle">Last checked</dt>
+          <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.lastChecked" defaultMessage="Last checked" /></dt>
           <dd className="text-kumo-default">
             {status.checkedAt === undefined ? 'Never' : formatFullTimestamp(status.checkedAt)}
           </dd>
-          <dt className="text-kumo-subtle">Update available</dt>
+          <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.updateAvailable" defaultMessage="Update available" /></dt>
           <dd className="text-kumo-default">{updateAvailability(status)}</dd>
         </dl>
 
@@ -172,7 +173,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
             variant="alert"
             icon={<ArrowsClockwise />}
             className="mt-4"
-            title="An update did not finish"
+            title={formatMessage({ id: 'adminUpdatesPanel.anUpdateDidNotFinish', defaultMessage: 'An update did not finish' })}
             description={
               `Still running another release of this deployment: ${workerList(status.unfinishedWorkers)}. ` +
               (status.modifiedWorkers.length > 0
@@ -184,30 +185,27 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
 
         <div className="flex flex-wrap items-center justify-end gap-2 mt-4">
           <Button variant="secondary" size="sm" loading={checking} disabled={checking} onClick={checkNow}>
-            Check now
+            <FormattedMessage id="adminUpdatesPanel.checkNow" defaultMessage="Check now" />
           </Button>
           {updateUrl !== null && (
             <LinkButton href={updateUrl} external variant="primary" size="sm" icon={ArrowSquareOut}>
-              Update
+              <FormattedMessage id="adminUpdatesPanel.update" defaultMessage="Update" />
             </LinkButton>
           )}
         </div>
       </div>
 
       <div className={CARD}>
-        <h2 className="text-lg font-semibold text-kumo-strong mb-1">Update notice</h2>
+        <h2 className="text-lg font-semibold text-kumo-strong mb-1"><FormattedMessage id="adminUpdatesPanel.updateNotice" defaultMessage="Update notice" /></h2>
         <p className="text-sm text-kumo-subtle mb-5">
-          When a newer release is available, admins see a notice on Home. These settings apply to
-          the whole deployment.
+          <FormattedMessage id="adminUpdatesPanel.whenANewerReleaseIsAvailable" defaultMessage="When a newer release is available, admins see a notice on Home. These settings apply to the whole deployment." />
         </p>
 
         <div className="flex items-center gap-4 rounded-lg border border-kumo-line bg-kumo-base px-4 py-3 mb-5">
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-medium text-kumo-default">{CHECKS_LABEL}</p>
             <p id={checksHelp} className="mt-0.5 text-kumo-subtle">
-              When on, the deployment asks for the newest release while admins use it, at most as
-              often as set below, and notifies admins of an update. When off, it asks only when an admin chooses Check now, and no
-              one is notified.
+              <FormattedMessage id="adminUpdatesPanel.whenOnTheDeploymentAsksFor" defaultMessage="When on, the deployment asks for the newest release while admins use it, at most as often as set below, and notifies admins of an update. When off, it asks only when an admin chooses Check now, and no one is notified." />
             </p>
           </div>
           <Switch

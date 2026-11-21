@@ -9,9 +9,10 @@ import { describeMute } from '../../features/notifications/notificationMute'
 import { isImeComposing } from '../../keyboardEvent'
 import { useUnreadState } from '../../features/notifications/UnreadStateBridge'
 import { UnreadBadge } from '../../features/notifications/UnreadBadge'
+import { FormattedMessage, useIntl } from 'react-intl'
 
-function initials(title: string | undefined): string {
-  const t = (title || 'Untitled').trim()
+function initials(title: string | undefined, untitledFallback: string): string {
+  const t = (title || untitledFallback).trim()
   if (!t) return 'UG'
   const parts = t.split(/\s+/).slice(0, 2)
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || t.slice(0, 2).toUpperCase()
@@ -39,6 +40,8 @@ export default function SidebarGadgetRow({
   onNotificationMuteChange: (g: WorkspaceMetadataWithTimestamps, mute: NotificationMute | undefined) => void
   onDelete: (g: WorkspaceMetadataWithTimestamps) => void
 }) {
+  const { formatMessage } = useIntl()
+  const untitledWorkspace = formatMessage({ id: 'sidebarGadgetRow.untitledWorkspace', defaultMessage: 'Untitled workspace' })
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(gadget.title || '')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -71,10 +74,10 @@ export default function SidebarGadgetRow({
       onClick={(e) => {
         if (renaming) e.preventDefault()
       }}
-      title={collapsed ? gadget.title || 'Untitled workspace' : undefined}
+      title={collapsed ? gadget.title || untitledWorkspace : undefined}
     >
       <div className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-kumo-fill text-[10px] font-medium text-kumo-subtle">
-        <span aria-hidden="true">{initials(gadget.title)}</span>
+        <span aria-hidden="true">{initials(gadget.title, untitledWorkspace)}</span>
         {collapsed && unreadMessages > 0 && <span
           role="img"
           aria-label={`${unreadMessages} unread ${unreadMessages === 1 ? "message" : "messages"}`}
@@ -97,7 +100,7 @@ export default function SidebarGadgetRow({
               onClick={(e) => e.preventDefault()}
             />
           ) : (
-            <span className="min-w-0 flex-1 truncate">{gadget.title || 'Untitled workspace'}</span>
+            <span className="min-w-0 flex-1 truncate">{gadget.title || untitledWorkspace}</span>
           )}
           {muteDescription && (
             <BellSlash size={12} alt={muteDescription} className="shrink-0 text-kumo-inactive" />
@@ -116,7 +119,7 @@ export default function SidebarGadgetRow({
                 render={
                   <button
                     type="button"
-                    aria-label="Workspace actions"
+                    aria-label={formatMessage({ id: 'sidebarGadgetRow.workspaceActions', defaultMessage: 'Workspace actions' })}
                     className="absolute inset-0 flex h-6 w-full items-center justify-center rounded-md text-kumo-subtle opacity-0 transition-[opacity,color,background-color] group-hover:opacity-100 hover:bg-kumo-fill hover:text-kumo-default focus:opacity-100"
                   >
                     <DotsThree size={14} weight="bold" />
@@ -126,19 +129,19 @@ export default function SidebarGadgetRow({
               <DropdownMenu.Content className={MENU_CONTENT} style={MENU_POSITIONER_STYLE}>
                 <DropdownMenu.Item disabled={unreadMessages === 0} onClick={() => {
                   void unread?.markWorkspaceRead(gadget.id).catch(() => {})
-                }} className={MENU_ITEM}>Mark workspace read</DropdownMenu.Item>
+                }} className={MENU_ITEM}><FormattedMessage id="sidebarGadgetRow.markWorkspaceRead" defaultMessage="Mark workspace read" /></DropdownMenu.Item>
                 <DropdownMenu.Item
                   onClick={startRename}
                   className={MENU_ITEM}
                 >
-                  <Pencil size={13} /> Rename
+                  <Pencil size={13} /> <FormattedMessage id="sidebarGadgetRow.rename" defaultMessage="Rename" />
                 </DropdownMenu.Item>
                 <DropdownMenu.Item
                   onClick={() => onTogglePin(gadget)}
                   className={MENU_ITEM}
                 >
                   <Star size={13} weight={gadget.pinned ? 'fill' : 'regular'} />
-                  {gadget.pinned ? 'Unfavorite' : 'Favorite'}
+                  {gadget.pinned ? formatMessage({ id: 'sidebarGadgetRow.unfavorite', defaultMessage: 'Unfavorite' }) : formatMessage({ id: 'sidebarGadgetRow.favorite', defaultMessage: 'Favorite' })}
                 </DropdownMenu.Item>
                 {/* Only members can invite; the role is cached with the listing, and the server decides. */}
                 {gadget.role !== 'use' && (
@@ -146,7 +149,7 @@ export default function SidebarGadgetRow({
                     onClick={() => onShare(gadget)}
                     className={MENU_ITEM}
                   >
-                    <UserPlus size={13} /> Invite to workspace
+                    <UserPlus size={13} /> <FormattedMessage id="sidebarGadgetRow.inviteToWorkspace" defaultMessage="Invite to workspace" />
                   </DropdownMenu.Item>
                 )}
                 <WorkspaceNotificationsMenu
@@ -161,7 +164,7 @@ export default function SidebarGadgetRow({
                   className={MENU_ITEM_DANGER}
                 >
                   <Trash size={13} />
-                  {gadget.owner ? 'Dismiss' : 'Delete'}
+                  {gadget.owner ? formatMessage({ id: 'sidebarGadgetRow.dismiss', defaultMessage: 'Dismiss' }) : formatMessage({ id: 'sidebarGadgetRow.delete', defaultMessage: 'Delete' })}
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu>
@@ -170,7 +173,7 @@ export default function SidebarGadgetRow({
       )}
 
       {/* Collapsed rows show only the monogram (aria-hidden), so name the link for screen readers. */}
-      {collapsed && <span className="sr-only">{gadget.title || 'Untitled workspace'}</span>}
+      {collapsed && <span className="sr-only">{gadget.title || untitledWorkspace}</span>}
     </Link>
   )
 }

@@ -1,6 +1,7 @@
 import { logRpcFailure } from './rpcErrors'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, useKumoToastManager } from '@cloudflare/kumo'
+import { FormattedMessage, useIntl, type IntlShape } from 'react-intl'
 import {
   CaretDown,
   CaretLeft,
@@ -135,15 +136,19 @@ type ConfiguratorFrameState = {
   resourceUrlPattern: string
 }
 
-function platformConnectionTypes(siteName: string): ConnectionType[] {
+function platformConnectionTypes(siteName: string, formatMessage: IntlShape['formatMessage']): ConnectionType[] {
+  const aiModelLabel = formatMessage({ id: 'gatekeeperModal.aiModelLabel', defaultMessage: 'AI Model' })
+  const agentLabel = formatMessage({ id: 'gatekeeperModal.agentLabel', defaultMessage: 'Agent' })
   return [
   {
     id: 'ai-model',
     groupKey: 'platform:ai-model',
-    groupLabel: 'AI Model',
-    title: 'AI Model',
+    groupLabel: aiModelLabel,
+    title: aiModelLabel,
     vendor: siteName,
-    description: 'Expose a selected model through this connection.',
+    description: formatMessage({
+      id: 'gatekeeperModal.aiModelDescription', defaultMessage: 'Expose a selected model through this connection.',
+    }),
     icon: Sparkle,
     accent: '#f6edff',
     iconColor: '#7c3aed',
@@ -151,10 +156,13 @@ function platformConnectionTypes(siteName: string): ConnectionType[] {
   {
     id: AGENT_SPAWNER_CONNECTION_ID,
     groupKey: 'platform:agent-spawner',
-    groupLabel: 'Agent',
-    title: 'Agent',
+    groupLabel: agentLabel,
+    title: agentLabel,
     vendor: siteName,
-    description: 'Allow this connection to start new AI agent conversations with selected tools.',
+    description: formatMessage({
+      id: 'gatekeeperModal.agentDescription',
+      defaultMessage: 'Allow this connection to start new AI agent conversations with selected tools.',
+    }),
     icon: Robot,
     accent: '#f2f0ff',
     iconColor: '#7c3aed',
@@ -236,6 +244,7 @@ export default function GatekeeperModal({
   const { authenticatedApi, currentUser, isCurrentUserConfirmed } = useAuthenticatedApi()
   const userId = isCurrentUserConfirmed ? currentUser?.id : undefined
   const toasts = useKumoToastManager()
+  const { formatMessage } = useIntl()
 
   const [selectedConnectionId, setSelectedConnectionId] = useState<ConnectionTypeId | null>(null)
   const [searchText, setSearchText] = useState('')
@@ -272,7 +281,7 @@ export default function GatekeeperModal({
     ? spawnerModelPick.modelId
     : getStoredSelectedModel(userId, availableModels) ?? availableModels[0]?.id ?? null
   const [spawnerEnv, setSpawnerEnv] = useState<SpawnerEnvRow[]>([])
-  const spawnerEnvError = validateSpawnerEnv(spawnerEnv)
+  const spawnerEnvError = validateSpawnerEnv(spawnerEnv, formatMessage)
 
   // Read only when the modal opens, so a caller that rebuilds the candidate array on every render
   // doesn't clobber the user's edits.
@@ -305,9 +314,9 @@ export default function GatekeeperModal({
 
   const siteName = useSiteName()
   const allConnections = useMemo(() => [
-    ...platformConnectionTypes(siteName),
+    ...platformConnectionTypes(siteName, formatMessage),
     ...vendors.flatMap(connectionsForVendor),
-  ], [siteName, vendors])
+  ], [siteName, vendors, formatMessage])
 
   const selectedConnection = useMemo(
     () => allConnections.find(connection => connection.id === selectedConnectionId) ?? null,
@@ -434,7 +443,10 @@ export default function GatekeeperModal({
       if (cancelled) return
       console.error('Failed to load models:', err)
       reportIssue('gatekeeper.models-load', err)
-      toasts.add({ title: "Couldn't load AI models", variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'gatekeeperModal.toastLoadModelsFailed', defaultMessage: "Couldn't load AI models" }),
+        variant: 'error',
+      })
     })
 
     authenticatedApi.listGatekeeperVendors().then(vendors => {
@@ -444,7 +456,10 @@ export default function GatekeeperModal({
       if (cancelled) return
       console.error('Failed to load connection vendors:', err)
       reportIssue('gatekeeper.vendors-load', err)
-      toasts.add({ title: "Couldn't load connection options", variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'gatekeeperModal.toastLoadVendorsFailed', defaultMessage: "Couldn't load connection options" }),
+        variant: 'error',
+      })
     })
 
     return () => {
@@ -635,7 +650,8 @@ export default function GatekeeperModal({
           reportIssue('gatekeeper.configurator-start', error, {
             gatekeeperVendorId: selectedConnection?.vendorId,
           })
-          setConfiguratorError(error?.message || 'Could not start configurator.')
+          setConfiguratorError(error?.message
+            || formatMessage({ id: 'gatekeeperModal.errorConfiguratorStartFailed', defaultMessage: 'Could not start configurator.' }))
         }
       })
       .finally(() => {
@@ -665,12 +681,12 @@ export default function GatekeeperModal({
     setConnectingVendor(vendorId)
     try {
       const outcome = await openConnectWindow(await authenticatedApi.connectAccount(vendorId, resourceTypeIds), authenticatedApi)
-      toasts.add({ title: outcome === 'connected' ? 'Account connected.' : 'Complete the account connection in the pop-up window.', variant: 'success' })
+      toasts.add({ title: outcome === 'connected' ? formatMessage({ id: 'gatekeeperModal.accountConnected', defaultMessage: 'Account connected.' }) : formatMessage({ id: 'gatekeeperModal.toastCompleteAccountConnection', defaultMessage: 'Complete the account connection in the pop-up window.' }), variant: 'success' })
     } catch (error) {
       if (error instanceof AuthPopupCancelledError) return
       console.error('Failed to initiate connection:', error)
       reportIssue('gatekeeper.connect-start', error, { gatekeeperVendorId: vendorId })
-      toasts.add({ title: error instanceof Error ? error.message : 'Could not complete connection flow', variant: 'error' })
+      toasts.add({ title: error instanceof Error ? error.message : formatMessage({ id: 'gatekeeperModal.couldNotCompleteConnectionFlow', defaultMessage: 'Could not complete connection flow' }), variant: 'error' })
     } finally {
       setConnectingVendor(null)
     }
@@ -694,7 +710,7 @@ export default function GatekeeperModal({
       reportIssue('gatekeeper.resource-grant', error, {
         gatekeeperVendorId: selectedConnection?.vendorId,
       })
-      toasts.add({ title: error instanceof Error ? error.message : 'Failed to request additional access', variant: 'error' })
+      toasts.add({ title: error instanceof Error ? error.message : formatMessage({ id: 'gatekeeperModal.toastAdditionalAccessFailed', defaultMessage: 'Failed to request additional access' }), variant: 'error' })
     } finally {
       setGrantingAccountId(null)
     }
@@ -704,14 +720,14 @@ export default function GatekeeperModal({
     setReconnectingAccountId(accountId)
     try {
       const outcome = await openConnectWindow(await authenticatedApi.reconnectAccount(accountId), authenticatedApi)
-      toasts.add({ title: outcome === 'connected' ? 'Account reconnected.' : 'Complete the account reconnect in the pop-up window.', variant: 'success' })
+      toasts.add({ title: outcome === 'connected' ? formatMessage({ id: 'gatekeeperModal.accountReconnected', defaultMessage: 'Account reconnected.' }) : formatMessage({ id: 'gatekeeperModal.toastCompleteAccountReconnect', defaultMessage: 'Complete the account reconnect in the pop-up window.' }), variant: 'success' })
     } catch (error) {
       if (error instanceof AuthPopupCancelledError) return
       console.error('Failed to initiate reconnect:', error)
       reportIssue('gatekeeper.reconnect-start', error, {
         gatekeeperVendorId: selectedConnection?.vendorId,
       })
-      toasts.add({ title: error instanceof Error ? error.message : 'Could not complete reconnect flow', variant: 'error' })
+      toasts.add({ title: error instanceof Error ? error.message : formatMessage({ id: 'gatekeeperModal.couldNotCompleteReconnectFlow', defaultMessage: 'Could not complete reconnect flow' }), variant: 'error' })
     } finally {
       setReconnectingAccountId(null)
     }
@@ -733,7 +749,10 @@ export default function GatekeeperModal({
 
   const handleCreateAiModel = async () => {
     if (!selectedModelId) {
-      toasts.add({ title: 'Please select an AI model', variant: 'warning' })
+      toasts.add({
+        title: formatMessage({ id: 'gatekeeperModal.toastSelectAiModel', defaultMessage: 'Please select an AI model' }),
+        variant: 'warning',
+      })
       return
     }
     setCreating(true)
@@ -742,7 +761,10 @@ export default function GatekeeperModal({
       await handOff(overseer.newAiModelGatekeeper(selectedModelId))
     } catch (err) {
       console.error('Failed to create AI model gatekeeper:', err)
-      toasts.add({ title: 'Failed to create AI model connection', variant: 'error' })
+      toasts.add({
+        title: formatMessage({ id: 'gatekeeperModal.toastCreateAiModelFailed', defaultMessage: 'Failed to create AI model connection' }),
+        variant: 'error',
+      })
     } finally {
       setCreating(false)
     }
@@ -750,7 +772,10 @@ export default function GatekeeperModal({
 
   const handleCreateAgentSpawner = async () => {
     if (!spawnerDisplayName.trim()) {
-      toasts.add({ title: 'Please enter a display name', variant: 'warning' })
+      toasts.add({
+        title: formatMessage({ id: 'gatekeeperModal.toastEnterDisplayName', defaultMessage: 'Please enter a display name' }),
+        variant: 'warning',
+      })
       return
     }
     if (spawnerEnvError) {
@@ -769,7 +794,12 @@ export default function GatekeeperModal({
       await handOff(overseer.newAgentSpawnerGatekeeper(config))
     } catch (err) {
       console.error('Failed to create agent spawner gatekeeper:', err)
-      toasts.add({ title: 'Failed to create agent spawner connection', variant: 'error' })
+      toasts.add({
+        title: formatMessage({
+          id: 'gatekeeperModal.toastCreateAgentSpawnerFailed', defaultMessage: 'Failed to create agent spawner connection',
+        }),
+        variant: 'error',
+      })
     } finally {
       setCreating(false)
     }
@@ -784,7 +814,7 @@ export default function GatekeeperModal({
     setCreating(true)
     try {
       if (!configuratorFrameState?.frame || configuratorFrameState.accountId !== selectedAccountId || configuratorFrameState.resourceUrlPattern !== resourceUrlPattern) {
-        throw new Error('Configurator is not ready.')
+        throw new Error(formatMessage({ id: 'gatekeeperModal.errorConfiguratorNotReady', defaultMessage: 'Configurator is not ready.' }))
       }
       const resourceUrl = await configuratorCollectResourceUrlRef.current?.()
       if (!resourceUrl) throw new Error('Configurator did not provide a resource URL.')
@@ -802,7 +832,12 @@ export default function GatekeeperModal({
       await handOff(overseer.newGatekeeper(selectedAccountId, resourceUrl) as RpcPromise<GatekeeperClient<any>>)
     } catch (err) {
       console.error('Failed to create resource gatekeeper:', err)
-      toasts.add({ title: err instanceof Error && err.message ? err.message : 'Failed to create connection', variant: 'error' })
+      toasts.add({
+        title: err instanceof Error && err.message
+          ? err.message
+          : formatMessage({ id: 'gatekeeperModal.toastCreateConnectionFailed', defaultMessage: 'Failed to create connection' }),
+        variant: 'error',
+      })
     } finally {
       setCreating(false)
     }
@@ -841,8 +876,8 @@ export default function GatekeeperModal({
   }
 
   const createLabel = selectedConnection?.resourceUrlPattern
-    ? 'Add connection'
-    : 'Create connection'
+    ? formatMessage({ id: 'gatekeeperModal.addConnection', defaultMessage: 'Add connection' })
+    : formatMessage({ id: 'gatekeeperModal.createConnection', defaultMessage: 'Create connection' })
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
@@ -854,17 +889,19 @@ export default function GatekeeperModal({
         <div ref={headerRef} className="shrink-0 flex items-start justify-between gap-4 border-b border-kumo-line px-5 py-4">
           <div className="min-w-0">
             <Dialog.Title className="text-[17px] leading-6 font-medium tracking-[-0.35px] text-kumo-default">
-              {selectedConnection ? selectedConnection.title : 'Create New Connection'}
+              {selectedConnection
+                ? selectedConnection.title
+                : <FormattedMessage id="gatekeeperModal.createNewConnection" defaultMessage="Create New Connection" />}
             </Dialog.Title>
             <Dialog.Description className="mt-1 text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
               {selectedConnection
                 ? selectedConnection.description
-                : 'Choose what this gadget should be able to use.'}
+                : <FormattedMessage id="gatekeeperModal.chooseConnectionPrompt" defaultMessage="Choose what this gadget should be able to use." />}
             </Dialog.Description>
           </div>
           <Dialog.Close
             render={(props) => (
-              <WorkshopIconButton {...props} aria-label="Close">
+              <WorkshopIconButton {...props} aria-label={formatMessage({ id: 'gatekeeperModal.close', defaultMessage: 'Close' })}>
                 <X size={16} />
               </WorkshopIconButton>
             )}
@@ -880,7 +917,7 @@ export default function GatekeeperModal({
                 className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-[12px] leading-4 font-medium tracking-[-0.2px] text-kumo-subtle transition-colors hover:text-kumo-default"
               >
                 <CaretLeft size={13} />
-                All connection types
+                <FormattedMessage id="gatekeeperModal.allConnectionTypes" defaultMessage="All connection types" />
               </button>
 
               <div className="space-y-4">
@@ -960,7 +997,9 @@ export default function GatekeeperModal({
                 <input
                   value={searchText}
                   onChange={(event) => setSearchText(event.target.value)}
-                  placeholder="Search services, apps, data sources..."
+                  placeholder={formatMessage({
+                    id: 'gatekeeperModal.searchPlaceholder', defaultMessage: 'Search services, apps, data sources...',
+                  })}
                   autoFocus
                   className="h-10 w-full rounded-xl border border-kumo-line bg-kumo-base pl-9 pr-3 text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-default placeholder:text-kumo-inactive shadow-none outline-none transition-[border-color,box-shadow] focus:border-kumo-ring focus:ring-2 focus:ring-kumo-ring/10"
                 />
@@ -972,7 +1011,7 @@ export default function GatekeeperModal({
                 {isSearching ? (
                   filteredConnections.length === 0 ? (
                     <div className="px-4 py-8 text-center text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-                      No matching connection types.
+                      <FormattedMessage id="gatekeeperModal.noMatchingConnectionTypes" defaultMessage="No matching connection types." />
                     </div>
                   ) : filteredConnections.map((connection, index) => (
                     <ConnectionTypeRow
@@ -985,7 +1024,7 @@ export default function GatekeeperModal({
                 ) : (
                   groupedConnections.length === 0 ? (
                     <div className="px-4 py-8 text-center text-[13px] leading-[18px] font-normal tracking-[-0.25px] text-kumo-subtle">
-                      No connection types available.
+                      <FormattedMessage id="gatekeeperModal.noConnectionTypesAvailable" defaultMessage="No connection types available." />
                     </div>
                   ) : groupedConnections.map((group, index) => (
                     <ConnectionGroupRow
@@ -1010,14 +1049,16 @@ export default function GatekeeperModal({
             <div />
             <div className="flex shrink-0 items-center gap-2">
               <WorkshopButton onClick={() => setSelectedConnectionId(null)} disabled={creating} className="!h-9">
-                Back
+                <FormattedMessage id="gatekeeperModal.back" defaultMessage="Back" />
               </WorkshopButton>
               <WorkshopButton
                 tone="primary"
                 onClick={handleCreate}
                 disabled={!canCreate || creating}
               >
-                {creating ? 'Creating...' : createLabel}
+                {creating
+                  ? <FormattedMessage id="gatekeeperModal.creating" defaultMessage="Creating..." />
+                  : createLabel}
               </WorkshopButton>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { useAuthenticatedApi } from './AuthContext'
 import ResourcePicker, { type SelectableItem } from './ResourcePicker'
 import { KeyHint } from './components/pickerRows'
 import styles from './CapsuleOverlay.module.css'
+import { FormattedMessage } from 'react-intl'
 
 export interface CapsuleOverlayProps {
   url: string
@@ -105,7 +106,7 @@ export default function CapsuleOverlay({ url, onSelectAccount, onRefine, onDismi
         aria-hidden="true"
         className="m-0 flex items-center justify-end gap-1.5 border-t border-kumo-line px-3.5 py-1.5 text-[11.5px] leading-4 text-kumo-subtle"
       >
-        <KeyHint keyName="Esc" /> to dismiss
+        <KeyHint keyName="Esc" /> <FormattedMessage id="capsuleOverlay.toDismiss" defaultMessage="to dismiss" />
       </p>
     </div>
   )

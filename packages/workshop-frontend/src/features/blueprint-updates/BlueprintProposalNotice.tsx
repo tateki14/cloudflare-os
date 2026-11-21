@@ -2,6 +2,7 @@ import { Badge, Banner, Collapsible } from '@cloudflare/kumo'
 import { Blueprint } from '@phosphor-icons/react'
 import type { BlueprintMerge } from '@gadgets/workshop-shared/api'
 import { describeBlueprintProposal, type BlueprintProposalDetails } from './blueprintProposal'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 type BlueprintProposalNoticeProps = {
   merge: BlueprintMerge
@@ -18,23 +19,23 @@ const AdvancedDetails = ({ details, bindingNames }: {
   bindingNames: string[]
 }) => (
   <Collapsible.Root>
-    <Collapsible.DefaultTrigger>Advanced details</Collapsible.DefaultTrigger>
+    <Collapsible.DefaultTrigger><FormattedMessage id="blueprintProposalNotice.advancedDetails" defaultMessage="Advanced details" /></Collapsible.DefaultTrigger>
     <Collapsible.DefaultPanel>
       <div className="space-y-2">
         <dl className={`${BODY_TEXT} m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1`}>
-          <dt>Method</dt>
+          <dt><FormattedMessage id="blueprintProposalNotice.method" defaultMessage="Method" /></dt>
           <dd className="m-0 text-kumo-default">{details.method}</dd>
           {details.baseCommit && (
             <>
-              <dt>Common base</dt>
+              <dt><FormattedMessage id="blueprintProposalNotice.commonBase" defaultMessage="Common base" /></dt>
               <dd className="m-0 font-mono text-kumo-default">{details.baseCommit}</dd>
             </>
           )}
-          <dt>Release</dt>
+          <dt><FormattedMessage id="blueprintProposalNotice.release" defaultMessage="Release" /></dt>
           <dd className="m-0 font-mono text-kumo-default">{details.releaseCommit}</dd>
           {details.conflictPaths.length > 0 && (
             <>
-              <dt>Conflicts</dt>
+              <dt><FormattedMessage id="blueprintProposalNotice.conflicts" defaultMessage="Conflicts" /></dt>
               <dd className="m-0">
                 <ul className="m-0 list-none space-y-0.5 p-0">
                   {details.conflictPaths.map(path => (
@@ -46,7 +47,7 @@ const AdvancedDetails = ({ details, bindingNames }: {
           )}
           {bindingNames.length > 0 && (
             <>
-              <dt>New bindings</dt>
+              <dt><FormattedMessage id="blueprintProposalNotice.newBindings" defaultMessage="New bindings" /></dt>
               <dd className="m-0 break-all font-mono text-kumo-default">{bindingNames.join(', ')}</dd>
             </>
           )}
@@ -73,12 +74,13 @@ export const BlueprintProposalNotice = ({
   status,
   reviewed,
 }: BlueprintProposalNoticeProps) => {
+  const { formatMessage } = useIntl()
   const description = describeBlueprintProposal(
     merge, { reviewed, decided: status !== 'pending' })
 
   return (
     <section
-      aria-label={`Blueprint update: ${description.heading}`}
+      aria-label={formatMessage({ id: 'blueprintProposalNotice.blueprintUpdate', defaultMessage: 'Blueprint update: {heading}' }, { heading: description.heading })}
       className="space-y-2.5 rounded-2xl border border-kumo-line bg-kumo-base px-4 py-3"
     >
       <div className="flex items-start gap-3">
@@ -88,11 +90,11 @@ export const BlueprintProposalNotice = ({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center justify-between gap-2">
             <p className="m-0 text-[11px] font-medium uppercase leading-4 tracking-[0.06em] text-kumo-inactive">
-              Blueprint update
+              <FormattedMessage id="blueprintProposalNotice.blueprintUpdate2" defaultMessage="Blueprint update" />
             </p>
             {status !== 'pending' && (
               <Badge variant={status === 'merged' ? 'success' : 'secondary'}>
-                {status === 'merged' ? 'Accepted' : 'Discarded'}
+                {status === 'merged' ? formatMessage({ id: 'blueprintProposalNotice.accepted', defaultMessage: 'Accepted' }) : formatMessage({ id: 'blueprintProposalNotice.discarded', defaultMessage: 'Discarded' })}
               </Badge>
             )}
           </div>
@@ -113,7 +115,7 @@ export const BlueprintProposalNotice = ({
       {description.missingBindings.length > 0 && (
         <div className="space-y-1">
           <p className={BODY_TEXT}>
-            This version uses connections that the gadget did not have when it was proposed:
+            <FormattedMessage id="blueprintProposalNotice.thisVersionUsesConnectionsThatThe" defaultMessage="This version uses connections that the gadget did not have when it was proposed:" />
           </p>
           <ul className="m-0 list-disc space-y-0.5 pl-5">
             {description.missingBindings.map(binding => (

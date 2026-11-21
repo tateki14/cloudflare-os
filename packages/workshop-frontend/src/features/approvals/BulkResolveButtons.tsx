@@ -1,3 +1,4 @@
+import { FormattedMessage } from 'react-intl'
 const buttonClass =
   'flex h-7 flex-shrink-0 cursor-pointer items-center rounded-md px-2 text-[12px] font-medium ' +
   'tracking-[-0.15px] transition-colors focus-visible:outline-none focus-visible:ring-2 ' +
@@ -33,7 +34,7 @@ export const BulkResolveButtons = ({
       disabled={disabled}
       className={`${buttonClass} text-kumo-inactive enabled:hover:bg-kumo-tint enabled:hover:text-kumo-danger`}
     >
-      Discard all
+      <FormattedMessage id="bulkResolveButtons.discardAll" defaultMessage="Discard all" />
     </button>
     <button
       type="button"
@@ -41,7 +42,7 @@ export const BulkResolveButtons = ({
       disabled={disabled}
       className={`${buttonClass} text-kumo-default enabled:hover:bg-kumo-tint`}
     >
-      Apply all {count}
+      <FormattedMessage id="bulkResolveButtons.applyAll" defaultMessage="Apply all {count}" values={{ count: count }} />
     </button>
   </>
 )

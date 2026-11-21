@@ -5,6 +5,7 @@ import { Button, Banner } from '@cloudflare/kumo'
 import { openDisownedPopup, uniquePopupName } from '../../connectHandoff'
 import type { AuthPopup } from '../../features/native-app/authPopup'
 import { nativeApp } from '../../features/native-app/nativeApp'
+import { FormattedMessage, useIntl } from 'react-intl'
 
 interface OAuthButtonsProps {
   rpcStub: RpcStub<PublicApi>
@@ -37,6 +38,7 @@ const RECEIVE_POLL_MS = 1000
  * that had already been handed out, leaving the user to sign in twice.
  */
 export default function OAuthButtons({ rpcStub, vendors, onSuccess }: OAuthButtonsProps) {
+  const { formatMessage } = useIntl()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<string | null>(null)
   const [cancellable, setCancellable] = useState(false)
@@ -148,7 +150,7 @@ export default function OAuthButtons({ rpcStub, vendors, onSuccess }: OAuthButto
       else window.location.reload()
     } catch (err) {
       if (err === CANCELLED || !mountedRef.current) return
-      setError(err instanceof Error ? err.message : 'Could not sign in')
+      setError(err instanceof Error ? err.message : formatMessage({ id: 'oAuthButtons.couldNotSignIn', defaultMessage: 'Could not sign in' }))
       setPending(null)
     }
   }
@@ -178,11 +180,11 @@ export default function OAuthButtons({ rpcStub, vendors, onSuccess }: OAuthButto
               style={{ height: 18, width: 'auto' }}
             />
           )}
-          Continue with {vendor.displayName}
+          <FormattedMessage id="oAuthButtons.continueWith" defaultMessage="Continue with {displayName}" values={{ displayName: vendor.displayName }} />
         </Button>
       ))}
       {pending !== null && cancellable && nativeApp()?.authentication && (
-        <Button variant="ghost" className="w-full" onClick={cancel}>Cancel sign-in</Button>
+        <Button variant="ghost" className="w-full" onClick={cancel}><FormattedMessage id="oAuthButtons.cancelSignIn" defaultMessage="Cancel sign-in" /></Button>
       )}
     </div>
   )

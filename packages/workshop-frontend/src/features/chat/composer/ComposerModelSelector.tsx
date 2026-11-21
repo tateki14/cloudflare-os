@@ -1,3 +1,4 @@
+import { FormattedMessage, useIntl } from 'react-intl'
 import { DropdownMenu } from "@cloudflare/kumo";
 import { CaretDown, Check } from "@phosphor-icons/react";
 import type { AiChatAuthorInfo } from "@gadgets/workshop-shared/api";
@@ -25,11 +26,12 @@ export const ComposerModelSelector = ({
   loading = false,
   onModelChange,
 }: ComposerModelSelectorProps) => {
+  const { formatMessage } = useIntl();
   if (loading && selectedModel == null) {
     return (
       <span
         role="status"
-        aria-label="Loading models"
+        aria-label={formatMessage({ id: "composerModelSelector.loadingModels", defaultMessage: "Loading models" })}
         className="inline-flex h-10 items-center gap-1.5 px-2 sm:h-8"
       >
         {/* The trigger's own box and caret, so only the label changes when the models arrive.
@@ -41,7 +43,7 @@ export const ComposerModelSelector = ({
   }
 
   const selectedModelLabel = selectedModel == null
-    ? "No agent"
+    ? formatMessage({ id: "composerModelSelector.noAgent", defaultMessage: "No agent" })
     : models.find((model) => model.id === selectedModel.id)?.name ??
       selectedModel.name ?? selectedModel.id;
 
@@ -52,7 +54,7 @@ export const ComposerModelSelector = ({
           <button
             type="button"
             className="group inline-flex h-10 min-w-0 max-w-[110px] cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[14px] leading-5 text-kumo-subtle transition-[background-color,color,transform] duration-150 ease-out hover:bg-kumo-tint hover:text-kumo-default focus-visible:bg-kumo-tint focus-visible:text-kumo-default focus-visible:outline-none active:scale-[0.97] data-[popup-open]:bg-kumo-tint data-[popup-open]:text-kumo-default sm:h-8 sm:max-w-[180px] sm:text-[13px]"
-            aria-label="Select model"
+            aria-label={formatMessage({ id: "chatInterface.selectModel", defaultMessage: "Select model" })}
           >
             <span className="min-w-0 truncate">{selectedModelLabel}</span>
             <CaretDown
@@ -95,7 +97,7 @@ export const ComposerModelSelector = ({
           onClick={() => onModelChange(null)}
           className="!h-auto rounded-xl !px-2 !py-1.5 text-[12px] leading-4 font-normal tracking-[-0.15px] text-kumo-subtle transition-colors data-highlighted:bg-kumo-tint/70 data-highlighted:text-kumo-default"
         >
-          <span className="min-w-0 flex-1 truncate">No agent</span>
+          <span className="min-w-0 flex-1 truncate"><FormattedMessage id="chatInterface.noAgent" defaultMessage="No agent" /></span>
           {selectedModel == null && (
             <Check
               size={12}
