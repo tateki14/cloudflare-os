@@ -190,7 +190,7 @@ export const UpdateFromBlueprintDialog = ({
       // that the gadget changed while the update was being worked out, which trying again cures.
       const transient = logRpcFailure('Failed to apply a blueprint:', err)
       const message = transient || !(err instanceof Error) || !err.message
-        ? 'Something went wrong while preparing the update.'
+        ? formatMessage({ id: 'updateFromBlueprintDialog.somethingWentWrongWhilePreparingThe', defaultMessage: 'Something went wrong while preparing the update.' })
         : err.message
       setOutcome({ kind: 'failed', blueprint, allowUnrelated, message })
     } finally {
@@ -212,8 +212,8 @@ export const UpdateFromBlueprintDialog = ({
   const followedStatus =
     !followed || gadget.upstream?.commitId === undefined ||
       followed.metadata.commitId === undefined ? null
-      : hasNewerRelease(gadget.upstream, followed.metadata) ? 'Update available'
-        : 'Up to date'
+      : hasNewerRelease(gadget.upstream, followed.metadata) ? formatMessage({ id: 'updateFromBlueprintDialog.updateAvailable', defaultMessage: 'Update available' })
+        : formatMessage({ id: 'updateFromBlueprintDialog.upToDate', defaultMessage: 'Up to date' })
 
   const header = (title: string, description: string) => (
     <div className="flex shrink-0 items-start justify-between gap-4 border-b border-kumo-line px-4 py-5 sm:px-6">
@@ -270,15 +270,14 @@ export const UpdateFromBlueprintDialog = ({
     <Select
       label={formatMessage({ id: 'updateFromBlueprintDialog.reviewingAgent', defaultMessage: 'Reviewing agent' })}
       description={
-        'If you’ve customized this gadget, this agent makes sure your customizations are ' +
-        'compatible with the new version. Choose “No agent” to check them yourself.'
+        formatMessage({ id: 'updateFromBlueprintDialog.ifYouveCustomizedThisGadgetThis', defaultMessage: 'If you’ve customized this gadget, this agent makes sure your customizations are compatible with the new version. Choose “No agent” to check them yourself.' })
       }
       className="w-full text-sm [&_button]:!h-9"
       container={selectContainer}
       value={toModelSelectValue(reviewerId)}
       onValueChange={value => pickReviewer(fromModelSelectValue(String(value)))}
       renderValue={value => value === NO_AGENT_OPTION_VALUE
-        ? 'No agent'
+        ? formatMessage({ id: 'updateFromBlueprintDialog.noAgent', defaultMessage: 'No agent' })
         : models.find(model => model.id === value)?.name ?? String(value)}
       disabled={applying}
     >
@@ -340,7 +339,7 @@ export const UpdateFromBlueprintDialog = ({
       <Dialog className={DIALOG_CLASS} size="lg">
         {unrelated ? (
           <>
-            {header('Unrelated blueprint', `This gadget shares no history with ${unrelated.title}.`)}
+            {header(formatMessage({ id: 'updateFromBlueprintDialog.unrelatedBlueprint', defaultMessage: 'Unrelated blueprint' }), formatMessage({ id: 'updateFromBlueprintDialog.thisGadgetSharesNoHistoryWith', defaultMessage: 'This gadget shares no history with {title}.' }, { title: unrelated.title }))}
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
               {/* Kumo's Banner announces nothing itself, and this replaces what was on screen. */}
               <div role="alert">
@@ -349,10 +348,7 @@ export const UpdateFromBlueprintDialog = ({
                   size="sm"
                   title={formatMessage({ id: 'updateFromBlueprintDialog.yourOwnChangesMayBeUndone', defaultMessage: 'Your own changes may be undone' })}
                   description={
-                    'With no version in common, the update has to be merged against a guess at ' +
-                    'what this gadget was built from. A change of yours that the guess happens ' +
-                    'to include looks like something the blueprint removed, and is undone ' +
-                    'without a conflict being reported.'
+                    formatMessage({ id: 'updateFromBlueprintDialog.withNoVersionInCommonThe', defaultMessage: 'With no version in common, the update has to be merged against a guess at what this gadget was built from. A change of yours that the guess happens to include looks like something the blueprint removed, and is undone without a conflict being reported.' })
                   }
                 />
               </div>
@@ -382,9 +378,8 @@ export const UpdateFromBlueprintDialog = ({
         ) : (
           <>
             {header(
-              'Update from blueprint',
-              `Merge a blueprint's latest version into ${gadget.title}. The update opens in a ` +
-                'new chat, where you can try it before accepting it.',
+              formatMessage({ id: 'updateFromBlueprintDialog.updateFromBlueprint', defaultMessage: 'Update from blueprint' }),
+              formatMessage({ id: 'updateFromBlueprintDialog.mergeABlueprintsLatestVersionInto', defaultMessage: 'Merge a blueprint\'s latest version into {title}. The update opens in a new chat, where you can try it before accepting it.' }, { title: gadget.title }),
             )}
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
               {load.status === 'loading' ? (
@@ -400,10 +395,8 @@ export const UpdateFromBlueprintDialog = ({
                 <>
                   <p className={BODY_TEXT}>
                     {followedId === undefined
-                      ? 'The blueprint this gadget was made from is not known, so paste the ID ' +
-                        'or link of the one to update from.'
-                      : 'The blueprint this gadget follows is no longer available, but you can ' +
-                        'switch it to another.'}
+                      ? formatMessage({ id: 'updateFromBlueprintDialog.theBlueprintThisGadgetWasMade', defaultMessage: 'The blueprint this gadget was made from is not known, so paste the ID or link of the one to update from.' })
+                      : formatMessage({ id: 'updateFromBlueprintDialog.theBlueprintThisGadgetFollowsIs', defaultMessage: 'The blueprint this gadget follows is no longer available, but you can switch it to another.' })}
                   </p>
                   {switchForm()}
                 </>

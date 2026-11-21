@@ -438,7 +438,7 @@ function GadgetUISession({ gadget, height, reloadTrigger, isVisible = true, chat
         if (!isCurrent()) return
         console.error('Failed to load UI bundle:', err)
         // Includes imports that break the rules for UI code, so the agent needs to see it.
-        const message = err instanceof Error ? err.message : 'Failed to load UI bundle'
+        const message = err instanceof Error ? err.message : formatMessage({ id: 'gadgetUI.failedToLoadUiBundle', defaultMessage: 'Failed to load UI bundle' })
         onConsoleLogRef.current?.({ timestamp: new Date(), level: 'error', message: [message] })
         setError({ message })
       } finally {

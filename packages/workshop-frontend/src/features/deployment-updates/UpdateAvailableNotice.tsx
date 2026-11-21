@@ -44,7 +44,7 @@ export const UpdateAvailableNotice = () => {
       variant: 'info',
       timeout: 0,
       actions: [{
-        children: 'View update',
+        children: formatMessage({ id: 'updateAvailableNotice.viewUpdate', defaultMessage: 'View update' }),
         variant: 'primary',
         onClick: () => { void navigateRef.current({ to: '/admin', search: { tab: 'updates' } }) },
       }],

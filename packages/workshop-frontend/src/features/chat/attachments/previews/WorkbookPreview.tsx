@@ -7,7 +7,7 @@ import { assertOpenXml } from "./assertOpenXml";
 import { readOffice } from "./officeReader";
 import { MAX_GRID_COLUMNS, MAX_GRID_ROWS } from "./DataGrid";
 import { SheetGrid } from "./SheetGrid";
-import { FormattedMessage } from "react-intl";
+import { useIntl, FormattedMessage } from "react-intl";
 
 /** A workbook's sheets, refusing a password-protected file. */
 export const readSheets = async (bytes: Uint8Array) => {
@@ -36,6 +36,7 @@ const undrawnNotice = (undrawn: readonly UndrawnFeature[]): string => {
 
 /** An Excel workbook as it looks in Excel, one sheet at a time, with its sheet tabs along the bottom. */
 export const WorkbookPreview = ({ bytes }: AttachmentPreviewProps) => {
+  const { formatMessage } = useIntl();
   const { sheets, styles } = use(derivedFrom(bytes, readSheets));
   const [active, setActive] = useState(0);
   const sheet = sheets[active];
@@ -51,9 +52,9 @@ export const WorkbookPreview = ({ bytes }: AttachmentPreviewProps) => {
   const notices = [
     sheet.undrawn.length > 0 ? undrawnNotice(sheet.undrawn) : "",
     // Without this an empty total reads as a real, empty value.
-    sheet.uncalculatedFormulas ? "Formulas this file holds no results for show as empty." : "",
+    sheet.uncalculatedFormulas ? formatMessage({ id: "workbookPreview.formulasThisFileHoldsNoResults", defaultMessage: "Formulas this file holds no results for show as empty." }) : "",
     sheet.truncated
-      ? `Showing at most the first ${MAX_GRID_ROWS.toLocaleString()} rows and ${MAX_GRID_COLUMNS} columns. Download the file to see all of it.`
+      ? formatMessage({ id: "workbookPreview.showingAtMostTheFirstRows", defaultMessage: "Showing at most the first {value} rows and {MAX_GRID_COLUMNS} columns. Download the file to see all of it." }, { value: MAX_GRID_ROWS.toLocaleString(), MAX_GRID_COLUMNS: MAX_GRID_COLUMNS })
       : "",
   ].filter(Boolean);
 

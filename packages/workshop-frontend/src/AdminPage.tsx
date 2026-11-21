@@ -414,7 +414,7 @@ export default function AdminPage() {
       await admin.api.setUserSearchEnabled(enabled)
     } catch (err) {
       setUserSearchEnabled(!enabled) // revert
-      const message = err instanceof Error ? err.message : 'Update failed'
+      const message = err instanceof Error ? err.message : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingUserSearch(false)
@@ -429,7 +429,7 @@ export default function AdminPage() {
       await admin.api.setSnapshotSharingEnabled(enabled)
     } catch (err) {
       setSnapshotSharingEnabled(!enabled) // revert
-      const message = err instanceof Error ? err.message : 'Update failed'
+      const message = err instanceof Error ? err.message : formatMessage({ id: 'adminPage.updateFailed', defaultMessage: 'Update failed' })
       toasts.add({ title: message, variant: 'error' })
     } finally {
       setSavingSnapshotSharing(false)

@@ -226,7 +226,7 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
       await onSettingsChanged()
       return true
     } catch (err) {
-      reportFailure('Couldn’t reload the admin settings', err)
+      reportFailure(formatMessage({ id: 'adminAuditPanel.couldntReloadTheAdminSettings', defaultMessage: 'Couldn’t reload the admin settings' }), err)
       return false
     }
   }
@@ -239,7 +239,7 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
     refocusAccess.current = true
     setSavingAccess(true)
     try {
-      await change(`Couldn’t update “${ACCESS_LABEL}”`, () => admin.setAdminWorkspaceAccess(level))
+      await change(formatMessage({ id: 'adminAuditPanel.couldntUpdate', defaultMessage: 'Couldn’t update “{ACCESS_LABEL}”' }, { ACCESS_LABEL: ACCESS_LABEL }), () => admin.setAdminWorkspaceAccess(level))
     } finally {
       setSavingAccess(false)
     }
@@ -330,15 +330,14 @@ export const AdminAuditPanel = ({ admin, settings, onSettingsChanged, filter, on
           <DurationSetting
             label={RETENTION_LABEL}
             help={
-              'How long the admin audit log keeps a record. This deployment keeps at least ' +
-              `${NUMBER.format(retention.min)} days, which its ADMIN_AUDIT_RETENTION_MIN_DAYS variable sets.`
+              formatMessage({ id: 'adminAuditPanel.howLongTheAdminAuditLog', defaultMessage: 'How long the admin audit log keeps a record. This deployment keeps at least {value} days, which its ADMIN_AUDIT_RETENTION_MIN_DAYS variable sets.' }, { value: NUMBER.format(retention.min) })
             }
             unit="days"
             min={retention.min}
             max={MAX_ADMIN_AUDIT_RETENTION_DAYS}
             value={retention.effective}
             onSave={(days) =>
-              change(`Couldn’t update “${RETENTION_LABEL}”`, () => admin.setAdminAuditRetentionDays(days))}
+              change(formatMessage({ id: 'adminAuditPanel.couldntUpdate2', defaultMessage: 'Couldn’t update “{RETENTION_LABEL}”' }, { RETENTION_LABEL: RETENTION_LABEL }), () => admin.setAdminAuditRetentionDays(days))}
           />
         </div>
       </div>

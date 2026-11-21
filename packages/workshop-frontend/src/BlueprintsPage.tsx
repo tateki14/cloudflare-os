@@ -253,6 +253,7 @@ function FeaturedBlueprintRow({
   blueprint: BlueprintPublicInfo;
   vendorDescriptions: VendorMap;
 }) {
+  const { formatMessage } = useIntl();
   const badges = uniqueBindingBadges(blueprint.metadata.bindings).slice(0, 3);
 
   return (
@@ -273,7 +274,7 @@ function FeaturedBlueprintRow({
             blueprint.metadata.description ? "text-kumo-subtle" : "italic text-kumo-inactive"
           }`}
         >
-          {blueprint.metadata.description || "No description"}
+          {blueprint.metadata.description || formatMessage({ id: "blueprintsPage.noDescription", defaultMessage: "No description" })}
         </p>
       </div>
       {badges.length > 0 && (

@@ -61,9 +61,9 @@ export const FileImage = ({ oid, alt = '', title, readBlob, layout }: {
   return <span ref={ref}>{image && url && !error ? <img
     src={url} data-blob-oid={oid} alt={alt} title={title} className="max-w-full h-auto"
     onLoad={layout?.onHeightChange}
-    onError={() => setState({ error: 'This image could not be decoded.' })}
+    onError={() => setState({ error: formatMessage({ id: 'fileImage.thisImageCouldNotBeDecoded', defaultMessage: 'This image could not be decoded.' }) })}
   /> : <span role="img" aria-label={alt || formatMessage({ id: 'fileImage.image', defaultMessage: 'Image' })} aria-busy={!error}
     title={state && 'error' in state ? state.error : title} className="text-kumo-subtle">
-    {error ? `Image unavailable${alt ? `: ${alt}` : ''}` : alt || 'Loading image…'}
+    {error ? formatMessage({ id: 'fileImage.imageUnavailable', defaultMessage: 'Image unavailable{value}' }, { value: alt ? `: ${alt}` : '' }) : alt || formatMessage({ id: 'fileImage.loadingImage', defaultMessage: 'Loading image…' })}
   </span>}</span>
 }

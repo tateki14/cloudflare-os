@@ -2037,7 +2037,7 @@ export default function GadgetEditor() {
           <span className="md:hidden">
             <GadgetExportMenu
               gadget={selectedGadgetStub}
-              gadgetTitle={selectedGadgetSummary?.title ?? 'Gadget'}
+              gadgetTitle={selectedGadgetSummary?.title ?? formatMessage({ id: 'gadgetEditor.gadgetFallbackTitle', defaultMessage: 'Gadget' })}
               chatId={previewChatId}
               saveScope={gadgetSaveScope}
             />
@@ -2332,7 +2332,7 @@ export default function GadgetEditor() {
                       tabIndex={0}
                       workpiece={selectedGadgetSummary}
                       title={selectedGadgetSummary.title}
-                      badge={selectedGadgetSummary.chatId !== undefined ? 'Draft' : undefined}
+                      badge={selectedGadgetSummary.chatId !== undefined ? formatMessage({ id: 'gadgetEditor.draftBadge', defaultMessage: 'Draft' }) : undefined}
                     />
                   )}
                   onDelete={() => requestGadgetDeletion(selectedGadgetSummary)}

@@ -22,7 +22,7 @@ type Props = {
   label?: string
 }
 
-export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScope, label = 'Export gadget' }: Props) {
+export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScope, label: labelProp }: Props) {
   const [formats, setFormats] = useState<GadgetExportFormat[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -34,6 +34,7 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
   const { vendors: saveVendors, refresh: refreshSaveVendors } = useSaveVendors(!!saveScope)
   const toasts = useKumoToastManager()
   const { formatMessage } = useIntl()
+  const label = labelProp ?? formatMessage({ id: 'gadgetExportMenu.exportGadget2', defaultMessage: 'Export gadget' })
 
   useEffect(() => {
     ++formatRequest.current
@@ -104,7 +105,7 @@ export default function GadgetExportMenu({ gadget, gadgetTitle, chatId, saveScop
   if (!gadget) return null
 
   const exportingFormat = formats?.find(format => format.id === exportingId)
-  const tooltip = exportingFormat ? `Exporting to ${exportingFormat.label}` : label
+  const tooltip = exportingFormat ? formatMessage({ id: 'gadgetExportMenu.exportingToFormat', defaultMessage: 'Exporting to {label}' }, { label: exportingFormat.label }) : label
 
   return (
     <Tooltip content={tooltip} asChild>

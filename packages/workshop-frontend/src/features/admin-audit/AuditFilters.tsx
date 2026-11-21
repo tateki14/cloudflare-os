@@ -94,7 +94,7 @@ export const AuditFilters = ({ filter, adminSuggestions, targetSuggestions, work
             if (kind === null) return
             onFilterChange({ ...filter, kind: kind === ANY_KIND ? undefined : kind })
           }}
-          renderValue={(kind) => kind === ANY_KIND ? 'Any kind' : KIND_NAMES[kind]}
+          renderValue={(kind) => kind === ANY_KIND ? formatMessage({ id: 'auditFilters.anyKind', defaultMessage: 'Any kind' }) : KIND_NAMES[kind]}
         >
           <Select.Option value={ANY_KIND}><FormattedMessage id="auditFilters.anyKind" defaultMessage="Any kind" /></Select.Option>
           {AUDIT_KINDS.map((kind) => (

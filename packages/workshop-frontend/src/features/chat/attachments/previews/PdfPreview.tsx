@@ -167,7 +167,7 @@ export const PdfPreview = ({ bytes }: AttachmentPreviewProps) => {
 
   if (failure) {
     throw failure instanceof PasswordException
-      ? new AttachmentPreviewError("This PDF is password-protected. Download it to open it.")
+      ? new AttachmentPreviewError(formatMessage({ id: "pdfPreview.thisPdfIsPasswordProtectedDownload", defaultMessage: "This PDF is password-protected. Download it to open it." }))
       : failure;
   }
 

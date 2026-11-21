@@ -331,11 +331,8 @@ export default function ObserverConfigModal({
           </Dialog.Title>
           <Text variant="secondary" size="sm" as="p">
             {isRetry
-              ? `We couldn’t confirm your access to everything this ${subject} has read. Depending on ` +
-                'the reason below, re-authenticate an expired account, choose a different one, or ask ' +
-                `the ${subject} owner to share what your account can’t access.`
-              : `Before opening this ${subject}, confirm that your own accounts can access the connected ` +
-                'data it uses.'}
+              ? formatMessage({ id: 'observerConfigModal.weCouldntConfirmYourAccessTo', defaultMessage: 'We couldn’t confirm your access to everything this {subject} has read. Depending on the reason below, re-authenticate an expired account, choose a different one, or ask the {subject2} owner to share what your account can’t access.' }, { subject: subject, subject2: subject })
+              : formatMessage({ id: 'observerConfigModal.beforeOpeningThisConfirmThatYour', defaultMessage: 'Before opening this {subject}, confirm that your own accounts can access the connected data it uses.' }, { subject: subject })}
           </Text>
         </div>
 

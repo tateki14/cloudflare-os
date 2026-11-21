@@ -11,6 +11,7 @@ import { logRpcFailure } from "../../rpcErrors";
 import { nativeApp } from "../native-app/nativeApp";
 import { registerNativeNotificationEnrollment } from "./nativeNotificationEnrollment";
 import { isChatVisible } from "./visibleChat";
+import { useIntl } from "react-intl";
 
 const DEVICE_REGISTRATION_EVENT = "cloudflare-os:notification-device-registration";
 const NOTIFICATION_AUTHORIZATION_REQUEST_EVENT =
@@ -57,6 +58,7 @@ export const NotificationBridge = ({
 }: {
   authenticatedApi: RpcStub<AuthenticatedApi>;
 }) => {
+  const { formatMessage } = useIntl();
   const toasts = useKumoToastManager();
   const addToast = useRef(toasts.add);
   addToast.current = toasts.add;
@@ -218,7 +220,7 @@ export const NotificationBridge = ({
           title: `${chatTitle || "Task"} ${completed ? "completed" : "needs permission"}`,
           variant: completed ? "success" : "info",
           actions: [{
-            children: "Open task",
+            children: formatMessage({ id: "notificationBridge.openTask", defaultMessage: "Open task" }),
             onClick: () => router.navigate({
               to: "/workspace/$id",
               params: { id: workspaceId },

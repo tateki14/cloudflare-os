@@ -107,8 +107,8 @@ export const AddGatewayModelForm = ({
   const contextWindowTokens = parseTokenLimit(contextWindow)
   const outputLimitTokens = parseTokenLimit(outputLimit)
   const fields = [
-    { ref: idRef, error: id.trim() ? undefined : 'Enter the model ID' },
-    { ref: nameRef, error: name.trim() ? undefined : 'Enter a display name' },
+    { ref: idRef, error: id.trim() ? undefined : formatMessage({ id: 'addGatewayModelForm.enterTheModelId', defaultMessage: 'Enter the model ID' }) },
+    { ref: nameRef, error: name.trim() ? undefined : formatMessage({ id: 'addGatewayModelForm.enterADisplayName', defaultMessage: 'Enter a display name' }) },
     { ref: contextWindowRef, error: contextWindowTokens ? undefined : TOKEN_LIMIT_ERROR },
     {
       ref: outputLimitRef,
@@ -191,7 +191,7 @@ export const AddGatewayModelForm = ({
       await onAdd(described)
     } catch (err) {
       console.error('Failed to add gateway model:', err)
-      setRefusal(err instanceof Error && err.message ? err.message : 'The model could not be added.')
+      setRefusal(err instanceof Error && err.message ? err.message : formatMessage({ id: 'addGatewayModelForm.theModelCouldNotBeAdded', defaultMessage: 'The model could not be added.' }))
       return
     }
     clear()

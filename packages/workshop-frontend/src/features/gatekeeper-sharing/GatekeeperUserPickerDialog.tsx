@@ -127,7 +127,7 @@ export default function GatekeeperUserPickerDialog({
         if (!active.current) return
         accepted.current.add(user.id)
         setPicked((current) => [...current, { id: user.id, name: selection.profile.displayName }])
-        setAnnouncement(`Added ${selection.profile.displayName}`)
+        setAnnouncement(formatMessage({ id: 'gatekeeperUserPickerDialog.added2', defaultMessage: 'Added {displayName}' }, { displayName: selection.profile.displayName }))
       },
     ).catch((error: unknown) => {
       if (!active.current) return

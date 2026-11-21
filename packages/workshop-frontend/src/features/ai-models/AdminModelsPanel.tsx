@@ -93,6 +93,7 @@ const DefaultReasoningSetting = ({ level, disabled, onChange }: {
   disabled: boolean
   onChange: (level: ReasoningLevel | null) => void
 }) => {
+  const { formatMessage } = useIntl()
   const help = useId()
   return (
     <SettingRow
@@ -100,12 +101,7 @@ const DefaultReasoningSetting = ({ level, disabled, onChange }: {
       help={{
         id: help,
         text:
-          'The reasoning level of the agent’s turns on every model listed here that has no level ' +
-          'of its own. Built-in sets none: each model is then asked the way the Workshop asks it ' +
-          'by default, which the model’s Settings name. That is Provider default, where the model ' +
-          'reasons at whatever effort its provider defaults to, a fixed level, or no level sent. A ' +
-          'level that a model lacks is fitted to the nearest one it has. One-shot calls (titles, ' +
-          'summaries, gadget model bindings) are not affected, and neither are the models users added.',
+          formatMessage({ id: 'adminModelsPanel.theReasoningLevelOfTheAgents', defaultMessage: 'The reasoning level of the agent’s turns on every model listed here that has no level of its own. Built-in sets none: each model is then asked the way the Workshop asks it by default, which the model’s Settings name. That is Provider default, where the model reasons at whatever effort its provider defaults to, a fixed level, or no level sent. A level that a model lacks is fitted to the nearest one it has. One-shot calls (titles, summaries, gadget model bindings) are not affected, and neither are the models users added.' }),
       }}
     >
       <Select<ReasoningLevel | typeof BUILT_IN>
@@ -193,7 +189,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
     setBusy(true)
     try {
       await op()
-      await onChanged().catch((err) => reportFailure('Saved, but couldn’t reload the models', err))
+      await onChanged().catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.savedButCouldntReloadTheModels', defaultMessage: 'Saved, but couldn’t reload the models' }), err))
     } finally {
       setBusy(false)
     }
@@ -209,7 +205,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
 
   const changeMode = (model: AdminModel, mode: GatewayModelMode) =>
     writeModel(model, () => admin.setGatewayModelMode(model.id, mode))
-      .catch((err) => reportFailure(`Couldn’t update ${model.name}`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate', defaultMessage: 'Couldn’t update {name}' }, { name: model.name }), err))
 
   // Disabling breaks what runs on the model with nobody there to see it fail, so it is confirmed.
   const requestMode = (model: AdminModel, mode: GatewayModelMode) => {
@@ -219,34 +215,34 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
 
   const changeSettings = (model: AdminModel, settings: GatewayModelSettings) =>
     writeModel(model, () => admin.setGatewayModelSettings(model.id, settings))
-      .catch((err) => reportFailure(`Couldn’t update ${model.name}`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate', defaultMessage: 'Couldn’t update {name}' }, { name: model.name }), err))
 
   // The default is the level of every model that has none of its own, so every test is forgotten.
   const changeDefaultReasoning = (level: ReasoningLevel | null) =>
     write(async () => {
       await admin.setDefaultReasoning(level)
       modelTests.clearTests()
-    }).catch((err) => reportFailure(`Couldn’t update “${DEFAULT_REASONING_LABEL}”`, err))
+    }).catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate2', defaultMessage: 'Couldn’t update “{DEFAULT_REASONING_LABEL}”' }, { DEFAULT_REASONING_LABEL: DEFAULT_REASONING_LABEL }), err))
 
   const changeUserModels = (enabled: boolean) =>
     write(() => admin.setUserModelsEnabled(enabled))
-      .catch((err) => reportFailure(`Couldn’t update “${USER_MODELS_LABEL}”`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate3', defaultMessage: 'Couldn’t update “{USER_MODELS_LABEL}”' }, { USER_MODELS_LABEL: USER_MODELS_LABEL }), err))
 
   const changeModelsDevSuggestions = (enabled: boolean) =>
     write(() => admin.setModelsDevSuggestions(enabled))
-      .catch((err) => reportFailure(`Couldn’t update “${MODELS_DEV_LABEL}”`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate4', defaultMessage: 'Couldn’t update “{MODELS_DEV_LABEL}”' }, { MODELS_DEV_LABEL: MODELS_DEV_LABEL }), err))
 
   const changeProviderEnabled = (provider: AiModelProvider, enabled: boolean) =>
     write(() => admin.setGatewayProviderEnabled(provider, enabled))
-      .catch((err) => reportFailure(`Couldn’t update ${PROVIDER_LABELS[provider]}`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntUpdate5', defaultMessage: 'Couldn’t update {value}' }, { value: PROVIDER_LABELS[provider] }), err))
 
   const changeProviderOrder = (providers: AiModelProvider[]) =>
     write(() => admin.setGatewayProviderOrder(providers))
-      .catch((err) => reportFailure('Couldn’t reorder the providers', err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntReorderTheProviders', defaultMessage: 'Couldn’t reorder the providers' }), err))
 
   const changeModelOrder = (provider: AiModelProvider, modelIds: string[]) =>
     write(() => admin.setGatewayModelOrder(provider, modelIds))
-      .catch((err) => reportFailure(`Couldn’t reorder the ${PROVIDER_LABELS[provider]} models`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntReorderTheModels', defaultMessage: 'Couldn’t reorder the {value} models' }, { value: PROVIDER_LABELS[provider] }), err))
 
   // Runs when the add form's Model ID field is first turned to, and at most once for as long as
   // the panel is mounted: the list is several megabytes, and a failure only costs the suggestions.
@@ -267,7 +263,7 @@ export const AdminModelsPanel = ({ admin, gatewayModels, onChanged }: {
   const confirmRemoval = async () => {
     if (!pendingRemoval) return
     await writeModel(pendingRemoval, () => admin.removeGatewayModel(pendingRemoval.id))
-      .catch((err) => reportFailure(`Couldn’t remove ${pendingRemoval.name}`, err))
+      .catch((err) => reportFailure(formatMessage({ id: 'adminModelsPanel.couldntRemove', defaultMessage: 'Couldn’t remove {name}' }, { name: pendingRemoval.name }), err))
     setPendingRemoval(null)
   }
 

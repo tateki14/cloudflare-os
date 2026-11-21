@@ -174,7 +174,7 @@ export const UiBlockCard = ({
     }
   }
 
-  const title = block.title ?? 'View'
+  const title = block.title ?? formatMessage({ id: 'uiBlockCard.view', defaultMessage: 'View' })
   return (
     <div ref={cardRef} className="group/view my-3">
       {refused !== undefined ? (

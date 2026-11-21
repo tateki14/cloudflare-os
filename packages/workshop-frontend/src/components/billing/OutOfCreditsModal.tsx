@@ -94,7 +94,7 @@ export default function OutOfCreditsModal({ open, onClose }: OutOfCreditsModalPr
       setAccounts(null)
       refresh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to select account'
+      const msg = err instanceof Error ? err.message : formatMessage({ id: 'outOfCreditsModal.failedToSelectAccount', defaultMessage: 'Failed to select account' })
       toasts.add({ title: msg, variant: 'error' })
     } finally {
       setSelecting(null)

@@ -468,7 +468,7 @@ function FileRow({
   const isPending = status === 'pending'
   const dotClass = getStatusDotClass(status)
   const KindIcon = LEAF_ICONS[kind]
-  const kindLabel = isPending ? 'Loading this change\u2026' : LEAF_KIND_LABELS[kind]
+  const kindLabel = isPending ? formatMessage({ id: 'fileBrowser.loadingThisChange', defaultMessage: 'Loading this change…' }) : LEAF_KIND_LABELS[kind]
 
   useEffect(() => {
     if (!isRenaming) return

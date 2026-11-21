@@ -3072,11 +3072,11 @@ function ChatInterface({
   const activityLineOf = (chatId: number): string | undefined => {
     const provisional = provisionalRef.current.get(chatId);
     if (!provisional) return undefined;
-    if (provisional.compacting) return "Summarizing earlier messages";
+    if (provisional.compacting) return formatMessage({ id: "chatInterface.summarizingEarlierMessages", defaultMessage: "Summarizing earlier messages" });
     if (provisional.toolCalls.length > 0) {
       return buildProvisionalToolSummary(provisional.toolCalls).label;
     }
-    return provisional.reasoning ? "Thinking" : undefined;
+    return provisional.reasoning ? formatMessage({ id: "chatInterface.thinking", defaultMessage: "Thinking" }) : undefined;
   };
 
   // The list's relative times ("11m", "Yesterday") have to move on in a workspace where nothing
@@ -3236,11 +3236,11 @@ function ChatInterface({
   );
   // While one of these is pending, neither the composer nor a view's Send can add a message.
   const sendBlockedReason = hasPendingConnectionRequest
-    ? "Set up or deny the connection request above to continue."
+    ? formatMessage({ id: "chatInterface.blockedSetUpOrDenyConnection", defaultMessage: "Set up or deny the connection request above to continue." })
     : hasPendingAwaitedAction
-      ? "Approve or reject the pending action above to continue."
+      ? formatMessage({ id: "chatInterface.blockedApproveOrRejectAction", defaultMessage: "Approve or reject the pending action above to continue." })
       : pendingWebFetchRequestIds.length > 0
-        ? "Approve or deny the web fetch request above to continue."
+        ? formatMessage({ id: "chatInterface.approveOrDenyTheWebFetch", defaultMessage: "Approve or deny the web fetch request above to continue." })
         : undefined;
   // A gadget's stamped format, looked up by the id a finished createGadget call reports, so the
   // transcript can say "Created Doc" with the Doc icon.
@@ -3339,7 +3339,7 @@ function ChatInterface({
     codeChatId !== null ? cacheRef.current.chats.get(codeChatId) : null;
   const returnChat =
     returnChatId != null ? cacheRef.current.chats.get(returnChatId) : undefined;
-  const backLabel = returnChat ? `Back to ${returnChat.title}` : "Back to conversations";
+  const backLabel = returnChat ? formatMessage({ id: "chatInterface.backTo", defaultMessage: "Back to {title}" }, { title: returnChat.title }) : formatMessage({ id: "chatInterface.backToConversations", defaultMessage: "Back to conversations" });
   const codeProposedWorkpieces = codeChatMetadata?.proposedChangeWorkpieces;
   const codeProposedWorkpiecesKey = codeProposedWorkpieces?.join(",") ?? "";
   const codeMetadataLoaded = codeChatMetadata !== undefined;
@@ -5485,9 +5485,9 @@ function ChatInterface({
     const stateLabel = isApproved
       ? formatMessage({ id: "chatInterface.actionStateApproved", defaultMessage: "Approved" })
       : isRejected
-        ? "Denied"
+        ? formatMessage({ id: "chatInterface.connectionStateDenied", defaultMessage: "Denied" })
         : decidedInTray
-          ? "Waiting for review"
+          ? formatMessage({ id: "chatInterface.waitingForReview", defaultMessage: "Waiting for review" })
           : null;
     const stateLabelCls = isRejected
       ? "text-kumo-danger"
@@ -6327,7 +6327,7 @@ function ChatInterface({
                         const irrevocableMerge =
                           mainlineMerge !== undefined && mainlineMerge.gadgets === undefined;
                         const discardLabel = irrevocableMerge
-                          ? "This update can't be discarded: it brought in changes already accepted elsewhere. Edit the files instead."
+                          ? formatMessage({ id: "chatInterface.mainlineMergeCannotBeDiscarded", defaultMessage: "This update can't be discarded: it brought in changes already accepted elsewhere. Edit the files instead." })
                           : mainlineMerge
                           ? entry.message.sequence === lastDurablePendingChange?.sequence
                             ? formatMessage({ id: "chatInterface.discardThisUpdate", defaultMessage: "Discard this update" })

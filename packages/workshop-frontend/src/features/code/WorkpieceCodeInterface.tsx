@@ -428,8 +428,7 @@ export default function WorkpieceCodeInterface({
       },
       onLocalEditsDiscarded: () => {
         toastsRef.current.add({
-          title: "Your latest code edits were discarded — this conversation's changes were " +
-            'reverted or changed by someone else at the same time.',
+          title: formatMessage({ id: 'workpieceCodeInterface.yourLatestCodeEditsWereDiscarded', defaultMessage: 'Your latest code edits were discarded — this conversation\'s changes were reverted or changed by someone else at the same time.' }),
           variant: 'warning',
         })
       },
@@ -1094,7 +1093,7 @@ export default function WorkpieceCodeInterface({
   // content has loaded.
   const isEditingLocked = !branchMode || isAgentActive || !clientReady
   // Outside a chat nothing on screen says why the code is read-only, so say how to unlock it.
-  const lockedHint = branchMode ? undefined : 'Select or start a conversation to edit'
+  const lockedHint = branchMode ? undefined : formatMessage({ id: 'workpieceCodeInterface.selectOrStartAConversationTo', defaultMessage: 'Select or start a conversation to edit' })
 
   // Apply whole-file operations (create / delete / rename) as local changes. `set` and `remove`
   // need no base text; the seeding call matters for an unpinned gadget, which it makes part of
@@ -1411,17 +1410,17 @@ export default function WorkpieceCodeInterface({
     : activeReview.kind === 'text'
       ? activeReview.text
       : activeReview.kind === 'blob'
-        ? `(${activeFile} is not a text file; its previous content cannot be shown)`
-        : `(${activeReview.message}; its previous content cannot be shown)`
+        ? formatMessage({ id: 'workpieceCodeInterface.isNotATextFileIts', defaultMessage: '({activeFile} is not a text file; its previous content cannot be shown)' }, { activeFile: activeFile })
+        : formatMessage({ id: 'workpieceCodeInterface.itsPreviousContentCannotBeShown', defaultMessage: '({message}; its previous content cannot be shown)' }, { message: activeReview.message })
   // Either of the open file's two reads failing is shown in its pane, with a retry.
   const activeFileError = (activeResolved === undefined ? activeBaseError : null) ??
     (activeReviewLoading ? reviewError : null)
   const activeFileDownloadable = activeFileText !== null || activeResolved?.kind === 'blob'
   const activeFileModeLabel = !branchMode
-    ? 'Viewing'
+    ? formatMessage({ id: 'workpieceCodeInterface.viewing', defaultMessage: 'Viewing' })
     : isEditingLocked
-      ? 'Reviewing changes in'
-      : 'Editing changes in'
+      ? formatMessage({ id: 'workpieceCodeInterface.reviewingChangesIn', defaultMessage: 'Reviewing changes in' })
+      : formatMessage({ id: 'workpieceCodeInterface.editingChangesIn', defaultMessage: 'Editing changes in' })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height, width: '100%' }}>
@@ -1501,7 +1500,7 @@ export default function WorkpieceCodeInterface({
             <div className="min-w-0 flex-1 truncate text-[13px] leading-4 text-kumo-subtle md:text-[12px]">
               {activeFile ? (
                 <>{activeFileModeLabel} <span className="font-mono font-medium text-kumo-default">{activeFile}</span></>
-              ) : 'Files'}
+              ) : formatMessage({ id: 'workpieceCodeInterface.files', defaultMessage: 'Files' })}
             </div>
             {summary.type === 'worktree' && (
               // The worktree's HEAD -- the agent's last explicit commit. Display only: what the

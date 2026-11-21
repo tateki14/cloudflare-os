@@ -153,7 +153,7 @@ const CommitEmailRow = ({ initialCommitEmail }: { initialCommitEmail?: string })
               className={`mt-1.5 ${INPUT} ${error ? 'border-kumo-danger focus:border-kumo-danger' : ''}`}
             />
             <p className={`mt-1 text-[12px] tracking-[-0.1px] ${error ? 'text-kumo-danger' : 'text-kumo-subtle'}`}>
-              {error ?? 'Leave blank to use an address based on your user ID.'}
+              {error ?? formatMessage({ id: 'settingsPage.leaveBlankToUseAnAddress', defaultMessage: 'Leave blank to use an address based on your user ID.' })}
             </p>
           </>
         ) : commitEmail ? (

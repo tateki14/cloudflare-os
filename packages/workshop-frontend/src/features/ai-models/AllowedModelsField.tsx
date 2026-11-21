@@ -238,7 +238,7 @@ export const AllowedModelsField = ({ modelName, allowedModels, providers, sugges
               <ComposerChip
                 key={name}
                 label={name}
-                removeLabel={`Remove ${name} from the allowed models of ${modelName}`}
+                removeLabel={formatMessage({ id: 'allowedModelsField.removeFromTheAllowedModelsOf', defaultMessage: 'Remove {name} from the allowed models of {modelName}' }, { name: name, modelName: modelName })}
                 disabled={busy}
                 onRemove={() => remove(name)}
               />

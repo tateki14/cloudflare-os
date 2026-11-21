@@ -665,8 +665,8 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
   const advancedShareLinks = visibleShareLinks.filter(link => link !== myDefaultLink &&
     (isOwner || link.createdBy.id === currentUser?.id))
   const myLinkAccess: GadgetAccess | undefined = myDefaultLink && (myDefaultLink.mode ?? 'use')
-  const myLinkLabel = myLinkAccess === undefined ? 'Requires invite'
-    : gadgetId === undefined ? 'Can join' : ACCESS_LABELS[myLinkAccess]
+  const myLinkLabel = myLinkAccess === undefined ? formatMessage({ id: 'shareModal.requiresInvite', defaultMessage: 'Requires invite' })
+    : gadgetId === undefined ? formatMessage({ id: 'shareModal.canJoin', defaultMessage: 'Can join' }) : ACCESS_LABELS[myLinkAccess]
   // Someone who can't invite has no recipient to verify. While loading, show nothing rather than
   // reserve space for an answer we don't have yet.
   const showResourcesPill = canInvite && (requirementsFailed || (requirements?.length ?? 0) > 0)
@@ -721,13 +721,13 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
     const reasons = scopedEdges(info).flatMap(edge => {
       if (edge.type === 'user') {
         if (ownerInvitesOnly ? edge.sharer !== ownerProfile?.id : !sourceConfers(edge.sharer)) return []
-        return [`Invited by ${sharerName(edge.sharer)}`]
+        return [formatMessage({ id: 'shareModal.invitedBy', defaultMessage: 'Invited by {sharerName}' }, { sharerName: sharerName(edge.sharer) })]
       }
       const link = shareLinks.find(item => item.linkId === edge.keyId)
       const creator = link?.createdBy
       if (!link || !creator || ownerInvitesOnly || !sourceConfers(creator.id)) return []
-      if (creator.id !== currentUser?.id) return [`Joined with ${creator.name}’s link`]
-      return [link.default ? 'Joined with your link' : 'Joined with your custom share link']
+      if (creator.id !== currentUser?.id) return [formatMessage({ id: 'shareModal.joinedWithSLink', defaultMessage: 'Joined with {name}’s link' }, { name: creator.name })]
+      return [link.default ? formatMessage({ id: 'shareModal.joinedWithYourLink', defaultMessage: 'Joined with your link' }) : formatMessage({ id: 'shareModal.joinedWithYourCustomShareLink', defaultMessage: 'Joined with your custom share link' })]
     })
     return reasons.length > 0 ? [...new Set(reasons)].join(' · ') : undefined
   }
@@ -1181,7 +1181,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
     // A gadget dialog lists only the people given that gadget, who use or view it rather than belong.
     const held: GadgetAccess | undefined = gadgetId === undefined ? undefined
       : holdsOnlyView(info.access, gadgetId) ? 'view' : 'use'
-    const accessLabel = held === undefined ? 'Member' : ACCESS_LABELS[held]
+    const accessLabel = held === undefined ? formatMessage({ id: 'shareModal.member', defaultMessage: 'Member' }) : ACCESS_LABELS[held]
     const removable = canRemove(info)
     // Anyone who can share can give the full gadget, but narrowing removes their grant first.
     const changeable = held !== undefined && canInvite &&
@@ -1386,7 +1386,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                   detail={recipient.name !== recipient.id ? recipient.id : undefined}
                   title={recipient.error ?? (recipient.name !== recipient.id ? recipient.id : undefined)}
                   error={Boolean(recipient.error)}
-                  removeLabel={`Remove ${recipientLabel(recipient)}`}
+                  removeLabel={formatMessage({ id: 'shareModal.remove2', defaultMessage: 'Remove {recipientLabel}' }, { recipientLabel: recipientLabel(recipient) })}
                   disabled={adding}
                   onRemove={() => removeStaged(recipient)}
                 />
@@ -1779,7 +1779,7 @@ export default function ShareModal({ open, onClose, overseer, metadata, target, 
                   // A named link by its note, the viewer's own default link as theirs, and any
                   // other link -- an unnamed one, or someone else's default -- by who made it.
                   const name = !sk.default && sk.note ? sk.note
-                    : sk.default && sk.createdBy.id === currentUser?.id ? 'Your link' : `${sk.createdBy.name}’s link`
+                    : sk.default && sk.createdBy.id === currentUser?.id ? formatMessage({ id: 'shareModal.yourLink', defaultMessage: 'Your link' }) : `${sk.createdBy.name}’s link`
                   return (
                     <div key={sk.linkId} className={`group ${index > 0 ? 'border-t border-kumo-line/70' : ''} ${landedShareLinkId === sk.linkId ? 'share-row-land' : 'transition-colors duration-150 hover:bg-kumo-elevated/50'} px-3 py-2.5`}>
                       <div className="flex items-center gap-3">

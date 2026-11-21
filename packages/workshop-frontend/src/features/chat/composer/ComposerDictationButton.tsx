@@ -1,6 +1,7 @@
 import { Button, Loader } from "@cloudflare/kumo";
 import { Hourglass, Microphone } from "@phosphor-icons/react";
 import type { DictationStatus } from "./useComposerDictation";
+import { useIntl } from "react-intl";
 
 const announcements: Record<DictationStatus, string> = {
   idle: "",
@@ -16,11 +17,12 @@ export const ComposerDictationButton = ({ status, disabled, onToggle, onCancel }
   onToggle: () => void;
   onCancel: () => void;
 }) => {
+  const { formatMessage } = useIntl();
   const listening = status === "listening";
   const preparing = status === "starting" || status === "downloading" || status === "finishing";
   const label = status === "idle"
-    ? "Start voice typing"
-    : status === "finishing" ? "Add what you said now" : "Stop voice typing";
+    ? formatMessage({ id: "composerDictationButton.startVoiceTyping", defaultMessage: "Start voice typing" })
+    : status === "finishing" ? formatMessage({ id: "composerDictationButton.addWhatYouSaidNow", defaultMessage: "Add what you said now" }) : formatMessage({ id: "composerDictationButton.stopVoiceTyping", defaultMessage: "Stop voice typing" });
 
   return (
     <>

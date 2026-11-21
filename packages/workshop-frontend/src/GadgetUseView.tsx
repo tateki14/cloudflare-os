@@ -115,7 +115,7 @@ export default function GadgetUseView({
           )}
           <GadgetExportMenu
             gadget={gadgetOpenFailure === null ? gadget : null}
-            gadgetTitle={gadgets.find(g => g.id === selectedGadgetId)?.title ?? 'Gadget'}
+            gadgetTitle={gadgets.find(g => g.id === selectedGadgetId)?.title ?? formatMessage({ id: 'gadgetUseView.gadgetFallbackTitle', defaultMessage: 'Gadget' })}
             label={snapshot ? formatMessage({ id: 'gadgetUseView.exportSnapshot', defaultMessage: 'Export snapshot' }) : undefined}
           />
           <span className="hidden md:inline-flex">

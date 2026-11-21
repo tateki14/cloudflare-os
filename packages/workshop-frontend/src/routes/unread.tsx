@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { UnreadThreads } from "../features/notifications/UnreadThreads";
 import { useDocumentTitle } from "../useDocumentTitle";
+import { useIntl } from "react-intl";
 
 const UnreadThreadsPage = () => {
-  useDocumentTitle("Unread threads");
+  const { formatMessage } = useIntl();
+  useDocumentTitle(formatMessage({ id: "routesUnread.unreadThreads", defaultMessage: "Unread threads" }));
   return <UnreadThreads />;
 };
 

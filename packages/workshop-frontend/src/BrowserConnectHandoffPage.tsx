@@ -80,12 +80,12 @@ export default function BrowserConnectHandoffPage() {
       api = authenticatedApi
       redeem = () => authenticatedApi.completeConnectHandoff(ticket, handoff.nonce)
       done = { title: formatMessage({ id: 'browserConnectHandoffPage.connected', defaultMessage: 'Connected' }), detail: CLOSE_HINT }
-      failed = 'Could not complete the connection'
+      failed = formatMessage({ id: 'browserConnectHandoffPage.couldNotCompleteTheConnection', defaultMessage: 'Could not complete the connection' })
     } else {
       api = rpcStub
       redeem = () => rpcStub.confirmLogin(ticket, handoff.nonce)
       done = { title: formatMessage({ id: 'browserConnectHandoffPage.signedIn', defaultMessage: 'Signed in' }), detail: CLOSE_HINT }
-      failed = 'Could not sign in'
+      failed = formatMessage({ id: 'browserConnectHandoffPage.couldNotSignIn', defaultMessage: 'Could not sign in' })
     }
     if (sentWithRef.current === api) return
     if (sentWithRef.current !== null && !result?.failed) return
@@ -118,7 +118,7 @@ export default function BrowserConnectHandoffPage() {
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-2 bg-kumo-base p-6 text-center">
-      <h1 className="text-lg font-semibold text-kumo-default">{outcome?.title ?? 'Finishing up…'}</h1>
+      <h1 className="text-lg font-semibold text-kumo-default">{outcome?.title ?? formatMessage({ id: 'browserConnectHandoffPage.finishingUp', defaultMessage: 'Finishing up…' })}</h1>
       {outcome && <p className="text-sm text-kumo-subtle">{outcome.detail}</p>}
     </div>
   )

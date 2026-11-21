@@ -99,7 +99,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
       await onChanged()
       return true
     } catch (err) {
-      reportFailure('Couldn’t reload the update status', err)
+      reportFailure(formatMessage({ id: 'adminUpdatesPanel.couldntReloadTheUpdateStatus', defaultMessage: 'Couldn’t reload the update status' }), err)
       return false
     }
   }
@@ -108,7 +108,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
     rememberFocus()
     setSavingChecks(true)
     try {
-      const reread = await change(`Couldn’t update “${CHECKS_LABEL}”`, async () => {
+      const reread = await change(formatMessage({ id: 'adminUpdatesPanel.couldntUpdate', defaultMessage: 'Couldn’t update “{CHECKS_LABEL}”' }, { CHECKS_LABEL: CHECKS_LABEL }), async () => {
         await admin.setUpdateChecksEnabled(enabled)
         setWrittenChecks({ enabled, over: status })
       })
@@ -122,7 +122,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
     rememberFocus()
     setChecking(true)
     try {
-      await change('Couldn’t check for updates', async () => {
+      await change(formatMessage({ id: 'adminUpdatesPanel.couldntCheckForUpdates', defaultMessage: 'Couldn’t check for updates' }), async () => {
         await probeRouterTag()
         const checked = await admin.checkForUpdates()
         if (checked !== null) toasts.add({ title: checkOutcome(checked), variant: 'success' })
@@ -141,8 +141,7 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
           icon={<Warning />}
           title={formatMessage({ id: 'adminUpdatesPanel.thisDeploymentWasChangedOutsideThe', defaultMessage: 'This deployment was changed outside the deploy flow' })}
           description={
-            `Not running what the deploy flow installed: ${workerList(status.modifiedWorkers)}. The ` +
-            'deploy flow will refuse to upgrade this deployment until that change is undone.'
+            formatMessage({ id: 'adminUpdatesPanel.notRunningWhatTheDeployFlow', defaultMessage: 'Not running what the deploy flow installed: {value}. The deploy flow will refuse to upgrade this deployment until that change is undone.' }, { value: workerList(status.modifiedWorkers) })
           }
         />
       )}
@@ -158,11 +157,11 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
           <dd className="font-mono text-kumo-default">{status.currentReleaseId}</dd>
           <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.newestRelease" defaultMessage="Newest release" /></dt>
           <dd className={status.latestReleaseId === undefined ? 'text-kumo-default' : 'font-mono text-kumo-default'}>
-            {status.latestReleaseId ?? 'No check has succeeded yet'}
+            {status.latestReleaseId ?? formatMessage({ id: 'adminUpdatesPanel.noCheckHasSucceededYet', defaultMessage: 'No check has succeeded yet' })}
           </dd>
           <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.lastChecked" defaultMessage="Last checked" /></dt>
           <dd className="text-kumo-default">
-            {status.checkedAt === undefined ? 'Never' : formatFullTimestamp(status.checkedAt)}
+            {status.checkedAt === undefined ? formatMessage({ id: 'adminUpdatesPanel.never', defaultMessage: 'Never' }) : formatFullTimestamp(status.checkedAt)}
           </dd>
           <dt className="text-kumo-subtle"><FormattedMessage id="adminUpdatesPanel.updateAvailable" defaultMessage="Update available" /></dt>
           <dd className="text-kumo-default">{updateAvailability(status)}</dd>
@@ -175,10 +174,10 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
             className="mt-4"
             title={formatMessage({ id: 'adminUpdatesPanel.anUpdateDidNotFinish', defaultMessage: 'An update did not finish' })}
             description={
-              `Still running another release of this deployment: ${workerList(status.unfinishedWorkers)}. ` +
+              formatMessage({ id: 'adminUpdatesPanel.stillRunningAnotherReleaseOfThis', defaultMessage: 'Still running another release of this deployment: {workerList}. ' }, { workerList: workerList(status.unfinishedWorkers) }) +
               (status.modifiedWorkers.length > 0
-                ? 'The deploy flow can finish the update once the Workers changed outside it are restored.'
-                : 'The deploy flow can finish the update.')
+                ? formatMessage({ id: 'adminUpdatesPanel.theDeployFlowCanFinishThe', defaultMessage: 'The deploy flow can finish the update once the Workers changed outside it are restored.' })
+                : formatMessage({ id: 'adminUpdatesPanel.theDeployFlowCanFinishThe2', defaultMessage: 'The deploy flow can finish the update.' }))
             }
           />
         )}
@@ -221,42 +220,38 @@ export const AdminUpdatesPanel = ({ admin, status, onChanged }: AdminUpdatesPane
           <DurationSetting
             label={CHECK_INTERVAL_LABEL}
             help={
-              'How long the deployment relies on its last successful check before asking again. ' +
-              'It asks when an admin opens Home or these settings, never on a schedule.'
+              formatMessage({ id: 'adminUpdatesPanel.howLongTheDeploymentReliesOn', defaultMessage: 'How long the deployment relies on its last successful check before asking again. It asks when an admin opens Home or these settings, never on a schedule.' })
             }
             unit="minutes"
             min={1}
             max={MAX_UPDATE_CHECK_INTERVAL_MINUTES}
             value={status.checkIntervalMinutes}
             onSave={(minutes) =>
-              change(`Couldn’t update “${CHECK_INTERVAL_LABEL}”`, () => admin.setUpdateCheckIntervalMinutes(minutes))}
+              change(formatMessage({ id: 'adminUpdatesPanel.couldntUpdate2', defaultMessage: 'Couldn’t update “{CHECK_INTERVAL_LABEL}”' }, { CHECK_INTERVAL_LABEL: CHECK_INTERVAL_LABEL }), () => admin.setUpdateCheckIntervalMinutes(minutes))}
           />
           <DurationSetting
             label={MINIMUM_AGE_LABEL}
             help={
-              'How long a newer release must have been available before admins are notified. It ' +
-              'delays the notice only: Update always installs the newest release. 0 notifies as ' +
-              'soon as a check finds an update.'
+              formatMessage({ id: 'adminUpdatesPanel.howLongANewerReleaseMust', defaultMessage: 'How long a newer release must have been available before admins are notified. It delays the notice only: Update always installs the newest release. 0 notifies as soon as a check finds an update.' })
             }
             unit="hours"
             min={0}
             max={MAX_UPDATE_HOURS}
             value={status.minimumAgeHours}
             onSave={(hours) =>
-              change(`Couldn’t update “${MINIMUM_AGE_LABEL}”`, () => admin.setUpdateMinimumAgeHours(hours))}
+              change(formatMessage({ id: 'adminUpdatesPanel.couldntUpdate3', defaultMessage: 'Couldn’t update “{MINIMUM_AGE_LABEL}”' }, { MINIMUM_AGE_LABEL: MINIMUM_AGE_LABEL }), () => admin.setUpdateMinimumAgeHours(hours))}
           />
           <DurationSetting
             label={SNOOZE_LABEL}
             help={
-              'How long a closed notice stays hidden in the browser it was closed in. 0 means a ' +
-              'closed notice comes back on the next visit to Home.'
+              formatMessage({ id: 'adminUpdatesPanel.howLongAClosedNoticeStays', defaultMessage: 'How long a closed notice stays hidden in the browser it was closed in. 0 means a closed notice comes back on the next visit to Home.' })
             }
             unit="hours"
             min={0}
             max={MAX_UPDATE_HOURS}
             value={status.noticeSnoozeHours}
             onSave={(hours) =>
-              change(`Couldn’t update “${SNOOZE_LABEL}”`, () => admin.setUpdateNoticeSnoozeHours(hours))}
+              change(formatMessage({ id: 'adminUpdatesPanel.couldntUpdate4', defaultMessage: 'Couldn’t update “{SNOOZE_LABEL}”' }, { SNOOZE_LABEL: SNOOZE_LABEL }), () => admin.setUpdateNoticeSnoozeHours(hours))}
           />
         </div>
       </div>

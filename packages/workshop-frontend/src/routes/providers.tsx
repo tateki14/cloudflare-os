@@ -331,11 +331,11 @@ function ProvidersPage() {
                   <strong className="font-medium text-kumo-default"><FormattedMessage id="routesProviders.aiGatewayMode" defaultMessage="AI Gateway mode:" /></strong>{' '}
                   {canAddModels
                     ? 'built-in models are managed by your deployment. You can still add other ' +
-                      'models from the enabled providers.'
+                      formatMessage({ id: 'routesProviders.modelsFromTheEnabledProviders', defaultMessage: 'models from the enabled providers.' })
                     : 'your deployment’s administrator provides the models. Adding your own is ' +
                       'turned off.'}
                   {!quickModelChoosable &&
-                    ' Fast tasks like generating chat titles use your deployment’s own model.'}
+                    formatMessage({ id: 'routesProviders.fastTasksLikeGeneratingChatTitles', defaultMessage: ' Fast tasks like generating chat titles use your deployment’s own model.' })}
                 </span>
               </Notice>
             )}

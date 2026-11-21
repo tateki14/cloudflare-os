@@ -209,12 +209,12 @@ export default function AddModelModal({ visible, onCancel, onSuccess, authentica
     }
 
     if (selection?.type === 'custom') {
-      if (!modelId.trim()) newErrors.modelId = 'Please enter the model ID'
+      if (!modelId.trim()) newErrors.modelId = formatMessage({ id: 'addModelModal.errorEnterModelId', defaultMessage: 'Please enter the model ID' })
       // The caller lists only language models, so a decision model saved here would never show up there.
       else if (chatModelsOnly && modelKind(selection.provider, modelId.trim()) === 'decision') {
-        newErrors.modelId = "This is a decision model, which can't chat. Add it from AI Providers instead."
+        newErrors.modelId = formatMessage({ id: 'addModelModal.thisIsADecisionModelWhich', defaultMessage: 'This is a decision model, which can\'t chat. Add it from AI Providers instead.' })
       }
-      if (!displayName.trim()) newErrors.displayName = 'Please enter a display name'
+      if (!displayName.trim()) newErrors.displayName = formatMessage({ id: 'addModelModal.errorEnterDisplayName', defaultMessage: 'Please enter a display name' })
     }
 
     const isOllama = selection?.provider === 'ollama'
@@ -223,8 +223,8 @@ export default function AddModelModal({ visible, onCancel, onSuccess, authentica
 
     if (showCredentials && selection && isTokenRequired(selection.provider, headerRows) && effectiveApiToken?.trim() === '') {
       newErrors.apiToken = apiToken === null
-        ? 'Please re-enter your API token, since the API URL changed'
-        : 'Please enter your API token'
+        ? formatMessage({ id: 'addModelModal.pleaseReEnterYourApiToken', defaultMessage: 'Please re-enter your API token, since the API URL changed' })
+        : formatMessage({ id: 'addModelModal.errorEnterApiToken', defaultMessage: 'Please enter your API token' })
     }
 
     if (showCredentials && isCloudflare && !accountId.trim()) {
@@ -240,17 +240,17 @@ export default function AddModelModal({ visible, onCancel, onSuccess, authentica
     }
 
     if (parseTokenLimit(contextWindow) === null) {
-      newErrors.contextWindow = 'Please enter a positive whole number of tokens'
+      newErrors.contextWindow = formatMessage({ id: 'addModelModal.pleaseEnterAPositiveWholeNumber', defaultMessage: 'Please enter a positive whole number of tokens' })
     }
     if (parseTokenLimit(outputLimit) === null) {
-      newErrors.outputLimit = 'Please enter a positive whole number of tokens'
+      newErrors.outputLimit = formatMessage({ id: 'addModelModal.pleaseEnterAPositiveWholeNumber', defaultMessage: 'Please enter a positive whole number of tokens' })
     }
 
     const newHeaderErrors = showCredentials ? validateHeaderRows(headerRows) : {}
     if (showCredentials && !storedSecretsUsable) {
       for (const row of headerRows) {
         if (row.value === null && !newHeaderErrors[row.id]) {
-          newHeaderErrors[row.id] = "Please re-enter this header's value, since the API URL changed"
+          newHeaderErrors[row.id] = formatMessage({ id: 'addModelModal.pleaseReEnterThisHeadersValue', defaultMessage: 'Please re-enter this header\'s value, since the API URL changed' })
         }
       }
     }

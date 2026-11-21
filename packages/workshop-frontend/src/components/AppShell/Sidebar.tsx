@@ -218,7 +218,7 @@ export default function Sidebar({
           ].join(' ')}
         >
           <ArrowLeft size={16} aria-hidden="true" />
-          {!collapsed && 'Back to installs'}
+          {!collapsed && formatMessage({ id: 'sidebar.backToInstalls', defaultMessage: 'Back to installs' })}
         </button>
       )}
     </aside>

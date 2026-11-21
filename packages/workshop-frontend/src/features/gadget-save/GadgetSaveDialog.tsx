@@ -44,7 +44,7 @@ export const GadgetSaveDialog = ({
       toasts.add({
         title: formatMessage({ id: 'gadgetSaveDialog.savedTo', defaultMessage: 'Saved to {title}' }, { title: resource.title }),
         variant: 'success',
-        actions: href ? [{ children: 'Open', onClick: () => window.open(href, '_blank', 'noopener') }] : undefined,
+        actions: href ? [{ children: formatMessage({ id: 'gadgetSaveDialog.open', defaultMessage: 'Open' }), onClick: () => window.open(href, '_blank', 'noopener') }] : undefined,
       })
       onClose()
     } catch (err) {

@@ -39,7 +39,7 @@ export const ChatAttachmentCard = ({
   onOpen: () => void;
 }) => {
   const { formatMessage } = useIntl();
-  const name = attachment.name ?? "Attached file";
+  const name = attachment.name ?? formatMessage({ id: "chatAttachmentCard.attachedFile", defaultMessage: "Attached file" });
   const kind = attachmentKind(attachment.mimeType, attachment.name);
   const imageUrl = useObjectUrl(
     kind === "image" ? attachment.content : undefined, attachment.mimeType);

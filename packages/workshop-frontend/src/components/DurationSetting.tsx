@@ -34,7 +34,7 @@ export const DurationSetting = ({ label, help, unit, min, max, value, onSave }: 
   const field = useRef<HTMLInputElement>(null)
   const fieldError = useFieldErrorAlert()
   const parsed = draft === null ? value : parseWholeNumber(draft, min, max)
-  const rangeError = `Enter a whole number of ${unit} from ${min} to ${max}`
+  const rangeError = formatMessage({ id: 'durationSetting.enterAWholeNumberOfFrom', defaultMessage: 'Enter a whole number of {unit} from {min} to {max}' }, { unit: unit, min: min, max: max })
   const error = parsed === null ? rangeError : undefined
   // A save disables the field and its button, and a browser takes focus from a control that
   // becomes disabled without giving it back. So the control that had focus when the save began

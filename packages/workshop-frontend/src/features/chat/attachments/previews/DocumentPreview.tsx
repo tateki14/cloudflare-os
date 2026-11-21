@@ -8,7 +8,7 @@ import { assertOpenXml } from "./assertOpenXml";
 import { readOffice } from "./officeReader";
 import { DocumentSheet } from "./DocumentSheet";
 import { PX_PER_PT } from "./documentStyles";
-import { FormattedMessage } from "react-intl";
+import { useIntl, FormattedMessage } from "react-intl";
 
 /** Sheets are drawn no wider than this, however wide the viewer. */
 const MAX_SHEET_WIDTH = 900;
@@ -51,6 +51,7 @@ const splitSheets = (body: readonly DocxBlock[]): DocxBlock[][] => {
  * Office font nor its metric-compatible stand-in is installed, lines break slightly differently.
  */
 export const DocumentPreview = ({ bytes }: AttachmentPreviewProps) => {
+  const { formatMessage } = useIntl();
   const document = use(derivedFrom(bytes, readDocument));
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -73,8 +74,8 @@ export const DocumentPreview = ({ bytes }: AttachmentPreviewProps) => {
     <div className="min-h-full">
       {(omitted.length > 0 || document.truncated) && (
         <div className="sticky top-0 z-10 border-b border-kumo-line bg-kumo-elevated px-4 py-2 text-center text-[12px] leading-4 text-kumo-subtle">
-          {omitted.length > 0 && `Not shown: ${omitted.join(", ")}. `}
-          {document.truncated && "This document is too long to show in full. "}
+          {omitted.length > 0 && formatMessage({ id: "documentPreview.notShown", defaultMessage: "Not shown: {value}. " }, { value: omitted.join(", ") })}
+          {document.truncated && formatMessage({ id: "documentPreview.thisDocumentIsTooLongTo", defaultMessage: "This document is too long to show in full. " })}
           <FormattedMessage id="documentPreview.downloadTheFileToSeeEverything" defaultMessage="Download the file to see everything." />
         </div>
       )}

@@ -117,17 +117,14 @@ export const GatewayModelRow = ({
   const levelInEffect = ownLevel ?? defaultReasoning
   const takesLevels = model.reasoningLevels.length > 0
   const levelNote = !takesLevels
-    ? 'This model takes no reasoning levels, so none is sent to it.'
+    ? formatMessage({ id: 'gatewayModelRow.thisModelTakesNoReasoningLevels', defaultMessage: 'This model takes no reasoning levels, so none is sent to it.' })
     : levelInEffect !== null && !model.reasoningLevels.includes(levelInEffect)
-      ? `This model has no “${REASONING_LEVEL_LABELS[levelInEffect]}” level. A request asks for ` +
-        'the nearest level it has, which is decided when the request is made.'
+      ? formatMessage({ id: 'gatewayModelRow.thisModelHasNoLevelA', defaultMessage: 'This model has no “{value}” level. A request asks for the nearest level it has, which is decided when the request is made.' }, { value: REASONING_LEVEL_LABELS[levelInEffect] })
       : undefined
   // With no deployment default, the option names what the model is then asked for.
-  const deploymentDefault = `Deployment default (${
-    defaultReasoning
+  const deploymentDefault = formatMessage({ id: 'gatewayModelRow.deploymentDefault', defaultMessage: 'Deployment default ({value})' }, { value: defaultReasoning
       ? REASONING_LEVEL_LABELS[defaultReasoning]
-      : `built-in: ${builtInReasoningLabel(model.builtInReasoning)}`
-  })`
+      : `built-in: ${builtInReasoningLabel(model.builtInReasoning)}` })
 
   const maxBudget = model.maxCompactionInputBudget
   const ownBudget = model.settings?.compactionInputBudget
@@ -135,9 +132,9 @@ export const GatewayModelRow = ({
   const budget = parseTokenLimit(budgetText)
   const budgetError =
     budget === null
-      ? 'Enter a positive whole number of tokens, or leave this blank for the built-in budget'
+      ? formatMessage({ id: 'gatewayModelRow.enterAPositiveWholeNumberOf', defaultMessage: 'Enter a positive whole number of tokens, or leave this blank for the built-in budget' })
       : budget !== undefined && budget > maxBudget
-        ? `Enter at most ${tokenCount(maxBudget)}`
+        ? formatMessage({ id: 'gatewayModelRow.enterAtMost', defaultMessage: 'Enter at most {kenCount}' }, { kenCount: tokenCount(maxBudget) })
         : undefined
   const smallBudget = typeof budget === 'number' && !budgetError && budget < SMALL_BUDGET
   // The server caps a stored budget at the maximum, which a smaller context window can lower.

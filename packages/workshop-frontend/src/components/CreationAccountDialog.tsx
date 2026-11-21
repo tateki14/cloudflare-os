@@ -137,7 +137,7 @@ export const CreationAccountDialog = ({
       .catch((err: unknown) => {
         console.error('Failed to start the creation configurator:', err)
         if (cancelled) return
-        const error = err instanceof Error ? err.message : 'Could not start configurator.'
+        const error = err instanceof Error ? err.message : formatMessage({ id: 'creationAccountDialog.couldNotStartConfigurator', defaultMessage: 'Could not start configurator.' })
         setConfigurator({ accountId: configuratorAccountId, error })
       })
     return () => {

@@ -38,7 +38,7 @@ export const PageUpdateNotice = () => {
           variant: 'info',
           timeout: 0,
           actions: [{
-            children: 'Reload',
+            children: formatMessage({ id: 'pageUpdateNotice.reload', defaultMessage: 'Reload' }),
             variant: 'primary',
             onClick: reloadPage,
           }],

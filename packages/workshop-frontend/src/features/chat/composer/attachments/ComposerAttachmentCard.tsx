@@ -40,7 +40,7 @@ export const ComposerAttachmentCard = ({
   onRemove: () => void;
 }) => {
   const { formatMessage } = useIntl();
-  const name = attachment.name ?? "Attached file";
+  const name = attachment.name ?? formatMessage({ id: "composerAttachmentCard.attachedFile", defaultMessage: "Attached file" });
   const kind = attachmentKind(attachment.mimeType, attachment.name);
   const failed = attachment.uploadState === "error";
   const uploading = attachment.uploadState === "uploading";

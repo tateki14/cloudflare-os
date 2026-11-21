@@ -77,9 +77,9 @@ export const UnreadThreads = () => {
                 search={{ chat: chat.chatId, showChat: true }}
                 className="flex min-w-0 items-start gap-3 rounded-lg px-3 py-4 transition-colors hover:bg-kumo-tint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-ring">
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-sm font-semibold text-kumo-default">{chat.chatTitle || `Thread ${chat.chatId}`}</h2>
+                  <h2 className="truncate text-sm font-semibold text-kumo-default">{chat.chatTitle || formatMessage({ id: "unreadThreads.thread", defaultMessage: "Thread {chatId}" }, { chatId: chat.chatId })}</h2>
                   <p className="mt-1 truncate text-sm text-kumo-subtle">
-                    {chat.latestMessagePreview || "New activity"}
+                    {chat.latestMessagePreview || formatMessage({ id: "unreadThreads.newActivity", defaultMessage: "New activity" })}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { useIntl } from "react-intl";
 
 type RecognitionResultEvent = Event & {
   resultIndex: number;
@@ -109,6 +110,7 @@ export const useComposerDictation = ({
   onReady: () => void;
   onError: (message: string) => void;
 }) => {
+  const { formatMessage } = useIntl();
   const [status, setStatus] = useState<DictationStatus>("idle");
   const [words, setWords] = useState(nothing);
   const active = useRef<Session | null>(null);
@@ -245,7 +247,7 @@ export const useComposerDictation = ({
         }
         if (availability === "unavailable") {
           detach();
-          onError("Voice typing isn’t available for your language in this browser.");
+          onError(formatMessage({ id: "useComposerDictation.voiceTypingIsntAvailableForYour", defaultMessage: "Voice typing isn’t available for your language in this browser." }));
           return;
         }
         if (availability !== "available") {
@@ -276,7 +278,7 @@ export const useComposerDictation = ({
     } catch (error) {
       console.warn("Couldn't start speech recognition:", error);
       detach();
-      onError("Couldn’t start voice typing. Try again.");
+      onError(formatMessage({ id: "useComposerDictation.couldntStartVoiceTypingTryAgain", defaultMessage: "Couldn’t start voice typing. Try again." }));
     }
   };
 

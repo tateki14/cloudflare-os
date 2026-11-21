@@ -113,7 +113,7 @@ const WorkspaceDetail = ({ record, onFilterBy }: {
       aria-label={formatMessage({ id: 'auditLogRow.showOnlyCallsInto', defaultMessage: 'Show only calls into {value}' }, { value: record.workspaceTitle || record.workspaceId })}
       onClick={() => onFilterBy({ workspace: record.workspaceId })}
     >
-      <span className="truncate">{record.workspaceTitle || 'Untitled'}</span>
+      <span className="truncate">{record.workspaceTitle || formatMessage({ id: 'auditLogRow.untitled', defaultMessage: 'Untitled' })}</span>
     </Button>
     <span className="block font-mono text-xs text-kumo-subtle break-all">{record.workspaceId}</span>
   </Detail>
@@ -136,11 +136,13 @@ const ArgumentsDetail = ({ args }: { args: AdminAccessRecord['args'] }) => {
 const AccessDetails = ({ record, onFilterBy }: {
   record: AdminAccessRecord | AdminUserAccessRecord
   onFilterBy: (filter: AuditFilter) => void
-}) => (
+}) => {
+  const { formatMessage } = useIntl()
+  return (
   <dl className="space-y-2">
     {record.kind === 'workspace'
       ? <WorkspaceDetail record={record} onFilterBy={onFilterBy} />
-      : <Detail term="Account">{record.userId || 'Unknown'}</Detail>}
+      : <Detail term="Account">{record.userId || formatMessage({ id: 'auditLogRow.unknown', defaultMessage: 'Unknown' })}</Detail>}
     <Detail term="Reason">{record.reason}</Detail>
     <Detail term="Access">
       {ACCESS_LEVEL_NAMES[record.access]}
@@ -150,6 +152,7 @@ const AccessDetails = ({ record, onFilterBy }: {
     <Detail term="Via">{VIA_NAMES[record.via]}</Detail>
   </dl>
 )
+}
 
 const WriteDetails = ({ record, onFilterBy }: {
   record: AdminWriteRecord
