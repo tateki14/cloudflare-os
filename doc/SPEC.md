@@ -85,13 +85,25 @@ pnpm dev-client   # ターミナル2: フロントエンド
 ### 実施手順
 
 1. `git clone https://github.com/cloudflare/cloudflare-os-starter.git` → `git remote remove origin` → `gh repo create tateki14/cloudflare-os-starter --private --source=. --remote=origin --push`
-2. `git submodule update --init`（core repoをsubmoduleとして取得。upstream `cloudflare/cloudflare-os` を指したまま、書き込み権限なし）
+2. `git submodule update --init`（core repoをsubmoduleとして取得。当初はupstream `cloudflare/cloudflare-os` を指していたが、現在は `.gitmodules` でフォーク `tateki14/cloudflare-os` の `work` ブランチを指す）
 3. `pnpm install` → `pnpm --dir cloudflare-os install`
 4. Cloudflareダッシュボード（Zero Trust → Access → Applications）でセルフホスト型Accessアプリを手動作成（ホスト名 `cloudflare-os.10good.org`）。AUD TagはUIに表示されなかったため、Access:Apps and Policies Read権限のAPIトークンを一時発行し `GET /accounts/{account_id}/access/apps` で取得。取得後トークンは失効済み
 5. `deployment.jsonc` に accountId・Worker名・customDomain・access.issuer/audience/admins・customGatekeeper表示文言を設定（詳細は同ファイル参照。シークレットは含まない）
 6. `pnpm check`（`scripts/deploy.mjs --check`、dry-run）→ 全4 Workerで成功を確認
 7. `pnpm deploy` → 本番デプロイ成功。`cloudflare-os.10good.org` へのGETがHTTP 302でCloudflare Accessログイン画面にリダイレクトされることを確認（認証保護が正しく機能）
 8. starter本体の変更（`deployment.jsonc`, `scripts/deploy.mjs`）をコミットし `tateki14/cloudflare-os-starter` にpush。submodule内のWindowsパッチはアップストリームへの書き込み権限がないためコミットせず、ローカルの作業ツリーにのみ存在（下記「Windows環境での既知の問題」参照）
+
+### 更新デプロイの手順
+
+本リポジトリの `work` を本番に出すときの手順(2026-11-21に実施)。
+
+1. 本リポジトリで未コミットの変更がないことを確認し、`git push origin work`
+2. starterの `cloudflare-os/` サブモジュールで `git fetch origin` → `git checkout work` → `git merge --ff-only origin/work`
+3. upstreamのcatalogが変わっていれば、starterの `pnpm-workspace.yaml` のcatalogミラーを `cloudflare-os/pnpm-workspace.yaml` に合わせる。starter独自の `packages/custom-gatekeeper` は `@cloudflare/vitest-pool-workers` 0.22 を使うため、vitestはcatalogではなく4系に固定している(本体側はvitest 5系)
+4. `pnpm --dir cloudflare-os install` → `pnpm install`
+5. `pnpm check`(テストとdry-run)が通ることを確認
+6. starterの変更(サブモジュールの参照、catalog、lockfile)をコミットして `git push origin main`
+7. `pnpm deploy`。公開URLへのGETがAccessログインへのHTTP 302になることを確認
 
 ### 他の選択肢（未使用）
 
@@ -242,3 +254,4 @@ Node.jsの `execFileSync("pnpm", ...)` は、Windows上では `pnpm` が実体 `
 - 2026-08-09: `cloudflare-os-starter` を使って本番デプロイを実施。`tateki14/cloudflare-os-starter`（private）を作成しGitHubにpush。Cloudflare Access配下で `https://cloudflare-os.10good.org` に4 Worker（workshop/context/gatekeeper/error-reporter）をデプロイし、HTTP 302でAccessログインへのリダイレクトを確認。
 - 2026-08-12: 本リポジトリをフォーク＋upstream追跡構成に移行。`gh repo fork --remote=true` で `tateki14/cloudflare-os` を作成し、`origin`=フォーク／`upstream`=本体に設定。Windowsパッチと本ドキュメントは `work` ブランチにコミットして `origin` へpush、`main` は `upstream/main` を追従するミラー専用ブランチとした（この時点でupstream側が15コミット進んでいたため`main`をfast-forwardし、`work`へ`merge main`して無コンフリクトで追従できることを確認済み）。
 - 2026-08-12: `packages/workshop-frontend` をreact-intlで日本語化。ShareModal.tsxを変換パターンの雛形として自分で変換した後、components/AppShell・chat・format・トップレベルsrc・gatekeeper-modal・routesの各バッチに分けて変換（一部はAgentへ委譲、一部は自分で直接実施）。委譲したAgentが内部で無断にネストしたバックグラウンドAgentを生成し一時的にファイルが競合する事態が発生したため、以降は「サブエージェントを使わない」ことを明示して指示。さらに1つのバッチがAPI利用上限で中断され、コード変換は完了していたがja.jsonへの翻訳追加漏れ（187件）が発生 — ブラウザでの実機確認で発覚し、全.tsxからのID抽出スクリプトで機械的に検出・修正。最終的に`pnpm dev-server`+`pnpm dev-client`実機起動とPlaywrightでの主要画面巡回により、日本語表示・コンソールエラーなしを確認。詳細は「workshop-frontendの日本語化」節を参照。
+- 2026-11-21: upstreamの2コミットを取り込み、前回の取り込みで英語に戻った画面を再翻訳(「workshop-frontendの日本語化」節を参照)。starterのサブモジュールを `work` の `a99a961a` に更新して本番に再デプロイ。catalogのミラー更新と、custom-gatekeeperのvitest 4系固定が必要だった。公開URLはHTTP 302でAccessログインへ転送されることを確認。
